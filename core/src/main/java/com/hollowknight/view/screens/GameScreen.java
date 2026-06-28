@@ -1,11 +1,12 @@
 package com.hollowknight.view.screens;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
-import com.badlogic.gdx.InputAdapter;
-import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.ScreenAdapter;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -13,16 +14,49 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.GameController;
+import com.hollowknight.model.player.Player;
+import com.hollowknight.model.player.PlayerAnimationType;
+import com.hollowknight.view.animation.KnightAnimationManager;
 
 public class GameScreen extends ScreenAdapter {
+
+    private static final float GROUND_Y = 100f;
+
+    private static final float SOURCE_FRAME_WIDTH =
+        349f;
+
+    private static final float SOURCE_FRAME_HEIGHT =
+        186f;
+
+    private static final float KNIGHT_DRAW_HEIGHT =
+        150f;
+
+    private static final float KNIGHT_DRAW_WIDTH =
+        KNIGHT_DRAW_HEIGHT
+            * SOURCE_FRAME_WIDTH
+            / SOURCE_FRAME_HEIGHT;
+
+    /*
+     * The supplied Knight frames appear to face left.
+     *
+     * Change this to true only if the direction appears
+     * reversed on your computer.
+     */
+    private static final boolean SOURCE_FACES_RIGHT =
+        false;
 
     private final GameController controller;
 
     private Stage stage;
     private Skin skin;
-    private InputMultiplexer inputMultiplexer;
+
+    private SpriteBatch batch;
+    private ShapeRenderer shapeRenderer;
+
+    private KnightAnimationManager animationManager;
 
     public GameScreen(GameController controller) {
         this.controller = controller;
@@ -36,97 +70,112 @@ public class GameScreen extends ScreenAdapter {
             Gdx.files.internal("ui/uiskin.json")
         );
 
-        createTemporaryGameView();
-        configureInput();
+        batch = new SpriteBatch();
+        shapeRenderer = new ShapeRenderer();
+
+        animationManager =
+            new KnightAnimationManager();
+
+        createInterface();
+
+        Gdx.input.setInputProcessor(stage);
     }
 
-    private void createTemporaryGameView() {
-        Table table = new Table();
+    private void createInterface() {
+        Table instructionsTable = new Table();
 
-        table.setFillParent(true);
-        table.center();
+        instructionsTable.setFillParent(true);
+        instructionsTable.top();
 
         Label title = new Label(
-            controller.text("game.placeholderTitle"),
+            controller.text(
+                "game.animationTest.title"
+            ),
             skin
         );
 
-        title.setFontScale(1.6f);
+        title.setFontScale(1.35f);
 
-        Label description = new Label(
-            controller.text("game.placeholderDescription"),
+        Label instructions = new Label(
+            controller.text(
+                "game.animationTest.controls1"
+            )
+                + "\n"
+                + controller.text(
+                "game.animationTest.controls2"
+            )
+                + "\n"
+                + controller.text(
+                "game.animationTest.controls3"
+            )
+                + "\n"
+                + controller.text(
+                "game.animationTest.controls4"
+            )
+                + "\n"
+                + controller.text(
+                "game.animationTest.controls5"
+            )
+                + "\n"
+                + controller.text(
+                "game.animationTest.controls6"
+            ),
             skin
         );
 
-        description.setWrap(true);
+        instructions.setAlignment(Align.center);
+        instructions.setWrap(true);
+
+        instructionsTable.add(title)
+            .padTop(15f)
+            .padBottom(8f)
+            .row();
+
+        instructionsTable.add(instructions)
+            .width(900f)
+            .row();
 
         TextButton backButton = new TextButton(
-            controller.text("game.returnToMainMenu"),
+            controller.text(
+                "game.returnToMainMenu"
+            ),
             skin
         );
 
-        backButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(
-                ChangeEvent event,
-                Actor actor
-            ) {
-                controller.returnToMainMenu();
-            }
-        });
-
-        table.add(title)
-            .padBottom(20f)
-            .row();
-
-        table.add(description)
-            .width(500f)
-            .padBottom(25f)
-            .row();
-
-        table.add(backButton)
-            .width(250f)
-            .height(52f)
-            .row();
-
-        stage.addActor(table);
-    }
-
-    private void configureInput() {
-        inputMultiplexer = new InputMultiplexer();
-
-        inputMultiplexer.addProcessor(new InputAdapter() {
-            @Override
-            public boolean keyDown(int keycode) {
-                if (keycode == Input.Keys.ESCAPE) {
-                    Gdx.app.log(
-                        "GameScreen",
-                        "Pause menu will open here"
-                    );
-
-                    return true;
+        backButton.addListener(
+            new ChangeListener() {
+                @Override
+                public void changed(
+                    ChangeEvent event,
+                    Actor actor
+                ) {
+                    controller.returnToMainMenu();
                 }
-
-                if (keycode == Input.Keys.I) {
-                    Gdx.app.log(
-                        "GameScreen",
-                        "Inventory will open here"
-                    );
-
-                    return true;
-                }
-
-                return false;
             }
-        });
+        );
 
-        inputMultiplexer.addProcessor(stage);
+        Table backButtonTable = new Table();
 
-        Gdx.input.setInputProcessor(inputMultiplexer);
+        backButtonTable.setFillParent(true);
+        backButtonTable.bottom().left();
+
+        backButtonTable.add(backButton)
+            .width(240f)
+            .height(50f)
+            .pad(20f);
+
+        stage.addActor(instructionsTable);
+        stage.addActor(backButtonTable);
     }
 
     @Override
     public void render(float delta) {
+        controller.update(
+            delta,
+            stage.getViewport().getWorldWidth(),
+            KNIGHT_DRAW_WIDTH
+        );
+
         Gdx.gl.glClearColor(
             0.02f,
             0.02f,
@@ -138,11 +187,113 @@ public class GameScreen extends ScreenAdapter {
             GL20.GL_COLOR_BUFFER_BIT
         );
 
+        drawTemporaryGround();
+        drawKnight();
+
         stage.act(
             Math.min(delta, 1f / 30f)
         );
 
         stage.draw();
+
+        finishAnimationIfNecessary();
+    }
+
+    private void drawTemporaryGround() {
+        shapeRenderer.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        shapeRenderer.setColor(
+            new Color(
+                0.16f,
+                0.18f,
+                0.25f,
+                1f
+            )
+        );
+
+        shapeRenderer.rect(
+            0f,
+            0f,
+            stage.getViewport().getWorldWidth(),
+            GROUND_Y
+        );
+
+        shapeRenderer.end();
+    }
+
+    private void drawKnight() {
+        Player player = controller.getPlayer();
+
+        TextureRegion frame =
+            animationManager.getFrame(
+                player.getAnimationType(),
+                player.getAnimationTime()
+            );
+
+        batch.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        batch.begin();
+
+        float x = player.getPosition().x;
+        float y = player.getPosition().y;
+
+        boolean shouldFlip =
+            player.isFacingRight()
+                != SOURCE_FACES_RIGHT;
+
+        if (shouldFlip) {
+            batch.draw(
+                frame,
+                x + KNIGHT_DRAW_WIDTH,
+                y,
+                -KNIGHT_DRAW_WIDTH,
+                KNIGHT_DRAW_HEIGHT
+            );
+        } else {
+            batch.draw(
+                frame,
+                x,
+                y,
+                KNIGHT_DRAW_WIDTH,
+                KNIGHT_DRAW_HEIGHT
+            );
+        }
+
+        batch.end();
+    }
+
+    private void finishAnimationIfNecessary() {
+        Player player = controller.getPlayer();
+
+        PlayerAnimationType animationType =
+            player.getAnimationType();
+
+        if (
+            animationManager.isLooping(
+                animationType
+            )
+        ) {
+            return;
+        }
+
+        if (
+            animationManager.isFinished(
+                animationType,
+                player.getAnimationTime()
+            )
+        ) {
+            controller.onAnimationFinished(
+                animationType
+            );
+        }
     }
 
     @Override
@@ -160,8 +311,7 @@ public class GameScreen extends ScreenAdapter {
     @Override
     public void hide() {
         if (
-            Gdx.input.getInputProcessor()
-                == inputMultiplexer
+            Gdx.input.getInputProcessor() == stage
         ) {
             Gdx.input.setInputProcessor(null);
         }
@@ -169,6 +319,18 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void dispose() {
+        if (animationManager != null) {
+            animationManager.dispose();
+        }
+
+        if (batch != null) {
+            batch.dispose();
+        }
+
+        if (shapeRenderer != null) {
+            shapeRenderer.dispose();
+        }
+
         if (stage != null) {
             stage.dispose();
         }
