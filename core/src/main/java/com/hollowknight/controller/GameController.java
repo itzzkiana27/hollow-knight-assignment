@@ -23,6 +23,16 @@ public class GameController {
     private static final float DOUBLE_JUMP_SPEED = 520f;
     private static final float MAX_FALL_SPEED = -850f;
 
+    /*
+     * The current dash animation contains 12 frames,
+     * each lasting 0.045 seconds:
+     *
+     * 12 × 0.045 = 0.54 seconds
+     */
+    private static final float DASH_DURATION = 0.54f;
+    private static final float DASH_SPEED = 390f;
+    private static final float DASH_COOLDOWN = 0.30f;
+
     private static final EnumSet<PlayerAnimationType>
         ACTION_ANIMATIONS = EnumSet.of(
         PlayerAnimationType.DASH,
@@ -51,6 +61,10 @@ public class GameController {
     private int jumpsUsed;
     private boolean onGround;
 
+    private float dashTimeRemaining;
+    private float dashCooldownRemaining;
+    private int dashDirection;
+
     public GameController(HollowKnightGame game) {
         this.game = game;
 
@@ -60,8 +74,13 @@ public class GameController {
         );
 
         verticalVelocity = 0f;
+
         jumpsUsed = 0;
         onGround = true;
+
+        dashTimeRemaining = 0f;
+        dashCooldownRemaining = 0f;
+        dashDirection = 1;
     }
 
     public void update(
@@ -70,13 +89,15 @@ public class GameController {
         float knightDrawWidth
     ) {
         /*
-         * Prevent unusually large physics steps if the
-         * window freezes or is being resized.
+         * Prevent a large physics jump if the window
+         * temporarily freezes or is resized.
          */
         float safeDelta = Math.min(
             delta,
             1f / 30f
         );
+
+        updateDashCooldown(safeDelta);
 
         if (player.isDead()) {
             updateDeadPlayer(delta);
@@ -84,9 +105,40 @@ public class GameController {
         }
 
         handleFocusRelease();
+
+        /*
+         * While dashing, normal movement, jumping,
+         * actions, and gravity are temporarily paused.
+         */
+        if (isDashing()) {
+            updateDash(
+                safeDelta,
+                worldWidth,
+                knightDrawWidth
+            );
+
+            player.updateAnimationTime(delta);
+            return;
+        }
+
         handleActionInput();
 
         if (player.isDead()) {
+            player.updateAnimationTime(delta);
+            return;
+        }
+
+        /*
+         * handleActionInput() may have just started
+         * a new dash.
+         */
+        if (isDashing()) {
+            updateDash(
+                safeDelta,
+                worldWidth,
+                knightDrawWidth
+            );
+
             player.updateAnimationTime(delta);
             return;
         }
@@ -119,6 +171,18 @@ public class GameController {
         player.updateAnimationTime(delta);
     }
 
+    private void updateDashCooldown(float delta) {
+        if (dashCooldownRemaining <= 0f) {
+            return;
+        }
+
+        dashCooldownRemaining -= delta;
+
+        if (dashCooldownRemaining < 0f) {
+            dashCooldownRemaining = 0f;
+        }
+    }
+
     private void updateDeadPlayer(float delta) {
         if (
             Gdx.input.isKeyJustPressed(
@@ -138,8 +202,13 @@ public class GameController {
         );
 
         verticalVelocity = 0f;
+
         jumpsUsed = 0;
         onGround = true;
+
+        dashTimeRemaining = 0f;
+        dashCooldownRemaining = 0f;
+        dashDirection = 1;
     }
 
     private void handleFocusRelease() {
@@ -158,7 +227,7 @@ public class GameController {
 
     private void handleActionInput() {
         /*
-         * Death can interrupt any other animation.
+         * Death can interrupt every other action.
          */
         if (
             Gdx.input.isKeyJustPressed(
@@ -175,27 +244,40 @@ public class GameController {
                 PlayerAnimationType.DEATH
             );
 
-            /*
-             * Place the Knight on the temporary floor
-             * for the death-animation test.
-             */
-            player.getPosition().y = GROUND_Y;
+            player.getPosition().y =
+                GROUND_Y;
 
             verticalVelocity = 0f;
+
             onGround = true;
+            jumpsUsed = 0;
+
+            dashTimeRemaining = 0f;
 
             return;
         }
 
         /*
          * Do not begin another action while an action
-         * animation is already playing.
+         * animation is already running.
          */
         if (
             ACTION_ANIMATIONS.contains(
                 player.getAnimationType()
             )
         ) {
+            return;
+        }
+
+        /*
+         * Dash can be performed on the ground or
+         * in the air.
+         */
+        if (
+            isDashKeyJustPressed()
+                && dashCooldownRemaining <= 0f
+        ) {
+            startDash();
             return;
         }
 
@@ -248,8 +330,8 @@ public class GameController {
         }
 
         /*
-         * Focusing currently starts only while standing
-         * on the ground.
+         * Focusing currently starts only while
+         * standing on the floor.
          */
         if (
             onGround
@@ -303,6 +385,110 @@ public class GameController {
                 PlayerAnimationType.SLASH_ALT
             );
         }
+    }
+
+    private boolean isDashKeyJustPressed() {
+        return Gdx.input.isKeyJustPressed(
+            Input.Keys.SHIFT_LEFT
+        ) || Gdx.input.isKeyJustPressed(
+            Input.Keys.SHIFT_RIGHT
+        );
+    }
+
+    private void startDash() {
+        int requestedDirection =
+            getHorizontalDirection();
+
+        /*
+         * A or D decides the dash direction.
+         *
+         * When neither is held, dash toward the
+         * direction the Knight is already facing.
+         */
+        if (requestedDirection == 0) {
+            requestedDirection =
+                player.isFacingRight()
+                    ? 1
+                    : -1;
+        }
+
+        dashDirection = requestedDirection;
+        dashTimeRemaining = DASH_DURATION;
+
+        /*
+         * This includes the dash duration plus a
+         * short recovery period after the dash.
+         */
+        dashCooldownRemaining =
+            DASH_DURATION + DASH_COOLDOWN;
+
+        player.setFacingRight(
+            dashDirection > 0
+        );
+
+        player.setMovementState(
+            PlayerMovementState.DASHING
+        );
+
+        player.setAnimation(
+            PlayerAnimationType.DASH
+        );
+    }
+
+    private boolean isDashing() {
+        return dashTimeRemaining > 0f;
+    }
+
+    private void updateDash(
+        float delta,
+        float worldWidth,
+        float knightDrawWidth
+    ) {
+        player.getPosition().x +=
+            dashDirection
+                * DASH_SPEED
+                * delta;
+
+        float maximumX = Math.max(
+            0f,
+            worldWidth - knightDrawWidth
+        );
+
+        player.getPosition().x =
+            MathUtils.clamp(
+                player.getPosition().x,
+                0f,
+                maximumX
+            );
+
+        /*
+         * We intentionally do not update the vertical
+         * position here. This briefly pauses gravity.
+         */
+        dashTimeRemaining -= delta;
+
+        if (dashTimeRemaining <= 0f) {
+            dashTimeRemaining = 0f;
+            finishDash();
+        }
+    }
+
+    private void finishDash() {
+        if (onGround) {
+            player.setMovementState(
+                PlayerMovementState.GROUNDED
+            );
+        } else if (verticalVelocity > 0f) {
+            player.setMovementState(
+                PlayerMovementState.AIRBORNE
+            );
+        } else {
+            player.setMovementState(
+                PlayerMovementState.FALLING
+            );
+        }
+
+        selectAnimationAfterAction();
     }
 
     private void handleJumpInput() {
@@ -367,6 +553,8 @@ public class GameController {
         boolean walking =
             Gdx.input.isKeyPressed(
                 Input.Keys.CONTROL_LEFT
+            ) || Gdx.input.isKeyPressed(
+                Input.Keys.CONTROL_RIGHT
             );
 
         float movementSpeed =
@@ -429,6 +617,7 @@ public class GameController {
                 GROUND_Y;
 
             verticalVelocity = 0f;
+
             jumpsUsed = 0;
             onGround = true;
 
@@ -436,9 +625,7 @@ public class GameController {
                 PlayerMovementState.GROUNDED
             );
 
-            if (
-                !isMovementLocked()
-            ) {
+            if (!isMovementLocked()) {
                 player.setAnimation(
                     PlayerAnimationType.LANDING
                 );
@@ -494,12 +681,14 @@ public class GameController {
         }
 
         /*
-         * Allow movement to interrupt landing.
+         * Movement may interrupt landing.
          */
         if (horizontalDirection != 0) {
             boolean walking =
                 Gdx.input.isKeyPressed(
                     Input.Keys.CONTROL_LEFT
+                ) || Gdx.input.isKeyPressed(
+                    Input.Keys.CONTROL_RIGHT
                 );
 
             player.setAnimation(
@@ -596,6 +785,11 @@ public class GameController {
                 }
             }
 
+            case DASH -> {
+                dashTimeRemaining = 0f;
+                finishDash();
+            }
+
             case DEATH -> {
                 /*
                  * Keep the final death frame visible.
@@ -607,8 +801,8 @@ public class GameController {
                  DOUBLE_JUMP,
                  WALL_JUMP -> {
                 /*
-                 * Keep the final upward frame until the
-                 * Knight begins falling.
+                 * Keep the final upward frame until
+                 * the Knight begins falling.
                  */
                 if (onGround) {
                     player.setAnimation(
@@ -631,10 +825,18 @@ public class GameController {
     private void selectAnimationAfterAction() {
         if (!onGround) {
             if (verticalVelocity > 0f) {
+                player.setMovementState(
+                    PlayerMovementState.AIRBORNE
+                );
+
                 player.setAnimation(
                     PlayerAnimationType.AIRBORNE
                 );
             } else {
+                player.setMovementState(
+                    PlayerMovementState.FALLING
+                );
+
                 player.setAnimation(
                     PlayerAnimationType.FALL
                 );
@@ -643,6 +845,10 @@ public class GameController {
             return;
         }
 
+        player.setMovementState(
+            PlayerMovementState.GROUNDED
+        );
+
         int horizontalDirection =
             getHorizontalDirection();
 
@@ -650,6 +856,8 @@ public class GameController {
             boolean walking =
                 Gdx.input.isKeyPressed(
                     Input.Keys.CONTROL_LEFT
+                ) || Gdx.input.isKeyPressed(
+                    Input.Keys.CONTROL_RIGHT
                 );
 
             player.setAnimation(
