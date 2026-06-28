@@ -20,12 +20,8 @@ public class StartGameController {
     }
 
     public void startNewGame() {
-        Gdx.app.log(
-            "StartGame",
-            "New Game selected"
-        );
-
-        // The actual game screen will be opened here later.
+        game.showGameScreen();
+        //opening actual game screen
     }
 
     public void selectSaveSlot(int slotNumber) {

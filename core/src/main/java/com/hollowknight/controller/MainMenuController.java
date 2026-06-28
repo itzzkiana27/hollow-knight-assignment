@@ -26,16 +26,10 @@ public class MainMenuController {
     public void openGuide() {
         game.showGuideMenu();
     }
-        // game.showGuideMenu();
+
 
     public void openAchievements() {
-        Gdx.app.log(
-            "MainMenu",
-            "Achievements selected"
-        );
-
-        // Later:
-        // game.showAchievementsMenu();
+        game.showAchievementsMenu();
     }
 
     public void quitGame() {
