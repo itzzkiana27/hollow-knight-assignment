@@ -13,19 +13,19 @@ import java.util.EnumSet;
 public class GameController {
 
     private static final float SPAWN_X = 180f;
-    private static final float SPAWN_Y = 100f;
+    private static final float GROUND_Y = 100f;
 
     private static final float WALK_SPEED = 110f;
     private static final float RUN_SPEED = 230f;
 
+    private static final float GRAVITY = -1400f;
+    private static final float JUMP_SPEED = 560f;
+    private static final float DOUBLE_JUMP_SPEED = 520f;
+    private static final float MAX_FALL_SPEED = -850f;
+
     private static final EnumSet<PlayerAnimationType>
-        BLOCKING_ANIMATIONS = EnumSet.of(
-        PlayerAnimationType.RUN_TO_IDLE,
-        PlayerAnimationType.AIRBORNE,
-        PlayerAnimationType.LANDING,
+        ACTION_ANIMATIONS = EnumSet.of(
         PlayerAnimationType.DASH,
-        PlayerAnimationType.DOUBLE_JUMP,
-        PlayerAnimationType.WALL_JUMP,
 
         PlayerAnimationType.SLASH,
         PlayerAnimationType.SLASH_ALT,
@@ -33,11 +33,12 @@ public class GameController {
         PlayerAnimationType.DOWN_SLASH,
 
         PlayerAnimationType.FOCUS_START,
+        PlayerAnimationType.FOCUS,
         PlayerAnimationType.FOCUS_END,
         PlayerAnimationType.FOCUS_GET,
+
         PlayerAnimationType.FIREBALL_CAST,
         PlayerAnimationType.SCREAM,
-
         PlayerAnimationType.IDLE_HURT,
         PlayerAnimationType.DEATH
     );
@@ -45,9 +46,22 @@ public class GameController {
     private final HollowKnightGame game;
     private final Player player;
 
+    private float verticalVelocity;
+
+    private int jumpsUsed;
+    private boolean onGround;
+
     public GameController(HollowKnightGame game) {
         this.game = game;
-        player = new Player(SPAWN_X, SPAWN_Y);
+
+        player = new Player(
+            SPAWN_X,
+            GROUND_Y
+        );
+
+        verticalVelocity = 0f;
+        jumpsUsed = 0;
+        onGround = true;
     }
 
     public void update(
@@ -55,71 +69,96 @@ public class GameController {
         float worldWidth,
         float knightDrawWidth
     ) {
-        if (player.isDead()) {
-            if (
-                Gdx.input.isKeyJustPressed(
-                    Input.Keys.ENTER
-                )
-            ) {
-                player.reset(SPAWN_X, SPAWN_Y);
-            }
-
-            player.updateAnimationTime(delta);
-            return;
-        }
-
         /*
-         * Focus is a three-part sequence:
-         *
-         * FOCUS_START → FOCUS → FOCUS_END
+         * Prevent unusually large physics steps if the
+         * window freezes or is being resized.
          */
-        if (
-            player.getAnimationType()
-                == PlayerAnimationType.FOCUS
-        ) {
-            if (
-                !Gdx.input.isKeyPressed(
-                    Input.Keys.Q
-                )
-            ) {
-                player.setAnimation(
-                    PlayerAnimationType.FOCUS_END
-                );
-            }
-
-            player.updateAnimationTime(delta);
-            return;
-        }
-
-        /*
-         * Do not interrupt animations that must finish.
-         */
-        if (
-            BLOCKING_ANIMATIONS.contains(
-                player.getAnimationType()
-            )
-        ) {
-            player.updateAnimationTime(delta);
-            return;
-        }
-
-        if (startTriggeredAction()) {
-            player.updateAnimationTime(delta);
-            return;
-        }
-
-        handleContinuousAnimation(
+        float safeDelta = Math.min(
             delta,
+            1f / 30f
+        );
+
+        if (player.isDead()) {
+            updateDeadPlayer(delta);
+            return;
+        }
+
+        handleFocusRelease();
+        handleActionInput();
+
+        if (player.isDead()) {
+            player.updateAnimationTime(delta);
+            return;
+        }
+
+        boolean movementLocked =
+            isMovementLocked();
+
+        int horizontalDirection =
+            movementLocked
+                ? 0
+                : getHorizontalDirection();
+
+        if (!movementLocked) {
+            handleJumpInput();
+        }
+
+        updateHorizontalMovement(
+            safeDelta,
+            horizontalDirection,
             worldWidth,
             knightDrawWidth
+        );
+
+        updateVerticalMovement(safeDelta);
+
+        updateMovementAnimation(
+            horizontalDirection
         );
 
         player.updateAnimationTime(delta);
     }
 
-    private boolean startTriggeredAction() {
+    private void updateDeadPlayer(float delta) {
+        if (
+            Gdx.input.isKeyJustPressed(
+                Input.Keys.ENTER
+            )
+        ) {
+            resetPlayer();
+        }
+
+        player.updateAnimationTime(delta);
+    }
+
+    private void resetPlayer() {
+        player.reset(
+            SPAWN_X,
+            GROUND_Y
+        );
+
+        verticalVelocity = 0f;
+        jumpsUsed = 0;
+        onGround = true;
+    }
+
+    private void handleFocusRelease() {
+        if (
+            player.getAnimationType()
+                == PlayerAnimationType.FOCUS
+                && !Gdx.input.isKeyPressed(
+                Input.Keys.Q
+            )
+        ) {
+            player.setAnimation(
+                PlayerAnimationType.FOCUS_END
+            );
+        }
+    }
+
+    private void handleActionInput() {
         /*
-         * Death
+         * Death can interrupt any other animation.
          */
         if (
             Gdx.input.isKeyJustPressed(
@@ -136,12 +175,30 @@ public class GameController {
                 PlayerAnimationType.DEATH
             );
 
-            return true;
+            /*
+             * Place the Knight on the temporary floor
+             * for the death-animation test.
+             */
+            player.getPosition().y = GROUND_Y;
+
+            verticalVelocity = 0f;
+            onGround = true;
+
+            return;
         }
 
         /*
-         * Hurt
+         * Do not begin another action while an action
+         * animation is already playing.
          */
+        if (
+            ACTION_ANIMATIONS.contains(
+                player.getAnimationType()
+            )
+        ) {
+            return;
+        }
+
         if (
             Gdx.input.isKeyJustPressed(
                 Input.Keys.H
@@ -151,12 +208,9 @@ public class GameController {
                 PlayerAnimationType.IDLE_HURT
             );
 
-            return true;
+            return;
         }
 
-        /*
-         * Focus/Soul gain
-         */
         if (
             Gdx.input.isKeyJustPressed(
                 Input.Keys.G
@@ -166,12 +220,9 @@ public class GameController {
                 PlayerAnimationType.FOCUS_GET
             );
 
-            return true;
+            return;
         }
 
-        /*
-         * Fireball spell
-         */
         if (
             Gdx.input.isKeyJustPressed(
                 Input.Keys.E
@@ -181,12 +232,9 @@ public class GameController {
                 PlayerAnimationType.FIREBALL_CAST
             );
 
-            return true;
+            return;
         }
 
-        /*
-         * Scream spell
-         */
         if (
             Gdx.input.isKeyJustPressed(
                 Input.Keys.R
@@ -196,14 +244,16 @@ public class GameController {
                 PlayerAnimationType.SCREAM
             );
 
-            return true;
+            return;
         }
 
         /*
-         * Start focusing.
+         * Focusing currently starts only while standing
+         * on the ground.
          */
         if (
-            Gdx.input.isKeyJustPressed(
+            onGround
+                && Gdx.input.isKeyJustPressed(
                 Input.Keys.Q
             )
         ) {
@@ -211,113 +261,9 @@ public class GameController {
                 PlayerAnimationType.FOCUS_START
             );
 
-            return true;
+            return;
         }
 
-        /*
-         * Dash
-         */
-        if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.SHIFT_LEFT
-            )
-        ) {
-            updateFacingDirection();
-
-            player.setMovementState(
-                PlayerMovementState.DASHING
-            );
-
-            player.setAnimation(
-                PlayerAnimationType.DASH
-            );
-
-            return true;
-        }
-
-        /*
-         * Double jump test
-         */
-        if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.B
-            )
-        ) {
-            player.setMovementState(
-                PlayerMovementState.AIRBORNE
-            );
-
-            player.setAnimation(
-                PlayerAnimationType.DOUBLE_JUMP
-            );
-
-            return true;
-        }
-
-        /*
-         * Wall jump test
-         */
-        if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.N
-            )
-        ) {
-            player.setMovementState(
-                PlayerMovementState.AIRBORNE
-            );
-
-            player.setAnimation(
-                PlayerAnimationType.WALL_JUMP
-            );
-
-            return true;
-        }
-
-        /*
-         * Landing test
-         */
-        if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.L
-            )
-        ) {
-            player.setMovementState(
-                PlayerMovementState.GROUNDED
-            );
-
-            player.setAnimation(
-                PlayerAnimationType.LANDING
-            );
-
-            return true;
-        }
-
-        /*
-         * Normal jump animation test
-         */
-        if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.SPACE
-            )
-        ) {
-            player.setMovementState(
-                PlayerMovementState.AIRBORNE
-            );
-
-            player.setAnimation(
-                PlayerAnimationType.AIRBORNE
-            );
-
-            return true;
-        }
-
-        /*
-         * Nail attack:
-         *
-         * W + J = up slash
-         * S + J = down slash
-         * J     = normal slash
-         */
         if (
             Gdx.input.isKeyJustPressed(
                 Input.Keys.J
@@ -345,12 +291,9 @@ public class GameController {
                 );
             }
 
-            return true;
+            return;
         }
 
-        /*
-         * Alternate slash
-         */
         if (
             Gdx.input.isKeyJustPressed(
                 Input.Keys.K
@@ -359,91 +302,205 @@ public class GameController {
             player.setAnimation(
                 PlayerAnimationType.SLASH_ALT
             );
-
-            return true;
         }
-
-        return false;
     }
 
-    private void handleContinuousAnimation(
+    private void handleJumpInput() {
+        if (
+            !Gdx.input.isKeyJustPressed(
+                Input.Keys.SPACE
+            )
+        ) {
+            return;
+        }
+
+        /*
+         * First jump.
+         */
+        if (onGround) {
+            onGround = false;
+            jumpsUsed = 1;
+
+            verticalVelocity =
+                JUMP_SPEED;
+
+            player.setMovementState(
+                PlayerMovementState.AIRBORNE
+            );
+
+            player.setAnimation(
+                PlayerAnimationType.AIRBORNE
+            );
+
+            return;
+        }
+
+        /*
+         * Second jump.
+         */
+        if (jumpsUsed < 2) {
+            jumpsUsed = 2;
+
+            verticalVelocity =
+                DOUBLE_JUMP_SPEED;
+
+            player.setMovementState(
+                PlayerMovementState.AIRBORNE
+            );
+
+            player.setAnimation(
+                PlayerAnimationType.DOUBLE_JUMP
+            );
+        }
+    }
+
+    private void updateHorizontalMovement(
         float delta,
+        int horizontalDirection,
         float worldWidth,
         float knightDrawWidth
     ) {
-        /*
-         * Wall-slide preview
-         */
-        if (
+        if (horizontalDirection == 0) {
+            return;
+        }
+
+        boolean walking =
             Gdx.input.isKeyPressed(
-                Input.Keys.V
-            )
-        ) {
-            player.setMovementState(
-                PlayerMovementState.WALL_SLIDING
+                Input.Keys.CONTROL_LEFT
             );
 
-            player.setAnimation(
-                PlayerAnimationType.WALL_SLIDE
+        float movementSpeed =
+            walking
+                ? WALK_SPEED
+                : RUN_SPEED;
+
+        player.getPosition().x +=
+            horizontalDirection
+                * movementSpeed
+                * delta;
+
+        float maximumX = Math.max(
+            0f,
+            worldWidth - knightDrawWidth
+        );
+
+        player.getPosition().x =
+            MathUtils.clamp(
+                player.getPosition().x,
+                0f,
+                maximumX
             );
+
+        player.setFacingRight(
+            horizontalDirection > 0
+        );
+    }
+
+    private void updateVerticalMovement(
+        float delta
+    ) {
+        if (onGround) {
+            player.getPosition().y =
+                GROUND_Y;
+
+            verticalVelocity = 0f;
+            return;
+        }
+
+        verticalVelocity +=
+            GRAVITY * delta;
+
+        verticalVelocity = Math.max(
+            verticalVelocity,
+            MAX_FALL_SPEED
+        );
+
+        player.getPosition().y +=
+            verticalVelocity * delta;
+
+        /*
+         * The Knight reached the temporary floor.
+         */
+        if (
+            player.getPosition().y
+                <= GROUND_Y
+        ) {
+            player.getPosition().y =
+                GROUND_Y;
+
+            verticalVelocity = 0f;
+            jumpsUsed = 0;
+            onGround = true;
+
+            player.setMovementState(
+                PlayerMovementState.GROUNDED
+            );
+
+            if (
+                !isMovementLocked()
+            ) {
+                player.setAnimation(
+                    PlayerAnimationType.LANDING
+                );
+            }
 
             return;
         }
 
-        /*
-         * Fall preview
-         */
-        if (
-            Gdx.input.isKeyPressed(
-                Input.Keys.F
-            )
-        ) {
+        if (verticalVelocity > 0f) {
+            player.setMovementState(
+                PlayerMovementState.AIRBORNE
+            );
+        } else {
             player.setMovementState(
                 PlayerMovementState.FALLING
             );
+        }
+    }
 
-            player.setAnimation(
-                PlayerAnimationType.FALL
-            );
+    private void updateMovementAnimation(
+        int horizontalDirection
+    ) {
+        if (
+            player.isDead()
+                || isMovementLocked()
+        ) {
+            return;
+        }
+
+        PlayerAnimationType currentAnimation =
+            player.getAnimationType();
+
+        /*
+         * Air animations.
+         */
+        if (!onGround) {
+            if (verticalVelocity <= 0f) {
+                player.setAnimation(
+                    PlayerAnimationType.FALL
+                );
+            } else if (
+                currentAnimation
+                    != PlayerAnimationType.AIRBORNE
+                    && currentAnimation
+                    != PlayerAnimationType.DOUBLE_JUMP
+            ) {
+                player.setAnimation(
+                    PlayerAnimationType.AIRBORNE
+                );
+            }
 
             return;
         }
 
-        int horizontalDirection = getHorizontalDirection();
-
+        /*
+         * Allow movement to interrupt landing.
+         */
         if (horizontalDirection != 0) {
             boolean walking =
                 Gdx.input.isKeyPressed(
                     Input.Keys.CONTROL_LEFT
                 );
-
-            float speed =
-                walking
-                    ? WALK_SPEED
-                    : RUN_SPEED;
-
-            player.getPosition().x +=
-                horizontalDirection
-                    * speed
-                    * delta;
-
-            player.getPosition().x =
-                MathUtils.clamp(
-                    player.getPosition().x,
-                    0f,
-                    Math.max(
-                        0f,
-                        worldWidth - knightDrawWidth
-                    )
-                );
-
-            player.setFacingRight(
-                horizontalDirection > 0
-            );
-
-            player.setMovementState(
-                PlayerMovementState.GROUNDED
-            );
 
             player.setAnimation(
                 walking
@@ -455,39 +512,21 @@ public class GameController {
         }
 
         /*
-         * Looking animations
+         * Wait for these ground transitions to finish.
          */
         if (
-            Gdx.input.isKeyPressed(
-                Input.Keys.W
-            )
+            currentAnimation
+                == PlayerAnimationType.LANDING
+                || currentAnimation
+                == PlayerAnimationType.RUN_TO_IDLE
         ) {
-            player.setAnimation(
-                PlayerAnimationType.LOOK_UP
-            );
-
             return;
         }
 
         if (
-            Gdx.input.isKeyPressed(
-                Input.Keys.S
-            )
-        ) {
-            player.setAnimation(
-                PlayerAnimationType.LOOK_DOWN
-            );
-
-            return;
-        }
-
-        /*
-         * Play the transition after stopping.
-         */
-        if (
-            player.getAnimationType()
+            currentAnimation
                 == PlayerAnimationType.RUN
-                || player.getAnimationType()
+                || currentAnimation
                 == PlayerAnimationType.WALK
         ) {
             player.setAnimation(
@@ -497,21 +536,15 @@ public class GameController {
             return;
         }
 
-        player.setMovementState(
-            PlayerMovementState.GROUNDED
-        );
-
         player.setAnimation(
             PlayerAnimationType.IDLE
         );
     }
 
-    private void updateFacingDirection() {
-        int direction = getHorizontalDirection();
-
-        if (direction != 0) {
-            player.setFacingRight(direction > 0);
-        }
+    private boolean isMovementLocked() {
+        return ACTION_ANIMATIONS.contains(
+            player.getAnimationType()
+        );
     }
 
     private int getHorizontalDirection() {
@@ -547,18 +580,6 @@ public class GameController {
         }
 
         switch (finishedAnimation) {
-            case AIRBORNE,
-                 DOUBLE_JUMP,
-                 WALL_JUMP -> {
-                player.setMovementState(
-                    PlayerMovementState.FALLING
-                );
-
-                player.setAnimation(
-                    PlayerAnimationType.FALL
-                );
-            }
-
             case FOCUS_START -> {
                 if (
                     Gdx.input.isKeyPressed(
@@ -577,20 +598,69 @@ public class GameController {
 
             case DEATH -> {
                 /*
-                 * Keep the final death frame.
-                 * Enter revives the Knight.
+                 * Keep the final death frame visible.
+                 * Enter resets the player.
                  */
             }
 
-            default -> {
-                player.setMovementState(
-                    PlayerMovementState.GROUNDED
-                );
+            case AIRBORNE,
+                 DOUBLE_JUMP,
+                 WALL_JUMP -> {
+                /*
+                 * Keep the final upward frame until the
+                 * Knight begins falling.
+                 */
+                if (onGround) {
+                    player.setAnimation(
+                        PlayerAnimationType.LANDING
+                    );
+                } else if (
+                    verticalVelocity <= 0f
+                ) {
+                    player.setAnimation(
+                        PlayerAnimationType.FALL
+                    );
+                }
+            }
 
+            default ->
+                selectAnimationAfterAction();
+        }
+    }
+
+    private void selectAnimationAfterAction() {
+        if (!onGround) {
+            if (verticalVelocity > 0f) {
                 player.setAnimation(
-                    PlayerAnimationType.IDLE
+                    PlayerAnimationType.AIRBORNE
+                );
+            } else {
+                player.setAnimation(
+                    PlayerAnimationType.FALL
                 );
             }
+
+            return;
+        }
+
+        int horizontalDirection =
+            getHorizontalDirection();
+
+        if (horizontalDirection != 0) {
+            boolean walking =
+                Gdx.input.isKeyPressed(
+                    Input.Keys.CONTROL_LEFT
+                );
+
+            player.setAnimation(
+                walking
+                    ? PlayerAnimationType.WALK
+                    : PlayerAnimationType.RUN
+            );
+        } else {
+            player.setAnimation(
+                PlayerAnimationType.IDLE
+            );
         }
     }
 
