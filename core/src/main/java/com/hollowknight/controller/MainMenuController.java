@@ -24,14 +24,9 @@ public class MainMenuController {
     }
 
     public void openGuide() {
-        Gdx.app.log(
-            "MainMenu",
-            "Guide selected"
-        );
-
-        // Later:
-        // game.showGuideMenu();
+        game.showGuideMenu();
     }
+        // game.showGuideMenu();
 
     public void openAchievements() {
         Gdx.app.log(

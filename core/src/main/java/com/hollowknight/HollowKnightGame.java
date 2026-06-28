@@ -10,6 +10,8 @@ import com.hollowknight.view.screens.MainMenuScreen;
 import com.hollowknight.view.screens.SettingsScreen;
 import com.hollowknight.view.screens.StartGameScreen;
 import com.hollowknight.localization.LocalizationManager;
+import com.hollowknight.controller.GuideController;
+import com.hollowknight.view.screens.GuideScreen;
 
 public class HollowKnightGame extends Game {
 
@@ -73,5 +75,12 @@ public class HollowKnightGame extends Game {
         settings.save();
 
         localization.setLanguage(language);
+    }
+    public void showGuideMenu() {
+        changeScreen(
+            new GuideScreen(
+                new GuideController(this)
+            )
+        );
     }
 }
