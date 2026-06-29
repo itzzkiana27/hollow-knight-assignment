@@ -23,15 +23,20 @@ public class GameController {
     private static final float DOUBLE_JUMP_SPEED = 520f;
     private static final float MAX_FALL_SPEED = -850f;
 
-    /*
-     * The current dash animation contains 12 frames,
-     * each lasting 0.045 seconds:
-     *
-     * 12 × 0.045 = 0.54 seconds
-     */
     private static final float DASH_DURATION = 0.54f;
     private static final float DASH_SPEED = 390f;
     private static final float DASH_COOLDOWN = 0.30f;
+
+    /*
+     * Wall mechanics
+     */
+    private static final float WALL_CONTACT_TOLERANCE = 3f;
+    private static final float WALL_SLIDE_SPEED = -170f;
+
+    private static final float WALL_JUMP_VERTICAL_SPEED = 560f;
+    private static final float WALL_JUMP_HORIZONTAL_SPEED = 340f;
+    private static final float WALL_JUMP_PUSH_DURATION = 0.18f;
+    private static final float WALL_JUMP_DETACH_DISTANCE = 5f;
 
     private static final EnumSet<PlayerAnimationType>
         ACTION_ANIMATIONS = EnumSet.of(
@@ -65,6 +70,9 @@ public class GameController {
     private float dashCooldownRemaining;
     private int dashDirection;
 
+    private float wallJumpPushTimeRemaining;
+    private int wallJumpDirection;
+
     public GameController(HollowKnightGame game) {
         this.game = game;
 
@@ -81,6 +89,9 @@ public class GameController {
         dashTimeRemaining = 0f;
         dashCooldownRemaining = 0f;
         dashDirection = 1;
+
+        wallJumpPushTimeRemaining = 0f;
+        wallJumpDirection = 1;
     }
 
     public void update(
@@ -88,10 +99,6 @@ public class GameController {
         float worldWidth,
         float knightDrawWidth
     ) {
-        /*
-         * Prevent a large physics jump if the window
-         * temporarily freezes or is resized.
-         */
         float safeDelta = Math.min(
             delta,
             1f / 30f
@@ -107,8 +114,7 @@ public class GameController {
         handleFocusRelease();
 
         /*
-         * While dashing, normal movement, jumping,
-         * actions, and gravity are temporarily paused.
+         * Dash temporarily controls all movement.
          */
         if (isDashing()) {
             updateDash(
@@ -129,14 +135,38 @@ public class GameController {
         }
 
         /*
-         * handleActionInput() may have just started
-         * a new dash.
+         * handleActionInput() may have started a dash.
          */
         if (isDashing()) {
             updateDash(
                 safeDelta,
                 worldWidth,
                 knightDrawWidth
+            );
+
+            player.updateAnimationTime(delta);
+            return;
+        }
+
+        float maximumX = getMaximumX(
+            worldWidth,
+            knightDrawWidth
+        );
+
+        /*
+         * During the first part of a wall jump, the
+         * Knight is pushed away from the wall and the
+         * player cannot immediately reverse direction.
+         */
+        if (isWallJumpPushActive()) {
+            updateWallJumpPush(
+                safeDelta,
+                maximumX
+            );
+
+            updateVerticalMovement(
+                safeDelta,
+                false
             );
 
             player.updateAnimationTime(delta);
@@ -151,21 +181,50 @@ public class GameController {
                 ? 0
                 : getHorizontalDirection();
 
+        /*
+         * handleJumpInput returns true only when a wall
+         * jump has just started.
+         */
+        boolean startedWallJump = false;
+
         if (!movementLocked) {
-            handleJumpInput();
+            startedWallJump =
+                handleJumpInput(maximumX);
+        }
+
+        if (startedWallJump) {
+            updateWallJumpPush(
+                safeDelta,
+                maximumX
+            );
+
+            updateVerticalMovement(
+                safeDelta,
+                false
+            );
+
+            player.updateAnimationTime(delta);
+            return;
         }
 
         updateHorizontalMovement(
             safeDelta,
             horizontalDirection,
-            worldWidth,
-            knightDrawWidth
+            maximumX
         );
 
-        updateVerticalMovement(safeDelta);
+        boolean wallSliding =
+            !movementLocked
+                && shouldWallSlide(maximumX);
+
+        updateVerticalMovement(
+            safeDelta,
+            wallSliding
+        );
 
         updateMovementAnimation(
-            horizontalDirection
+            horizontalDirection,
+            wallSliding
         );
 
         player.updateAnimationTime(delta);
@@ -209,6 +268,9 @@ public class GameController {
         dashTimeRemaining = 0f;
         dashCooldownRemaining = 0f;
         dashDirection = 1;
+
+        wallJumpPushTimeRemaining = 0f;
+        wallJumpDirection = 1;
     }
 
     private void handleFocusRelease() {
@@ -249,17 +311,18 @@ public class GameController {
 
             verticalVelocity = 0f;
 
-            onGround = true;
             jumpsUsed = 0;
+            onGround = true;
 
             dashTimeRemaining = 0f;
+            wallJumpPushTimeRemaining = 0f;
 
             return;
         }
 
         /*
          * Do not begin another action while an action
-         * animation is already running.
+         * animation is running.
          */
         if (
             ACTION_ANIMATIONS.contains(
@@ -270,8 +333,8 @@ public class GameController {
         }
 
         /*
-         * Dash can be performed on the ground or
-         * in the air.
+         * Dash works on the ground, in the air, and
+         * while wall sliding.
          */
         if (
             isDashKeyJustPressed()
@@ -329,10 +392,6 @@ public class GameController {
             return;
         }
 
-        /*
-         * Focusing currently starts only while
-         * standing on the floor.
-         */
         if (
             onGround
                 && Gdx.input.isKeyJustPressed(
@@ -399,12 +458,6 @@ public class GameController {
         int requestedDirection =
             getHorizontalDirection();
 
-        /*
-         * A or D decides the dash direction.
-         *
-         * When neither is held, dash toward the
-         * direction the Knight is already facing.
-         */
         if (requestedDirection == 0) {
             requestedDirection =
                 player.isFacingRight()
@@ -415,12 +468,10 @@ public class GameController {
         dashDirection = requestedDirection;
         dashTimeRemaining = DASH_DURATION;
 
-        /*
-         * This includes the dash duration plus a
-         * short recovery period after the dash.
-         */
         dashCooldownRemaining =
             DASH_DURATION + DASH_COOLDOWN;
+
+        wallJumpPushTimeRemaining = 0f;
 
         player.setFacingRight(
             dashDirection > 0
@@ -444,15 +495,15 @@ public class GameController {
         float worldWidth,
         float knightDrawWidth
     ) {
+        float maximumX = getMaximumX(
+            worldWidth,
+            knightDrawWidth
+        );
+
         player.getPosition().x +=
             dashDirection
                 * DASH_SPEED
                 * delta;
-
-        float maximumX = Math.max(
-            0f,
-            worldWidth - knightDrawWidth
-        );
 
         player.getPosition().x =
             MathUtils.clamp(
@@ -462,8 +513,7 @@ public class GameController {
             );
 
         /*
-         * We intentionally do not update the vertical
-         * position here. This briefly pauses gravity.
+         * Gravity is intentionally paused during dash.
          */
         dashTimeRemaining -= delta;
 
@@ -491,17 +541,43 @@ public class GameController {
         selectAnimationAfterAction();
     }
 
-    private void handleJumpInput() {
+    /**
+     * @return true only when this input started a wall
+     * jump.
+     */
+    private boolean handleJumpInput(
+        float maximumX
+    ) {
         if (
             !Gdx.input.isKeyJustPressed(
                 Input.Keys.SPACE
             )
         ) {
-            return;
+            return false;
         }
 
         /*
-         * First jump.
+         * Wall jump takes priority over normal and
+         * double jumps.
+         */
+        int heldWallSide =
+            getHeldWallSide(maximumX);
+
+        if (
+            !onGround
+                && verticalVelocity <= 0f
+                && heldWallSide != 0
+        ) {
+            startWallJump(
+                heldWallSide,
+                maximumX
+            );
+
+            return true;
+        }
+
+        /*
+         * Normal ground jump.
          */
         if (onGround) {
             onGround = false;
@@ -518,11 +594,11 @@ public class GameController {
                 PlayerAnimationType.AIRBORNE
             );
 
-            return;
+            return false;
         }
 
         /*
-         * Second jump.
+         * Double jump.
          */
         if (jumpsUsed < 2) {
             jumpsUsed = 2;
@@ -538,13 +614,99 @@ public class GameController {
                 PlayerAnimationType.DOUBLE_JUMP
             );
         }
+
+        return false;
+    }
+
+    private void startWallJump(
+        int wallSide,
+        float maximumX
+    ) {
+        /*
+         * wallSide:
+         *
+         * -1 = left wall
+         *  1 = right wall
+         *
+         * The jump direction is away from the wall.
+         */
+        wallJumpDirection = -wallSide;
+
+        wallJumpPushTimeRemaining =
+            WALL_JUMP_PUSH_DURATION;
+
+        verticalVelocity =
+            WALL_JUMP_VERTICAL_SPEED;
+
+        onGround = false;
+
+        /*
+         * A wall jump refreshes the double jump.
+         *
+         * Setting this to 1 means the player can still
+         * perform one double jump afterward.
+         */
+        jumpsUsed = 1;
+
+        /*
+         * Move slightly away from the wall immediately
+         * so the Knight does not remain attached.
+         */
+        player.getPosition().x +=
+            wallJumpDirection
+                * WALL_JUMP_DETACH_DISTANCE;
+
+        player.getPosition().x =
+            MathUtils.clamp(
+                player.getPosition().x,
+                0f,
+                maximumX
+            );
+
+        player.setFacingRight(
+            wallJumpDirection > 0
+        );
+
+        player.setMovementState(
+            PlayerMovementState.AIRBORNE
+        );
+
+        player.setAnimation(
+            PlayerAnimationType.WALL_JUMP
+        );
+    }
+
+    private boolean isWallJumpPushActive() {
+        return wallJumpPushTimeRemaining > 0f;
+    }
+
+    private void updateWallJumpPush(
+        float delta,
+        float maximumX
+    ) {
+        player.getPosition().x +=
+            wallJumpDirection
+                * WALL_JUMP_HORIZONTAL_SPEED
+                * delta;
+
+        player.getPosition().x =
+            MathUtils.clamp(
+                player.getPosition().x,
+                0f,
+                maximumX
+            );
+
+        wallJumpPushTimeRemaining -= delta;
+
+        if (wallJumpPushTimeRemaining < 0f) {
+            wallJumpPushTimeRemaining = 0f;
+        }
     }
 
     private void updateHorizontalMovement(
         float delta,
         int horizontalDirection,
-        float worldWidth,
-        float knightDrawWidth
+        float maximumX
     ) {
         if (horizontalDirection == 0) {
             return;
@@ -567,11 +729,6 @@ public class GameController {
                 * movementSpeed
                 * delta;
 
-        float maximumX = Math.max(
-            0f,
-            worldWidth - knightDrawWidth
-        );
-
         player.getPosition().x =
             MathUtils.clamp(
                 player.getPosition().x,
@@ -585,7 +742,8 @@ public class GameController {
     }
 
     private void updateVerticalMovement(
-        float delta
+        float delta,
+        boolean wallSliding
     ) {
         if (onGround) {
             player.getPosition().y =
@@ -598,10 +756,20 @@ public class GameController {
         verticalVelocity +=
             GRAVITY * delta;
 
-        verticalVelocity = Math.max(
-            verticalVelocity,
-            MAX_FALL_SPEED
-        );
+        if (wallSliding) {
+            /*
+             * Limit downward velocity while sliding.
+             */
+            verticalVelocity = Math.max(
+                verticalVelocity,
+                WALL_SLIDE_SPEED
+            );
+        } else {
+            verticalVelocity = Math.max(
+                verticalVelocity,
+                MAX_FALL_SPEED
+            );
+        }
 
         player.getPosition().y +=
             verticalVelocity * delta;
@@ -621,6 +789,8 @@ public class GameController {
             jumpsUsed = 0;
             onGround = true;
 
+            wallJumpPushTimeRemaining = 0f;
+
             player.setMovementState(
                 PlayerMovementState.GROUNDED
             );
@@ -634,7 +804,11 @@ public class GameController {
             return;
         }
 
-        if (verticalVelocity > 0f) {
+        if (wallSliding) {
+            player.setMovementState(
+                PlayerMovementState.WALL_SLIDING
+            );
+        } else if (verticalVelocity > 0f) {
             player.setMovementState(
                 PlayerMovementState.AIRBORNE
             );
@@ -645,8 +819,87 @@ public class GameController {
         }
     }
 
+    private boolean shouldWallSlide(
+        float maximumX
+    ) {
+        if (
+            onGround
+                || verticalVelocity > 0f
+        ) {
+            return false;
+        }
+
+        return getHeldWallSide(maximumX) != 0;
+    }
+
+    /**
+     * Returns:
+     *
+     * -1 when touching and holding toward the left wall
+     *  1 when touching and holding toward the right wall
+     *  0 otherwise
+     */
+    private int getHeldWallSide(
+        float maximumX
+    ) {
+        int wallSide =
+            getTouchingWallSide(maximumX);
+
+        if (
+            wallSide == -1
+                && Gdx.input.isKeyPressed(
+                Input.Keys.A
+            )
+        ) {
+            return -1;
+        }
+
+        if (
+            wallSide == 1
+                && Gdx.input.isKeyPressed(
+                Input.Keys.D
+            )
+        ) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Returns:
+     *
+     * -1 for the left wall
+     *  1 for the right wall
+     *  0 when not touching a wall
+     */
+    private int getTouchingWallSide(
+        float maximumX
+    ) {
+        float playerX =
+            player.getPosition().x;
+
+        if (
+            playerX
+                <= WALL_CONTACT_TOLERANCE
+        ) {
+            return -1;
+        }
+
+        if (
+            playerX
+                >= maximumX
+                - WALL_CONTACT_TOLERANCE
+        ) {
+            return 1;
+        }
+
+        return 0;
+    }
+
     private void updateMovementAnimation(
-        int horizontalDirection
+        int horizontalDirection,
+        boolean wallSliding
     ) {
         if (
             player.isDead()
@@ -659,9 +912,32 @@ public class GameController {
             player.getAnimationType();
 
         /*
+         * Wall slide has priority over normal fall.
+         */
+        if (wallSliding) {
+            player.setAnimation(
+                PlayerAnimationType.WALL_SLIDE
+            );
+
+            return;
+        }
+
+        /*
          * Air animations.
          */
         if (!onGround) {
+            /*
+             * Preserve the wall-jump animation while
+             * moving upward.
+             */
+            if (
+                currentAnimation
+                    == PlayerAnimationType.WALL_JUMP
+                    && verticalVelocity > 0f
+            ) {
+                return;
+            }
+
             if (verticalVelocity <= 0f) {
                 player.setAnimation(
                     PlayerAnimationType.FALL
@@ -681,7 +957,7 @@ public class GameController {
         }
 
         /*
-         * Movement may interrupt landing.
+         * Ground movement can interrupt landing.
          */
         if (horizontalDirection != 0) {
             boolean walking =
@@ -701,7 +977,7 @@ public class GameController {
         }
 
         /*
-         * Wait for these ground transitions to finish.
+         * Wait for ground transition animations.
          */
         if (
             currentAnimation
@@ -758,6 +1034,16 @@ public class GameController {
         return direction;
     }
 
+    private float getMaximumX(
+        float worldWidth,
+        float knightDrawWidth
+    ) {
+        return Math.max(
+            0f,
+            worldWidth - knightDrawWidth
+        );
+    }
+
     public void onAnimationFinished(
         PlayerAnimationType finishedAnimation
     ) {
@@ -792,7 +1078,7 @@ public class GameController {
 
             case DEATH -> {
                 /*
-                 * Keep the final death frame visible.
+                 * Keep the final death frame.
                  * Enter resets the player.
                  */
             }
@@ -800,10 +1086,6 @@ public class GameController {
             case AIRBORNE,
                  DOUBLE_JUMP,
                  WALL_JUMP -> {
-                /*
-                 * Keep the final upward frame until
-                 * the Knight begins falling.
-                 */
                 if (onGround) {
                     player.setAnimation(
                         PlayerAnimationType.LANDING
