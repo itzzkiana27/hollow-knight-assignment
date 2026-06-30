@@ -3,6 +3,7 @@ package com.hollowknight.controller;
 import com.hollowknight.HollowKnightGame;
 import com.hollowknight.model.GameSettings;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 
 public class SettingsController {
 
@@ -94,6 +95,11 @@ public class SettingsController {
 
     public String text(String key) {
         return game.getLocalization().get(key);
+    }
+
+
+    public String keyName(int keycode) {
+        return Input.Keys.toString(keycode);
     }
 
     public int getMoveLeftKey() {

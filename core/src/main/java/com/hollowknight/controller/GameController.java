@@ -1,11 +1,17 @@
 package com.hollowknight.controller;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
-import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Rectangle;
 import com.hollowknight.HollowKnightGame;
+import com.hollowknight.model.GameSettings;
+import com.hollowknight.model.combat.AttackDirection;
+import com.hollowknight.model.combat.PlayerCombat;
+import com.hollowknight.model.combat.PracticeTarget;
+import com.hollowknight.model.input.KeyBindings;
+import com.hollowknight.model.input.PlayerInput;
 import com.hollowknight.model.player.Player;
 import com.hollowknight.model.player.PlayerAnimationType;
+import com.hollowknight.model.player.PlayerMovement;
 import com.hollowknight.model.player.PlayerMovementState;
 
 import java.util.EnumSet;
@@ -15,37 +21,9 @@ public class GameController {
     private static final float SPAWN_X = 180f;
     private static final float GROUND_Y = 100f;
 
-    private static final float WALK_SPEED = 110f;
-    private static final float RUN_SPEED = 230f;
-
-    private static final float GRAVITY = -1400f;
-    private static final float JUMP_SPEED = 560f;
-    private static final float DOUBLE_JUMP_SPEED = 520f;
-    private static final float MAX_FALL_SPEED = -850f;
-
-    private static final float DASH_DURATION = 0.54f;
-    private static final float DASH_SPEED = 390f;
-    private static final float DASH_COOLDOWN = 0.30f;
-
-    /*
-     * Wall mechanics
-     */
-    private static final float WALL_CONTACT_TOLERANCE = 3f;
-    private static final float WALL_SLIDE_SPEED = -170f;
-
-    private static final float WALL_JUMP_VERTICAL_SPEED = 560f;
-    private static final float WALL_JUMP_HORIZONTAL_SPEED = 340f;
-    private static final float WALL_JUMP_PUSH_DURATION = 0.18f;
-    private static final float WALL_JUMP_DETACH_DISTANCE = 5f;
-
     private static final EnumSet<PlayerAnimationType>
-        ACTION_ANIMATIONS = EnumSet.of(
+        LOCKING_NON_COMBAT_ANIMATIONS = EnumSet.of(
         PlayerAnimationType.DASH,
-
-        PlayerAnimationType.SLASH,
-        PlayerAnimationType.SLASH_ALT,
-        PlayerAnimationType.UP_SLASH,
-        PlayerAnimationType.DOWN_SLASH,
 
         PlayerAnimationType.FOCUS_START,
         PlayerAnimationType.FOCUS,
@@ -59,21 +37,19 @@ public class GameController {
     );
 
     private final HollowKnightGame game;
+
     private final Player player;
+    private final PlayerMovement movement;
+    private final PlayerCombat combat;
+    private final PracticeTarget practiceTarget;
 
-    private float verticalVelocity;
+    private final KeyBindings keyBindings;
 
-    private int jumpsUsed;
-    private boolean onGround;
+    private PlayerInput currentInput;
 
-    private float dashTimeRemaining;
-    private float dashCooldownRemaining;
-    private int dashDirection;
-
-    private float wallJumpPushTimeRemaining;
-    private int wallJumpDirection;
-
-    public GameController(HollowKnightGame game) {
+    public GameController(
+        HollowKnightGame game
+    ) {
         this.game = game;
 
         player = new Player(
@@ -81,30 +57,54 @@ public class GameController {
             GROUND_Y
         );
 
-        verticalVelocity = 0f;
+        movement = new PlayerMovement(
+            player,
+            SPAWN_X,
+            GROUND_Y
+        );
 
-        jumpsUsed = 0;
-        onGround = true;
+        combat = new PlayerCombat();
+        practiceTarget =
+            new PracticeTarget();
 
-        dashTimeRemaining = 0f;
-        dashCooldownRemaining = 0f;
-        dashDirection = 1;
+        GameSettings settings =
+            game.getSettings();
 
-        wallJumpPushTimeRemaining = 0f;
-        wallJumpDirection = 1;
+        keyBindings = new KeyBindings(
+            settings.getMoveLeftKey(),
+            settings.getMoveRightKey(),
+            settings.getJumpKey(),
+            settings.getDashKey(),
+            settings.getAttackKey()
+        );
+
+        currentInput =
+            PlayerInput.empty();
     }
 
     public void update(
         float delta,
         float worldWidth,
-        float knightDrawWidth
+        float knightDrawWidth,
+        float knightDrawHeight
     ) {
+        currentInput =
+            readPlayerInput();
+
         float safeDelta = Math.min(
             delta,
             1f / 30f
         );
 
-        updateDashCooldown(safeDelta);
+        practiceTarget.update(
+            safeDelta,
+            worldWidth,
+            GROUND_Y
+        );
+
+        movement.updateDashCooldown(
+            safeDelta
+        );
 
         if (player.isDead()) {
             updateDeadPlayer(delta);
@@ -113,173 +113,243 @@ public class GameController {
 
         handleFocusRelease();
 
-        /*
-         * Dash temporarily controls all movement.
-         */
-        if (isDashing()) {
-            updateDash(
-                safeDelta,
+        float maximumX =
+            movement.getMaximumX(
                 worldWidth,
                 knightDrawWidth
             );
 
-            player.updateAnimationTime(delta);
+        if (movement.isDashing()) {
+            updateDash(
+                safeDelta,
+                maximumX
+            );
+
+            player.updateAnimationTime(
+                delta
+            );
+
             return;
         }
 
         handleActionInput();
 
         if (player.isDead()) {
-            player.updateAnimationTime(delta);
-            return;
-        }
-
-        /*
-         * handleActionInput() may have started a dash.
-         */
-        if (isDashing()) {
-            updateDash(
-                safeDelta,
-                worldWidth,
-                knightDrawWidth
+            player.updateAnimationTime(
+                delta
             );
 
-            player.updateAnimationTime(delta);
             return;
         }
 
-        float maximumX = getMaximumX(
-            worldWidth,
-            knightDrawWidth
+        combat.update(
+            safeDelta,
+            player,
+            knightDrawWidth,
+            knightDrawHeight
         );
 
-        /*
-         * During the first part of a wall jump, the
-         * Knight is pushed away from the wall and the
-         * player cannot immediately reverse direction.
-         */
-        if (isWallJumpPushActive()) {
-            updateWallJumpPush(
+        resolvePracticeTargetHit();
+
+        if (movement.isDashing()) {
+            updateDash(
                 safeDelta,
                 maximumX
             );
 
-            updateVerticalMovement(
-                safeDelta,
-                false
+            player.updateAnimationTime(
+                delta
             );
 
-            player.updateAnimationTime(delta);
+            return;
+        }
+
+        if (
+            movement.isWallJumpPushActive()
+        ) {
+            movement.updateWallJumpPush(
+                safeDelta,
+                maximumX
+            );
+
+            movement.updateVerticalMovement(
+                safeDelta,
+                false,
+                isMovementLocked()
+            );
+
+            player.updateAnimationTime(
+                delta
+            );
+
             return;
         }
 
         boolean movementLocked =
             isMovementLocked();
 
-        int horizontalDirection =
-            movementLocked
-                ? 0
-                : getHorizontalDirection();
-
-        /*
-         * handleJumpInput returns true only when a wall
-         * jump has just started.
-         */
         boolean startedWallJump = false;
 
         if (!movementLocked) {
             startedWallJump =
-                handleJumpInput(maximumX);
+                movement.handleJumpInput(
+                    currentInput,
+                    maximumX
+                );
         }
 
         if (startedWallJump) {
-            updateWallJumpPush(
+            movement.updateWallJumpPush(
                 safeDelta,
                 maximumX
             );
 
-            updateVerticalMovement(
+            movement.updateVerticalMovement(
                 safeDelta,
-                false
+                false,
+                isMovementLocked()
             );
 
-            player.updateAnimationTime(delta);
+            player.updateAnimationTime(
+                delta
+            );
+
             return;
         }
 
-        updateHorizontalMovement(
-            safeDelta,
-            horizontalDirection,
-            maximumX
-        );
+        if (!movementLocked) {
+            movement.updateHorizontalMovement(
+                safeDelta,
+                currentInput,
+                maximumX
+            );
+        }
 
         boolean wallSliding =
             !movementLocked
-                && shouldWallSlide(maximumX);
+                && movement.shouldWallSlide(
+                currentInput,
+                maximumX
+            );
 
-        updateVerticalMovement(
+        movement.updateVerticalMovement(
             safeDelta,
-            wallSliding
+            wallSliding,
+            movementLocked
         );
 
-        updateMovementAnimation(
-            horizontalDirection,
+        movement.updateMovementAnimation(
+            currentInput,
+            movementLocked,
             wallSliding
         );
 
         player.updateAnimationTime(delta);
     }
 
-    private void updateDashCooldown(float delta) {
-        if (dashCooldownRemaining <= 0f) {
-            return;
-        }
+    private PlayerInput readPlayerInput() {
+        return new PlayerInput(
+            Gdx.input.isKeyPressed(
+                keyBindings.getMoveLeft()
+            ),
 
-        dashCooldownRemaining -= delta;
+            Gdx.input.isKeyPressed(
+                keyBindings.getMoveRight()
+            ),
 
-        if (dashCooldownRemaining < 0f) {
-            dashCooldownRemaining = 0f;
-        }
-    }
-
-    private void updateDeadPlayer(float delta) {
-        if (
             Gdx.input.isKeyJustPressed(
-                Input.Keys.ENTER
+                keyBindings.getJump()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getDash()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getAttack()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getAlternateAttack()
+            ),
+
+            Gdx.input.isKeyPressed(
+                keyBindings.getUp()
+            ),
+
+            Gdx.input.isKeyPressed(
+                keyBindings.getDown()
+            ),
+
+            Gdx.input.isKeyPressed(
+                keyBindings.getFocus()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getFocus()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getHurtTest()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getSoulGainTest()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getFireballTest()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getScreamTest()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getDeathTest()
+            ),
+
+            Gdx.input.isKeyJustPressed(
+                keyBindings.getRevive()
             )
+        );
+    }
+
+    private void updateDash(
+        float delta,
+        float maximumX
+    ) {
+        boolean finished =
+            movement.updateDash(
+                delta,
+                maximumX
+            );
+
+        if (finished) {
+            movement.finishDash(
+                currentInput
+            );
+        }
+    }
+
+    private void updateDeadPlayer(
+        float delta
+    ) {
+        if (
+            currentInput.isRevivePressed()
         ) {
-            resetPlayer();
+            combat.finishAttack();
+            movement.resetPlayer();
         }
 
         player.updateAnimationTime(delta);
-    }
-
-    private void resetPlayer() {
-        player.reset(
-            SPAWN_X,
-            GROUND_Y
-        );
-
-        verticalVelocity = 0f;
-
-        jumpsUsed = 0;
-        onGround = true;
-
-        dashTimeRemaining = 0f;
-        dashCooldownRemaining = 0f;
-        dashDirection = 1;
-
-        wallJumpPushTimeRemaining = 0f;
-        wallJumpDirection = 1;
     }
 
     private void handleFocusRelease() {
         if (
             player.getAnimationType()
                 == PlayerAnimationType.FOCUS
-                && !Gdx.input.isKeyPressed(
-                Input.Keys.Q
-            )
+                && !currentInput.isFocusHeld()
         ) {
             player.setAnimation(
                 PlayerAnimationType.FOCUS_END
@@ -289,13 +359,11 @@ public class GameController {
 
     private void handleActionInput() {
         /*
-         * Death can interrupt every other action.
+         * Temporary death-animation test.
          */
-        if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.X
-            )
-        ) {
+        if (currentInput.isDeathPressed()) {
+            combat.finishAttack();
+
             player.setDead(true);
 
             player.setMovementState(
@@ -306,49 +374,27 @@ public class GameController {
                 PlayerAnimationType.DEATH
             );
 
-            player.getPosition().y =
-                GROUND_Y;
-
-            verticalVelocity = 0f;
-
-            jumpsUsed = 0;
-            onGround = true;
-
-            dashTimeRemaining = 0f;
-            wallJumpPushTimeRemaining = 0f;
+            movement.prepareForDeath();
 
             return;
         }
 
-        /*
-         * Do not begin another action while an action
-         * animation is running.
-         */
-        if (
-            ACTION_ANIMATIONS.contains(
-                player.getAnimationType()
-            )
-        ) {
-            return;
-        }
-
-        /*
-         * Dash works on the ground, in the air, and
-         * while wall sliding.
-         */
-        if (
-            isDashKeyJustPressed()
-                && dashCooldownRemaining <= 0f
-        ) {
-            startDash();
+        if (isMovementLocked()) {
             return;
         }
 
         if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.H
-            )
+            currentInput.isDashPressed()
+                && movement.canStartDash()
         ) {
+            movement.startDash(
+                currentInput
+            );
+
+            return;
+        }
+
+        if (currentInput.isHurtPressed()) {
             player.setAnimation(
                 PlayerAnimationType.IDLE_HURT
             );
@@ -357,9 +403,7 @@ public class GameController {
         }
 
         if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.G
-            )
+            currentInput.isSoulGainPressed()
         ) {
             player.setAnimation(
                 PlayerAnimationType.FOCUS_GET
@@ -369,9 +413,7 @@ public class GameController {
         }
 
         if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.E
-            )
+            currentInput.isFireballPressed()
         ) {
             player.setAnimation(
                 PlayerAnimationType.FIREBALL_CAST
@@ -381,9 +423,7 @@ public class GameController {
         }
 
         if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.R
-            )
+            currentInput.isScreamPressed()
         ) {
             player.setAnimation(
                 PlayerAnimationType.SCREAM
@@ -393,10 +433,8 @@ public class GameController {
         }
 
         if (
-            onGround
-                && Gdx.input.isKeyJustPressed(
-                Input.Keys.Q
-            )
+            movement.isOnGround()
+                && currentInput.isFocusPressed()
         ) {
             player.setAnimation(
                 PlayerAnimationType.FOCUS_START
@@ -405,643 +443,43 @@ public class GameController {
             return;
         }
 
+        combat.tryStartAttack(
+            currentInput,
+            player
+        );
+    }
+
+    private void resolvePracticeTargetHit() {
+        if (!combat.canRegisterHit()) {
+            return;
+        }
+
         if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.J
+            !combat.getAttackHitbox().overlaps(
+                practiceTarget.getBounds()
             )
         ) {
-            if (
-                Gdx.input.isKeyPressed(
-                    Input.Keys.W
-                )
-            ) {
-                player.setAnimation(
-                    PlayerAnimationType.UP_SLASH
-                );
-            } else if (
-                Gdx.input.isKeyPressed(
-                    Input.Keys.S
-                )
-            ) {
-                player.setAnimation(
-                    PlayerAnimationType.DOWN_SLASH
-                );
-            } else {
-                player.setAnimation(
-                    PlayerAnimationType.SLASH
-                );
-            }
-
             return;
         }
 
-        if (
-            Gdx.input.isKeyJustPressed(
-                Input.Keys.K
-            )
-        ) {
-            player.setAnimation(
-                PlayerAnimationType.SLASH_ALT
-            );
-        }
-    }
-
-    private boolean isDashKeyJustPressed() {
-        return Gdx.input.isKeyJustPressed(
-            Input.Keys.SHIFT_LEFT
-        ) || Gdx.input.isKeyJustPressed(
-            Input.Keys.SHIFT_RIGHT
-        );
-    }
-
-    private void startDash() {
-        int requestedDirection =
-            getHorizontalDirection();
-
-        if (requestedDirection == 0) {
-            requestedDirection =
-                player.isFacingRight()
-                    ? 1
-                    : -1;
-        }
-
-        dashDirection = requestedDirection;
-        dashTimeRemaining = DASH_DURATION;
-
-        dashCooldownRemaining =
-            DASH_DURATION + DASH_COOLDOWN;
-
-        wallJumpPushTimeRemaining = 0f;
-
-        player.setFacingRight(
-            dashDirection > 0
-        );
-
-        player.setMovementState(
-            PlayerMovementState.DASHING
-        );
-
-        player.setAnimation(
-            PlayerAnimationType.DASH
-        );
-    }
-
-    private boolean isDashing() {
-        return dashTimeRemaining > 0f;
-    }
-
-    private void updateDash(
-        float delta,
-        float worldWidth,
-        float knightDrawWidth
-    ) {
-        float maximumX = getMaximumX(
-            worldWidth,
-            knightDrawWidth
-        );
-
-        player.getPosition().x +=
-            dashDirection
-                * DASH_SPEED
-                * delta;
-
-        player.getPosition().x =
-            MathUtils.clamp(
-                player.getPosition().x,
-                0f,
-                maximumX
-            );
-
-        /*
-         * Gravity is intentionally paused during dash.
-         */
-        dashTimeRemaining -= delta;
-
-        if (dashTimeRemaining <= 0f) {
-            dashTimeRemaining = 0f;
-            finishDash();
-        }
-    }
-
-    private void finishDash() {
-        if (onGround) {
-            player.setMovementState(
-                PlayerMovementState.GROUNDED
-            );
-        } else if (verticalVelocity > 0f) {
-            player.setMovementState(
-                PlayerMovementState.AIRBORNE
-            );
-        } else {
-            player.setMovementState(
-                PlayerMovementState.FALLING
-            );
-        }
-
-        selectAnimationAfterAction();
-    }
-
-    /**
-     * @return true only when this input started a wall
-     * jump.
-     */
-    private boolean handleJumpInput(
-        float maximumX
-    ) {
-        if (
-            !Gdx.input.isKeyJustPressed(
-                Input.Keys.SPACE
-            )
-        ) {
-            return false;
-        }
-
-        /*
-         * Wall jump takes priority over normal and
-         * double jumps.
-         */
-        int heldWallSide =
-            getHeldWallSide(maximumX);
+        combat.registerHit();
+        practiceTarget.hit();
 
         if (
-            !onGround
-                && verticalVelocity <= 0f
-                && heldWallSide != 0
+            combat.getAttackDirection()
+                == AttackDirection.DOWN
+                && !movement.isOnGround()
         ) {
-            startWallJump(
-                heldWallSide,
-                maximumX
-            );
-
-            return true;
+            applySuccessfulPogo();
         }
-
-        /*
-         * Normal ground jump.
-         */
-        if (onGround) {
-            onGround = false;
-            jumpsUsed = 1;
-
-            verticalVelocity =
-                JUMP_SPEED;
-
-            player.setMovementState(
-                PlayerMovementState.AIRBORNE
-            );
-
-            player.setAnimation(
-                PlayerAnimationType.AIRBORNE
-            );
-
-            return false;
-        }
-
-        /*
-         * Double jump.
-         */
-        if (jumpsUsed < 2) {
-            jumpsUsed = 2;
-
-            verticalVelocity =
-                DOUBLE_JUMP_SPEED;
-
-            player.setMovementState(
-                PlayerMovementState.AIRBORNE
-            );
-
-            player.setAnimation(
-                PlayerAnimationType.DOUBLE_JUMP
-            );
-        }
-
-        return false;
-    }
-
-    private void startWallJump(
-        int wallSide,
-        float maximumX
-    ) {
-        /*
-         * wallSide:
-         *
-         * -1 = left wall
-         *  1 = right wall
-         *
-         * The jump direction is away from the wall.
-         */
-        wallJumpDirection = -wallSide;
-
-        wallJumpPushTimeRemaining =
-            WALL_JUMP_PUSH_DURATION;
-
-        verticalVelocity =
-            WALL_JUMP_VERTICAL_SPEED;
-
-        onGround = false;
-
-        /*
-         * A wall jump refreshes the double jump.
-         *
-         * Setting this to 1 means the player can still
-         * perform one double jump afterward.
-         */
-        jumpsUsed = 1;
-
-        /*
-         * Move slightly away from the wall immediately
-         * so the Knight does not remain attached.
-         */
-        player.getPosition().x +=
-            wallJumpDirection
-                * WALL_JUMP_DETACH_DISTANCE;
-
-        player.getPosition().x =
-            MathUtils.clamp(
-                player.getPosition().x,
-                0f,
-                maximumX
-            );
-
-        player.setFacingRight(
-            wallJumpDirection > 0
-        );
-
-        player.setMovementState(
-            PlayerMovementState.AIRBORNE
-        );
-
-        player.setAnimation(
-            PlayerAnimationType.WALL_JUMP
-        );
-    }
-
-    private boolean isWallJumpPushActive() {
-        return wallJumpPushTimeRemaining > 0f;
-    }
-
-    private void updateWallJumpPush(
-        float delta,
-        float maximumX
-    ) {
-        player.getPosition().x +=
-            wallJumpDirection
-                * WALL_JUMP_HORIZONTAL_SPEED
-                * delta;
-
-        player.getPosition().x =
-            MathUtils.clamp(
-                player.getPosition().x,
-                0f,
-                maximumX
-            );
-
-        wallJumpPushTimeRemaining -= delta;
-
-        if (wallJumpPushTimeRemaining < 0f) {
-            wallJumpPushTimeRemaining = 0f;
-        }
-    }
-
-    private void updateHorizontalMovement(
-        float delta,
-        int horizontalDirection,
-        float maximumX
-    ) {
-        if (horizontalDirection == 0) {
-            return;
-        }
-
-        boolean walking =
-            Gdx.input.isKeyPressed(
-                Input.Keys.CONTROL_LEFT
-            ) || Gdx.input.isKeyPressed(
-                Input.Keys.CONTROL_RIGHT
-            );
-
-        float movementSpeed =
-            walking
-                ? WALK_SPEED
-                : RUN_SPEED;
-
-        player.getPosition().x +=
-            horizontalDirection
-                * movementSpeed
-                * delta;
-
-        player.getPosition().x =
-            MathUtils.clamp(
-                player.getPosition().x,
-                0f,
-                maximumX
-            );
-
-        player.setFacingRight(
-            horizontalDirection > 0
-        );
-    }
-
-    private void updateVerticalMovement(
-        float delta,
-        boolean wallSliding
-    ) {
-        if (onGround) {
-            player.getPosition().y =
-                GROUND_Y;
-
-            verticalVelocity = 0f;
-            return;
-        }
-
-        verticalVelocity +=
-            GRAVITY * delta;
-
-        if (wallSliding) {
-            /*
-             * Limit downward velocity while sliding.
-             */
-            verticalVelocity = Math.max(
-                verticalVelocity,
-                WALL_SLIDE_SPEED
-            );
-        } else {
-            verticalVelocity = Math.max(
-                verticalVelocity,
-                MAX_FALL_SPEED
-            );
-        }
-
-        player.getPosition().y +=
-            verticalVelocity * delta;
-
-        /*
-         * The Knight reached the temporary floor.
-         */
-        if (
-            player.getPosition().y
-                <= GROUND_Y
-        ) {
-            player.getPosition().y =
-                GROUND_Y;
-
-            verticalVelocity = 0f;
-
-            jumpsUsed = 0;
-            onGround = true;
-
-            wallJumpPushTimeRemaining = 0f;
-
-            player.setMovementState(
-                PlayerMovementState.GROUNDED
-            );
-
-            if (!isMovementLocked()) {
-                player.setAnimation(
-                    PlayerAnimationType.LANDING
-                );
-            }
-
-            return;
-        }
-
-        if (wallSliding) {
-            player.setMovementState(
-                PlayerMovementState.WALL_SLIDING
-            );
-        } else if (verticalVelocity > 0f) {
-            player.setMovementState(
-                PlayerMovementState.AIRBORNE
-            );
-        } else {
-            player.setMovementState(
-                PlayerMovementState.FALLING
-            );
-        }
-    }
-
-    private boolean shouldWallSlide(
-        float maximumX
-    ) {
-        if (
-            onGround
-                || verticalVelocity > 0f
-        ) {
-            return false;
-        }
-
-        return getHeldWallSide(maximumX) != 0;
-    }
-
-    /**
-     * Returns:
-     *
-     * -1 when touching and holding toward the left wall
-     *  1 when touching and holding toward the right wall
-     *  0 otherwise
-     */
-    private int getHeldWallSide(
-        float maximumX
-    ) {
-        int wallSide =
-            getTouchingWallSide(maximumX);
-
-        if (
-            wallSide == -1
-                && Gdx.input.isKeyPressed(
-                Input.Keys.A
-            )
-        ) {
-            return -1;
-        }
-
-        if (
-            wallSide == 1
-                && Gdx.input.isKeyPressed(
-                Input.Keys.D
-            )
-        ) {
-            return 1;
-        }
-
-        return 0;
-    }
-
-    /**
-     * Returns:
-     *
-     * -1 for the left wall
-     *  1 for the right wall
-     *  0 when not touching a wall
-     */
-    private int getTouchingWallSide(
-        float maximumX
-    ) {
-        float playerX =
-            player.getPosition().x;
-
-        if (
-            playerX
-                <= WALL_CONTACT_TOLERANCE
-        ) {
-            return -1;
-        }
-
-        if (
-            playerX
-                >= maximumX
-                - WALL_CONTACT_TOLERANCE
-        ) {
-            return 1;
-        }
-
-        return 0;
-    }
-
-    private void updateMovementAnimation(
-        int horizontalDirection,
-        boolean wallSliding
-    ) {
-        if (
-            player.isDead()
-                || isMovementLocked()
-        ) {
-            return;
-        }
-
-        PlayerAnimationType currentAnimation =
-            player.getAnimationType();
-
-        /*
-         * Wall slide has priority over normal fall.
-         */
-        if (wallSliding) {
-            player.setAnimation(
-                PlayerAnimationType.WALL_SLIDE
-            );
-
-            return;
-        }
-
-        /*
-         * Air animations.
-         */
-        if (!onGround) {
-            /*
-             * Preserve the wall-jump animation while
-             * moving upward.
-             */
-            if (
-                currentAnimation
-                    == PlayerAnimationType.WALL_JUMP
-                    && verticalVelocity > 0f
-            ) {
-                return;
-            }
-
-            if (verticalVelocity <= 0f) {
-                player.setAnimation(
-                    PlayerAnimationType.FALL
-                );
-            } else if (
-                currentAnimation
-                    != PlayerAnimationType.AIRBORNE
-                    && currentAnimation
-                    != PlayerAnimationType.DOUBLE_JUMP
-            ) {
-                player.setAnimation(
-                    PlayerAnimationType.AIRBORNE
-                );
-            }
-
-            return;
-        }
-
-        /*
-         * Ground movement can interrupt landing.
-         */
-        if (horizontalDirection != 0) {
-            boolean walking =
-                Gdx.input.isKeyPressed(
-                    Input.Keys.CONTROL_LEFT
-                ) || Gdx.input.isKeyPressed(
-                    Input.Keys.CONTROL_RIGHT
-                );
-
-            player.setAnimation(
-                walking
-                    ? PlayerAnimationType.WALK
-                    : PlayerAnimationType.RUN
-            );
-
-            return;
-        }
-
-        /*
-         * Wait for ground transition animations.
-         */
-        if (
-            currentAnimation
-                == PlayerAnimationType.LANDING
-                || currentAnimation
-                == PlayerAnimationType.RUN_TO_IDLE
-        ) {
-            return;
-        }
-
-        if (
-            currentAnimation
-                == PlayerAnimationType.RUN
-                || currentAnimation
-                == PlayerAnimationType.WALK
-        ) {
-            player.setAnimation(
-                PlayerAnimationType.RUN_TO_IDLE
-            );
-
-            return;
-        }
-
-        player.setAnimation(
-            PlayerAnimationType.IDLE
-        );
     }
 
     private boolean isMovementLocked() {
-        return ACTION_ANIMATIONS.contains(
-            player.getAnimationType()
-        );
-    }
-
-    private int getHorizontalDirection() {
-        int direction = 0;
-
-        if (
-            Gdx.input.isKeyPressed(
-                Input.Keys.A
-            )
-        ) {
-            direction--;
-        }
-
-        if (
-            Gdx.input.isKeyPressed(
-                Input.Keys.D
-            )
-        ) {
-            direction++;
-        }
-
-        return direction;
-    }
-
-    private float getMaximumX(
-        float worldWidth,
-        float knightDrawWidth
-    ) {
-        return Math.max(
-            0f,
-            worldWidth - knightDrawWidth
-        );
+        return combat.isAttacking()
+            || LOCKING_NON_COMBAT_ANIMATIONS
+            .contains(
+                player.getAnimationType()
+            );
     }
 
     public void onAnimationFinished(
@@ -1057,9 +495,7 @@ public class GameController {
         switch (finishedAnimation) {
             case FOCUS_START -> {
                 if (
-                    Gdx.input.isKeyPressed(
-                        Input.Keys.Q
-                    )
+                    currentInput.isFocusHeld()
                 ) {
                     player.setAnimation(
                         PlayerAnimationType.FOCUS
@@ -1072,26 +508,42 @@ public class GameController {
             }
 
             case DASH -> {
-                dashTimeRemaining = 0f;
-                finishDash();
+                movement.stopDash();
+
+                movement.finishDash(
+                    currentInput
+                );
+            }
+
+            case SLASH,
+                 SLASH_ALT,
+                 UP_SLASH,
+                 DOWN_SLASH -> {
+                combat.finishAttack();
+
+                movement
+                    .selectAnimationAfterAction(
+                        currentInput
+                    );
             }
 
             case DEATH -> {
                 /*
                  * Keep the final death frame.
-                 * Enter resets the player.
                  */
             }
 
             case AIRBORNE,
                  DOUBLE_JUMP,
                  WALL_JUMP -> {
-                if (onGround) {
+                if (movement.isOnGround()) {
                     player.setAnimation(
                         PlayerAnimationType.LANDING
                     );
                 } else if (
-                    verticalVelocity <= 0f
+                    movement
+                        .getVerticalVelocity()
+                        <= 0f
                 ) {
                     player.setAnimation(
                         PlayerAnimationType.FALL
@@ -1100,66 +552,50 @@ public class GameController {
             }
 
             default ->
-                selectAnimationAfterAction();
+                movement
+                    .selectAnimationAfterAction(
+                        currentInput
+                    );
         }
     }
 
-    private void selectAnimationAfterAction() {
-        if (!onGround) {
-            if (verticalVelocity > 0f) {
-                player.setMovementState(
-                    PlayerMovementState.AIRBORNE
-                );
-
-                player.setAnimation(
-                    PlayerAnimationType.AIRBORNE
-                );
-            } else {
-                player.setMovementState(
-                    PlayerMovementState.FALLING
-                );
-
-                player.setAnimation(
-                    PlayerAnimationType.FALL
-                );
-            }
-
-            return;
-        }
-
-        player.setMovementState(
-            PlayerMovementState.GROUNDED
-        );
-
-        int horizontalDirection =
-            getHorizontalDirection();
-
-        if (horizontalDirection != 0) {
-            boolean walking =
-                Gdx.input.isKeyPressed(
-                    Input.Keys.CONTROL_LEFT
-                ) || Gdx.input.isKeyPressed(
-                    Input.Keys.CONTROL_RIGHT
-                );
-
-            player.setAnimation(
-                walking
-                    ? PlayerAnimationType.WALK
-                    : PlayerAnimationType.RUN
-            );
-        } else {
-            player.setAnimation(
-                PlayerAnimationType.IDLE
-            );
-        }
+    /*
+     * Later, real enemies and spikes can call this
+     * method after a successful downward hit.
+     */
+    public void applySuccessfulPogo() {
+        combat.finishAttack();
+        movement.pogoBounce();
     }
 
     public Player getPlayer() {
         return player;
     }
 
+    public boolean isAttackHitboxActive() {
+        return combat.isHitboxActive();
+    }
+
+    public Rectangle getAttackHitbox() {
+        return combat.getAttackHitbox();
+    }
+
+    public Rectangle getPracticeTargetBounds() {
+        return practiceTarget.getBounds();
+    }
+
+    public boolean isPracticeTargetFlashing() {
+        return practiceTarget.isFlashing();
+    }
+
+    public int getPracticeTargetHitCount() {
+        return practiceTarget.getHitCount();
+    }
+
     public String text(String key) {
-        return game.getLocalization().get(key);
+        return game
+            .getLocalization()
+            .get(key);
     }
 
     public void returnToMainMenu() {

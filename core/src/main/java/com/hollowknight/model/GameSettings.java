@@ -3,12 +3,17 @@ package com.hollowknight.model;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.Input;
+import com.hollowknight.model.input.KeyBindings;
 
 public class GameSettings {
 
     private static final String PREFERENCES_NAME =
         "hollow-knight-settings";
+
+    private static final String CONTROLS_VERSION_KEY =
+        "controlsVersion";
+
+    private static final int CURRENT_CONTROLS_VERSION = 2;
 
     private final Preferences preferences;
 
@@ -55,30 +60,44 @@ public class GameSettings {
         language =
             preferences.getString("language", "en");
 
-        moveLeftKey = preferences.getInteger(
-            "moveLeftKey",
-            Input.Keys.A
+        int controlsVersion = preferences.getInteger(
+            CONTROLS_VERSION_KEY,
+            0
         );
 
-        moveRightKey = preferences.getInteger(
-            "moveRightKey",
-            Input.Keys.D
-        );
+        if (controlsVersion < CURRENT_CONTROLS_VERSION) {
+            /*
+             * Earlier builds used A/D, Space, Shift, and J.
+             * Migrate once to the assignment's required defaults.
+             */
+            setDefaultControls();
+            save();
+        } else {
+            moveLeftKey = preferences.getInteger(
+                "moveLeftKey",
+                KeyBindings.DEFAULT_MOVE_LEFT
+            );
 
-        jumpKey = preferences.getInteger(
-            "jumpKey",
-            Input.Keys.SPACE
-        );
+            moveRightKey = preferences.getInteger(
+                "moveRightKey",
+                KeyBindings.DEFAULT_MOVE_RIGHT
+            );
 
-        dashKey = preferences.getInteger(
-            "dashKey",
-            Input.Keys.SHIFT_LEFT
-        );
+            jumpKey = preferences.getInteger(
+                "jumpKey",
+                KeyBindings.DEFAULT_JUMP
+            );
 
-        attackKey = preferences.getInteger(
-            "attackKey",
-            Input.Keys.J
-        );
+            dashKey = preferences.getInteger(
+                "dashKey",
+                KeyBindings.DEFAULT_DASH
+            );
+
+            attackKey = preferences.getInteger(
+                "attackKey",
+                KeyBindings.DEFAULT_ATTACK
+            );
+        }
     }
 
     public void save() {
@@ -142,15 +161,20 @@ public class GameSettings {
             attackKey
         );
 
+        preferences.putInteger(
+            CONTROLS_VERSION_KEY,
+            CURRENT_CONTROLS_VERSION
+        );
+
         preferences.flush();
     }
 
     private void setDefaultControls() {
-        moveLeftKey = Input.Keys.A;
-        moveRightKey = Input.Keys.D;
-        jumpKey = Input.Keys.SPACE;
-        dashKey = Input.Keys.SHIFT_LEFT;
-        attackKey = Input.Keys.J;
+        moveLeftKey = KeyBindings.DEFAULT_MOVE_LEFT;
+        moveRightKey = KeyBindings.DEFAULT_MOVE_RIGHT;
+        jumpKey = KeyBindings.DEFAULT_JUMP;
+        dashKey = KeyBindings.DEFAULT_DASH;
+        attackKey = KeyBindings.DEFAULT_ATTACK;
     }
 
     public void resetControls() {

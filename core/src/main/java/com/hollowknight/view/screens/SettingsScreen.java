@@ -1,12 +1,15 @@
 package com.hollowknight.view.screens;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
@@ -16,12 +19,16 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.SettingsController;
 
+import java.util.EnumMap;
+import java.util.Map;
+
 public class SettingsScreen extends ScreenAdapter {
 
     private final SettingsController controller;
 
     private Stage stage;
     private Skin skin;
+    private InputMultiplexer inputMultiplexer;
 
     private CheckBox musicCheckBox;
     private CheckBox soundEffectsCheckBox;
@@ -32,6 +39,11 @@ public class SettingsScreen extends ScreenAdapter {
 
     private SelectBox<String> musicStyleSelectBox;
     private SelectBox<String> languageSelectBox;
+
+    private final Map<ControlAction, TextButton>
+        controlButtons = new EnumMap<>(ControlAction.class);
+
+    private ControlAction waitingForControl;
 
     public SettingsScreen(SettingsController controller) {
         this.controller = controller;
@@ -45,17 +57,45 @@ public class SettingsScreen extends ScreenAdapter {
             Gdx.files.internal("ui/uiskin.json")
         );
 
-        Gdx.input.setInputProcessor(stage);
-
         createMenu();
+        createInputProcessor();
+    }
+
+    private void createInputProcessor() {
+        inputMultiplexer = new InputMultiplexer();
+
+        inputMultiplexer.addProcessor(
+            new InputAdapter() {
+                @Override
+                public boolean keyDown(int keycode) {
+                    if (waitingForControl == null) {
+                        return false;
+                    }
+
+                    setControlKey(
+                        waitingForControl,
+                        keycode
+                    );
+
+                    controller.saveSettings();
+                    waitingForControl = null;
+                    refreshControlButtons();
+
+                    return true;
+                }
+            }
+        );
+
+        inputMultiplexer.addProcessor(stage);
+        Gdx.input.setInputProcessor(inputMultiplexer);
     }
 
     private void createMenu() {
-        Table table = new Table();
+        Table contentTable = new Table();
 
-        table.setFillParent(true);
-        table.center();
-        table.defaults().pad(8f);
+        contentTable.top();
+        contentTable.pad(25f);
+        contentTable.defaults().pad(6f);
 
         Label title = new Label(
             controller.text("settings.title"),
@@ -64,19 +104,36 @@ public class SettingsScreen extends ScreenAdapter {
 
         title.setFontScale(1.6f);
 
-        table.add(title)
+        contentTable.add(title)
             .colspan(2)
-            .padBottom(25f)
+            .padBottom(20f)
             .row();
 
-        createMusicControls(table);
-        createSoundEffectsControls(table);
-        createBrightnessControl(table);
-        createMusicStyleControl(table);
-        createLanguageControl(table);
-        createButtons(table);
+        createMusicControls(contentTable);
+        createSoundEffectsControls(contentTable);
+        createBrightnessControl(contentTable);
+        createMusicStyleControl(contentTable);
+        createLanguageControl(contentTable);
+        createControlsSection(contentTable);
+        createButtons(contentTable);
 
-        stage.addActor(table);
+        ScrollPane scrollPane = new ScrollPane(
+            contentTable,
+            skin
+        );
+
+        scrollPane.setFadeScrollBars(false);
+        scrollPane.setScrollingDisabled(true, false);
+        scrollPane.setOverscroll(false, false);
+
+        Table rootTable = new Table();
+        rootTable.setFillParent(true);
+
+        rootTable.add(scrollPane)
+            .grow()
+            .pad(10f);
+
+        stage.addActor(rootTable);
     }
 
     private void createMusicControls(Table table) {
@@ -350,6 +407,191 @@ public class SettingsScreen extends ScreenAdapter {
             .row();
     }
 
+    private void createControlsSection(Table table) {
+        Label controlsTitle = new Label(
+            controller.text("settings.controls"),
+            skin
+        );
+
+        controlsTitle.setFontScale(1.25f);
+
+        table.add(controlsTitle)
+            .colspan(2)
+            .padTop(18f)
+            .padBottom(8f)
+            .row();
+
+        addControlRow(
+            table,
+            ControlAction.MOVE_LEFT,
+            "settings.moveLeft"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.MOVE_RIGHT,
+            "settings.moveRight"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.JUMP,
+            "settings.jump"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.DASH,
+            "settings.dash"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.ATTACK,
+            "settings.attack"
+        );
+
+        TextButton resetControlsButton = new TextButton(
+            controller.text("settings.resetControls"),
+            skin
+        );
+
+        resetControlsButton.addListener(
+            new ChangeListener() {
+                @Override
+                public void changed(
+                    ChangeEvent event,
+                    Actor actor
+                ) {
+                    waitingForControl = null;
+                    controller.resetControls();
+                    refreshControlButtons();
+                }
+            }
+        );
+
+        table.add(resetControlsButton)
+            .colspan(2)
+            .width(240f)
+            .height(46f)
+            .padTop(8f)
+            .row();
+    }
+
+    private void addControlRow(
+        Table table,
+        ControlAction action,
+        String labelKey
+    ) {
+        Label actionLabel = new Label(
+            controller.text(labelKey),
+            skin
+        );
+
+        TextButton keyButton = new TextButton(
+            controller.keyName(getControlKey(action)),
+            skin
+        );
+
+        keyButton.addListener(
+            new ChangeListener() {
+                @Override
+                public void changed(
+                    ChangeEvent event,
+                    Actor actor
+                ) {
+                    waitingForControl = action;
+                    refreshControlButtons();
+                }
+            }
+        );
+
+        controlButtons.put(action, keyButton);
+
+        table.add(actionLabel)
+            .left();
+
+        table.add(keyButton)
+            .width(250f)
+            .height(44f)
+            .row();
+    }
+
+    private int getControlKey(ControlAction action) {
+        switch (action) {
+            case MOVE_LEFT:
+                return controller.getMoveLeftKey();
+
+            case MOVE_RIGHT:
+                return controller.getMoveRightKey();
+
+            case JUMP:
+                return controller.getJumpKey();
+
+            case DASH:
+                return controller.getDashKey();
+
+            case ATTACK:
+                return controller.getAttackKey();
+
+            default:
+                throw new IllegalArgumentException(
+                    "Unknown control action: " + action
+                );
+        }
+    }
+
+    private void setControlKey(
+        ControlAction action,
+        int keycode
+    ) {
+        switch (action) {
+            case MOVE_LEFT:
+                controller.setMoveLeftKey(keycode);
+                break;
+
+            case MOVE_RIGHT:
+                controller.setMoveRightKey(keycode);
+                break;
+
+            case JUMP:
+                controller.setJumpKey(keycode);
+                break;
+
+            case DASH:
+                controller.setDashKey(keycode);
+                break;
+
+            case ATTACK:
+                controller.setAttackKey(keycode);
+                break;
+
+            default:
+                throw new IllegalArgumentException(
+                    "Unknown control action: " + action
+                );
+        }
+    }
+
+    private void refreshControlButtons() {
+        for (
+            Map.Entry<ControlAction, TextButton> entry
+                : controlButtons.entrySet()
+        ) {
+            if (entry.getKey() == waitingForControl) {
+                entry.getValue().setText(
+                    controller.text("settings.pressKey")
+                );
+            } else {
+                entry.getValue().setText(
+                    controller.keyName(
+                        getControlKey(entry.getKey())
+                    )
+                );
+            }
+        }
+    }
+
     private void createButtons(Table table) {
         TextButton resetAudioButton = new TextButton(
             controller.text("settings.resetAudio"),
@@ -419,6 +661,7 @@ public class SettingsScreen extends ScreenAdapter {
             .width(210f)
             .height(50f)
             .padTop(10f)
+            .padBottom(20f)
             .row();
     }
 
@@ -488,7 +731,10 @@ public class SettingsScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
-        if (Gdx.input.getInputProcessor() == stage) {
+        if (
+            Gdx.input.getInputProcessor()
+                == inputMultiplexer
+        ) {
             Gdx.input.setInputProcessor(null);
         }
     }

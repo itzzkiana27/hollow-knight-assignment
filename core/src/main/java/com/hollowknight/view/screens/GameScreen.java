@@ -20,6 +20,7 @@ import com.hollowknight.controller.GameController;
 import com.hollowknight.model.player.Player;
 import com.hollowknight.model.player.PlayerAnimationType;
 import com.hollowknight.view.animation.KnightAnimationManager;
+import com.badlogic.gdx.math.Rectangle;
 
 public class GameScreen extends ScreenAdapter {
 
@@ -173,7 +174,8 @@ public class GameScreen extends ScreenAdapter {
         controller.update(
             delta,
             stage.getViewport().getWorldWidth(),
-            KNIGHT_DRAW_WIDTH
+            KNIGHT_DRAW_WIDTH,
+            KNIGHT_DRAW_HEIGHT
         );
 
         Gdx.gl.glClearColor(
@@ -188,7 +190,9 @@ public class GameScreen extends ScreenAdapter {
         );
 
         drawTemporaryGround();
+        drawPracticeTarget();
         drawKnight();
+        drawActiveAttackHitbox();
 
         stage.act(
             Math.min(delta, 1f / 30f)
@@ -222,6 +226,74 @@ public class GameScreen extends ScreenAdapter {
             0f,
             stage.getViewport().getWorldWidth(),
             GROUND_Y
+        );
+
+        shapeRenderer.end();
+    }
+    private void drawPracticeTarget() {
+        Rectangle target =
+            controller.getPracticeTargetBounds();
+
+        shapeRenderer.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        if (
+            controller
+                .isPracticeTargetFlashing()
+        ) {
+            shapeRenderer.setColor(
+                Color.WHITE
+            );
+        } else {
+            shapeRenderer.setColor(
+                0.45f,
+                0.48f,
+                0.55f,
+                1f
+            );
+        }
+
+        shapeRenderer.rect(
+            target.x,
+            target.y,
+            target.width,
+            target.height
+        );
+
+        /*
+         * Temporary eyes, only to make the
+         * target easier to recognize.
+         */
+        shapeRenderer.setColor(
+            0.12f,
+            0.13f,
+            0.18f,
+            1f
+        );
+
+        float eyeRadius = 4f;
+
+        float eyeY =
+            target.y
+                + target.height * 0.64f;
+
+        shapeRenderer.circle(
+            target.x
+                + target.width * 0.34f,
+            eyeY,
+            eyeRadius
+        );
+
+        shapeRenderer.circle(
+            target.x
+                + target.width * 0.66f,
+            eyeY,
+            eyeRadius
         );
 
         shapeRenderer.end();
@@ -268,6 +340,42 @@ public class GameScreen extends ScreenAdapter {
         }
 
         batch.end();
+    }
+    private void drawActiveAttackHitbox() {
+        if (
+            !controller
+                .isAttackHitboxActive()
+        ) {
+            return;
+        }
+
+        Rectangle hitbox =
+            controller.getAttackHitbox();
+
+        shapeRenderer.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        Gdx.gl.glLineWidth(2f);
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        shapeRenderer.setColor(
+            Color.RED
+        );
+
+        shapeRenderer.rect(
+            hitbox.x,
+            hitbox.y,
+            hitbox.width,
+            hitbox.height
+        );
+
+        shapeRenderer.end();
+
+        Gdx.gl.glLineWidth(1f);
     }
 
     private void finishAnimationIfNecessary() {
