@@ -4,37 +4,24 @@ import com.badlogic.gdx.math.Rectangle;
 import com.hollowknight.model.input.PlayerInput;
 import com.hollowknight.model.player.Player;
 import com.hollowknight.model.player.PlayerAnimationType;
+import com.hollowknight.model.player.PlayerBody;
 
 public final class PlayerCombat {
 
-    /*
-     * The nail only causes damage during this part
-     * of the slash animation.
-     */
-    private static final float ACTIVE_START_TIME = 0.055f;
-    private static final float ACTIVE_END_TIME = 0.220f;
+    private static final int NAIL_DAMAGE = 1;
 
-    /*
-     * Approximate location of the Knight's body
-     * inside the supplied 349 × 186 animation frames.
-     */
-    private static final float BODY_X_RATIO =
-        131f / 349f;
+    private static final float
+        ACTIVE_START_TIME = 0.055f;
 
-    private static final float BODY_Y_RATIO =
-        4f / 186f;
-
-    private static final float BODY_WIDTH_RATIO =
-        74f / 349f;
-
-    private static final float BODY_HEIGHT_RATIO =
-        120f / 186f;
+    private static final float
+        ACTIVE_END_TIME = 0.220f;
 
     private final Rectangle attackHitbox;
 
     private AttackDirection attackDirection;
 
     private float attackTime;
+
     private boolean attacking;
     private boolean hitRegistered;
 
@@ -45,6 +32,7 @@ public final class PlayerCombat {
             AttackDirection.RIGHT;
 
         attackTime = 0f;
+
         attacking = false;
         hitRegistered = false;
     }
@@ -59,7 +47,8 @@ public final class PlayerCombat {
 
         if (
             !input.isAttackPressed()
-                && !input.isAlternateAttackPressed()
+                && !input
+                .isAlternateAttackPressed()
         ) {
             return false;
         }
@@ -84,7 +73,9 @@ public final class PlayerCombat {
                     ? AttackDirection.RIGHT
                     : AttackDirection.LEFT;
 
-            if (input.isAlternateAttackPressed()) {
+            if (
+                input.isAlternateAttackPressed()
+            ) {
                 player.setAnimation(
                     PlayerAnimationType.SLASH_ALT
                 );
@@ -111,9 +102,7 @@ public final class PlayerCombat {
 
     public void update(
         float delta,
-        Player player,
-        float playerDrawWidth,
-        float playerDrawHeight
+        PlayerBody playerBody
     ) {
         if (!attacking) {
             return;
@@ -122,71 +111,61 @@ public final class PlayerCombat {
         attackTime += delta;
 
         updateHitbox(
-            player,
-            playerDrawWidth,
-            playerDrawHeight
+            playerBody.getBounds()
         );
     }
 
     private void updateHitbox(
-        Player player,
-        float drawWidth,
-        float drawHeight
+        Rectangle body
     ) {
-        float bodyX =
-            player.getPosition().x
-                + drawWidth * BODY_X_RATIO;
-
-        float bodyY =
-            player.getPosition().y
-                + drawHeight * BODY_Y_RATIO;
-
-        float bodyWidth =
-            drawWidth * BODY_WIDTH_RATIO;
-
-        float bodyHeight =
-            drawHeight * BODY_HEIGHT_RATIO;
-
         float bodyCenterX =
-            bodyX + bodyWidth / 2f;
+            body.x + body.width / 2f;
 
         float horizontalReach =
-            drawWidth * 0.27f;
+            body.width * 1.28f;
 
         float horizontalHeight =
-            drawHeight * 0.34f;
+            body.height * 0.43f;
 
         float verticalWidth =
-            drawWidth * 0.22f;
+            body.width * 1.04f;
 
         float verticalReach =
-            drawHeight * 0.48f;
+            body.height * 0.74f;
 
         switch (attackDirection) {
             case RIGHT -> attackHitbox.set(
-                bodyX + bodyWidth - 4f,
-                bodyY + bodyHeight * 0.31f,
+                body.x + body.width - 4f,
+                body.y
+                    + body.height * 0.31f,
                 horizontalReach,
                 horizontalHeight
             );
 
             case LEFT -> attackHitbox.set(
-                bodyX - horizontalReach + 4f,
-                bodyY + bodyHeight * 0.31f,
+                body.x
+                    - horizontalReach
+                    + 4f,
+                body.y
+                    + body.height * 0.31f,
                 horizontalReach,
                 horizontalHeight
             );
 
             case UP -> attackHitbox.set(
-                bodyCenterX - verticalWidth / 2f,
-                bodyY + bodyHeight - 4f,
+                bodyCenterX
+                    - verticalWidth / 2f,
+                body.y + body.height - 4f,
                 verticalWidth,
                 verticalReach
             );
 
             case DOWN -> attackHitbox.set(
-                bodyCenterX - verticalWidth / 2f,
-                bodyY - verticalReach + 8f,
+                bodyCenterX
+                    - verticalWidth / 2f,
+                body.y
+                    - verticalReach
+                    + 8f,
                 verticalWidth,
                 verticalReach
             );
@@ -195,8 +174,10 @@ public final class PlayerCombat {
 
     public boolean isHitboxActive() {
         return attacking
-            && attackTime >= ACTIVE_START_TIME
-            && attackTime <= ACTIVE_END_TIME;
+            && attackTime
+            >= ACTIVE_START_TIME
+            && attackTime
+            <= ACTIVE_END_TIME;
     }
 
     public boolean canRegisterHit() {
@@ -225,8 +206,13 @@ public final class PlayerCombat {
         return attacking;
     }
 
-    public AttackDirection getAttackDirection() {
-        return attackDirection;
+    public boolean isDownwardAttack() {
+        return attackDirection
+            == AttackDirection.DOWN;
+    }
+
+    public int getDamage() {
+        return NAIL_DAMAGE;
     }
 
     public Rectangle getAttackHitbox() {

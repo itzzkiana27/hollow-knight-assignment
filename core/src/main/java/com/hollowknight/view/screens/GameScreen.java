@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -20,7 +21,6 @@ import com.hollowknight.controller.GameController;
 import com.hollowknight.model.player.Player;
 import com.hollowknight.model.player.PlayerAnimationType;
 import com.hollowknight.view.animation.KnightAnimationManager;
-import com.badlogic.gdx.math.Rectangle;
 
 public class GameScreen extends ScreenAdapter {
 
@@ -40,12 +40,6 @@ public class GameScreen extends ScreenAdapter {
             * SOURCE_FRAME_WIDTH
             / SOURCE_FRAME_HEIGHT;
 
-    /*
-     * The supplied Knight frames appear to face left.
-     *
-     * Change this to true only if the direction appears
-     * reversed on your computer.
-     */
     private static final boolean SOURCE_FACES_RIGHT =
         false;
 
@@ -57,22 +51,31 @@ public class GameScreen extends ScreenAdapter {
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
 
-    private KnightAnimationManager animationManager;
+    private KnightAnimationManager
+        animationManager;
 
-    public GameScreen(GameController controller) {
+    public GameScreen(
+        GameController controller
+    ) {
         this.controller = controller;
     }
 
     @Override
     public void show() {
-        stage = new Stage(new ScreenViewport());
+        stage = new Stage(
+            new ScreenViewport()
+        );
 
         skin = new Skin(
-            Gdx.files.internal("ui/uiskin.json")
+            Gdx.files.internal(
+                "ui/uiskin.json"
+            )
         );
 
         batch = new SpriteBatch();
-        shapeRenderer = new ShapeRenderer();
+
+        shapeRenderer =
+            new ShapeRenderer();
 
         animationManager =
             new KnightAnimationManager();
@@ -83,9 +86,13 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void createInterface() {
-        Table instructionsTable = new Table();
+        Table instructionsTable =
+            new Table();
 
-        instructionsTable.setFillParent(true);
+        instructionsTable.setFillParent(
+            true
+        );
+
         instructionsTable.top();
 
         Label title = new Label(
@@ -124,7 +131,10 @@ public class GameScreen extends ScreenAdapter {
             skin
         );
 
-        instructions.setAlignment(Align.center);
+        instructions.setAlignment(
+            Align.center
+        );
+
         instructions.setWrap(true);
 
         instructionsTable.add(title)
@@ -132,16 +142,18 @@ public class GameScreen extends ScreenAdapter {
             .padBottom(8f)
             .row();
 
-        instructionsTable.add(instructions)
+        instructionsTable
+            .add(instructions)
             .width(900f)
             .row();
 
-        TextButton backButton = new TextButton(
-            controller.text(
-                "game.returnToMainMenu"
-            ),
-            skin
-        );
+        TextButton backButton =
+            new TextButton(
+                controller.text(
+                    "game.returnToMainMenu"
+                ),
+                skin
+            );
 
         backButton.addListener(
             new ChangeListener() {
@@ -150,30 +162,44 @@ public class GameScreen extends ScreenAdapter {
                     ChangeEvent event,
                     Actor actor
                 ) {
-                    controller.returnToMainMenu();
+                    controller
+                        .returnToMainMenu();
                 }
             }
         );
 
-        Table backButtonTable = new Table();
+        Table backButtonTable =
+            new Table();
 
-        backButtonTable.setFillParent(true);
-        backButtonTable.bottom().left();
+        backButtonTable.setFillParent(
+            true
+        );
+
+        backButtonTable
+            .bottom()
+            .left();
 
         backButtonTable.add(backButton)
             .width(240f)
             .height(50f)
             .pad(20f);
 
-        stage.addActor(instructionsTable);
-        stage.addActor(backButtonTable);
+        stage.addActor(
+            instructionsTable
+        );
+
+        stage.addActor(
+            backButtonTable
+        );
     }
 
     @Override
     public void render(float delta) {
         controller.update(
             delta,
-            stage.getViewport().getWorldWidth(),
+            stage
+                .getViewport()
+                .getWorldWidth(),
             KNIGHT_DRAW_WIDTH,
             KNIGHT_DRAW_HEIGHT
         );
@@ -190,12 +216,17 @@ public class GameScreen extends ScreenAdapter {
         );
 
         drawTemporaryGround();
-        drawPracticeTarget();
+        drawSpikeHazard();
+        drawPracticeEnemy();
         drawKnight();
         drawActiveAttackHitbox();
+        drawHealthHud();
 
         stage.act(
-            Math.min(delta, 1f / 30f)
+            Math.min(
+                delta,
+                1f / 30f
+            )
         );
 
         stage.draw();
@@ -213,26 +244,27 @@ public class GameScreen extends ScreenAdapter {
         );
 
         shapeRenderer.setColor(
-            new Color(
-                0.16f,
-                0.18f,
-                0.25f,
-                1f
-            )
+            0.16f,
+            0.18f,
+            0.25f,
+            1f
         );
 
         shapeRenderer.rect(
             0f,
             0f,
-            stage.getViewport().getWorldWidth(),
+            stage
+                .getViewport()
+                .getWorldWidth(),
             GROUND_Y
         );
 
         shapeRenderer.end();
     }
-    private void drawPracticeTarget() {
-        Rectangle target =
-            controller.getPracticeTargetBounds();
+
+    private void drawSpikeHazard() {
+        Rectangle spikes =
+            controller.getSpikeBounds();
 
         shapeRenderer.setProjectionMatrix(
             stage.getCamera().combined
@@ -243,8 +275,80 @@ public class GameScreen extends ScreenAdapter {
         );
 
         if (
+            controller.isSpikeFlashing()
+        ) {
+            shapeRenderer.setColor(
+                Color.WHITE
+            );
+        } else {
+            shapeRenderer.setColor(
+                0.72f,
+                0.74f,
+                0.82f,
+                1f
+            );
+        }
+
+        int spikeCount = 6;
+
+        float spikeWidth =
+            spikes.width / spikeCount;
+
+        for (
+            int index = 0;
+            index < spikeCount;
+            index++
+        ) {
+            float left =
+                spikes.x
+                    + index * spikeWidth;
+
+            float right =
+                left + spikeWidth;
+
+            float center =
+                left + spikeWidth / 2f;
+
+            shapeRenderer.triangle(
+                left,
+                spikes.y,
+                right,
+                spikes.y,
+                center,
+                spikes.y
+                    + spikes.height
+            );
+        }
+
+        shapeRenderer.end();
+    }
+
+    private void drawPracticeEnemy() {
+        Rectangle enemy =
             controller
-                .isPracticeTargetFlashing()
+                .getPracticeEnemyBounds();
+
+        shapeRenderer.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        if (
+            !controller
+                .isPracticeEnemyAlive()
+        ) {
+            shapeRenderer.setColor(
+                0.18f,
+                0.19f,
+                0.23f,
+                1f
+            );
+        } else if (
+            controller
+                .isPracticeEnemyFlashing()
         ) {
             shapeRenderer.setColor(
                 Color.WHITE
@@ -259,16 +363,26 @@ public class GameScreen extends ScreenAdapter {
         }
 
         shapeRenderer.rect(
-            target.x,
-            target.y,
-            target.width,
-            target.height
+            enemy.x,
+            enemy.y,
+            enemy.width,
+            enemy.height
         );
 
-        /*
-         * Temporary eyes, only to make the
-         * target easier to recognize.
-         */
+        if (
+            controller
+                .isPracticeEnemyAlive()
+        ) {
+            drawPracticeEnemyEyes(enemy);
+            drawPracticeEnemyHealth(enemy);
+        }
+
+        shapeRenderer.end();
+    }
+
+    private void drawPracticeEnemyEyes(
+        Rectangle enemy
+    ) {
         shapeRenderer.setColor(
             0.12f,
             0.13f,
@@ -276,31 +390,78 @@ public class GameScreen extends ScreenAdapter {
             1f
         );
 
-        float eyeRadius = 4f;
-
         float eyeY =
-            target.y
-                + target.height * 0.64f;
+            enemy.y
+                + enemy.height * 0.64f;
 
         shapeRenderer.circle(
-            target.x
-                + target.width * 0.34f,
+            enemy.x
+                + enemy.width * 0.34f,
             eyeY,
-            eyeRadius
+            4f
         );
 
         shapeRenderer.circle(
-            target.x
-                + target.width * 0.66f,
+            enemy.x
+                + enemy.width * 0.66f,
             eyeY,
-            eyeRadius
+            4f
+        );
+    }
+
+    private void drawPracticeEnemyHealth(
+        Rectangle enemy
+    ) {
+        float healthRatio =
+            (float) controller
+                .getPracticeEnemyHealth()
+                / controller
+                .getPracticeEnemyMaxHealth();
+
+        float barX = enemy.x;
+        float barY =
+            enemy.y
+                + enemy.height
+                + 9f;
+
+        float barWidth = enemy.width;
+        float barHeight = 7f;
+
+        shapeRenderer.setColor(
+            0.12f,
+            0.12f,
+            0.15f,
+            1f
         );
 
-        shapeRenderer.end();
+        shapeRenderer.rect(
+            barX,
+            barY,
+            barWidth,
+            barHeight
+        );
+
+        shapeRenderer.setColor(
+            0.85f,
+            0.85f,
+            0.90f,
+            1f
+        );
+
+        shapeRenderer.rect(
+            barX,
+            barY,
+            barWidth * healthRatio,
+            barHeight
+        );
     }
 
     private void drawKnight() {
-        Player player = controller.getPlayer();
+        if (!controller.shouldDrawPlayer()) {
+            return;
+        }
+        Player player =
+            controller.getPlayer();
 
         TextureRegion frame =
             animationManager.getFrame(
@@ -314,8 +475,11 @@ public class GameScreen extends ScreenAdapter {
 
         batch.begin();
 
-        float x = player.getPosition().x;
-        float y = player.getPosition().y;
+        float x =
+            player.getPosition().x;
+
+        float y =
+            player.getPosition().y;
 
         boolean shouldFlip =
             player.isFacingRight()
@@ -341,6 +505,7 @@ public class GameScreen extends ScreenAdapter {
 
         batch.end();
     }
+
     private void drawActiveAttackHitbox() {
         if (
             !controller
@@ -378,8 +543,91 @@ public class GameScreen extends ScreenAdapter {
         Gdx.gl.glLineWidth(1f);
     }
 
+    private void drawHealthHud() {
+        int currentMasks =
+            controller.getCurrentMasks();
+
+        int maximumMasks =
+            controller.getMaximumMasks();
+
+        float screenHeight =
+            stage
+                .getViewport()
+                .getWorldHeight();
+
+        float startX = 28f;
+        float y = screenHeight - 32f;
+
+        float spacing = 31f;
+        float radius = 11f;
+
+        shapeRenderer.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        for (
+            int index = 0;
+            index < maximumMasks;
+            index++
+        ) {
+            if (index < currentMasks) {
+                shapeRenderer.setColor(
+                    0.92f,
+                    0.94f,
+                    1f,
+                    1f
+                );
+            } else {
+                shapeRenderer.setColor(
+                    0.18f,
+                    0.19f,
+                    0.24f,
+                    1f
+                );
+            }
+
+            shapeRenderer.circle(
+                startX + index * spacing,
+                y,
+                radius
+            );
+        }
+
+        shapeRenderer.end();
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        shapeRenderer.setColor(
+            0.55f,
+            0.58f,
+            0.68f,
+            1f
+        );
+
+        for (
+            int index = 0;
+            index < maximumMasks;
+            index++
+        ) {
+            shapeRenderer.circle(
+                startX + index * spacing,
+                y,
+                radius
+            );
+        }
+
+        shapeRenderer.end();
+    }
+
     private void finishAnimationIfNecessary() {
-        Player player = controller.getPlayer();
+        Player player =
+            controller.getPlayer();
 
         PlayerAnimationType animationType =
             player.getAnimationType();
@@ -419,9 +667,12 @@ public class GameScreen extends ScreenAdapter {
     @Override
     public void hide() {
         if (
-            Gdx.input.getInputProcessor() == stage
+            Gdx.input.getInputProcessor()
+                == stage
         ) {
-            Gdx.input.setInputProcessor(null);
+            Gdx.input.setInputProcessor(
+                null
+            );
         }
     }
 

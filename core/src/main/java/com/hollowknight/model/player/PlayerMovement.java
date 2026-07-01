@@ -65,6 +65,14 @@ public final class PlayerMovement {
         resetState();
     }
 
+    public void respawnAt(
+        float x,
+        float y
+    ) {
+        player.reset(x, y);
+        resetState();
+    }
+
     private void resetState() {
         verticalVelocity = 0f;
 
