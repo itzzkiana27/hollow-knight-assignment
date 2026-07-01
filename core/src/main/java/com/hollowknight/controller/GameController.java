@@ -2,6 +2,7 @@ package com.hollowknight.controller;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.utils.Array;
 import com.hollowknight.HollowKnightGame;
 import com.hollowknight.model.GameSettings;
 import com.hollowknight.model.combat.PlayerCombat;
@@ -18,13 +19,15 @@ import com.hollowknight.model.player.PlayerHealth;
 import com.hollowknight.model.player.PlayerMovement;
 import com.hollowknight.model.player.PlayerMovementState;
 import com.hollowknight.model.player.PlayerSoul;
+import com.hollowknight.model.world.Platform;
+import com.hollowknight.model.world.PlatformWorld;
 
 import java.util.EnumSet;
 
 public class GameController {
 
     private static final float SPAWN_X = 20f;
-    private static final float GROUND_Y = 100f;
+    private static final float SPAWN_Y = 100f;
 
     private static final float
         POGO_SPIKE_GRACE_DURATION = 0.12f;
@@ -51,15 +54,17 @@ public class GameController {
     private final HollowKnightGame game;
 
     private final Player player;
+    private final PlayerBody playerBody;
     private final PlayerMovement movement;
     private final PlayerCombat combat;
-    private final PlayerBody playerBody;
 
     private final PlayerHealth health;
     private final PlayerSoul soul;
     private final PlayerFocus focus;
 
     private final PlayerCheckpoint checkpoint;
+
+    private final PlatformWorld platformWorld;
 
     private final PracticeEnemy practiceEnemy;
     private final SpikeHazard spikeHazard;
@@ -70,8 +75,7 @@ public class GameController {
 
     private PlayerInput currentInput;
 
-    private float
-        pogoSpikeGraceTimeRemaining;
+    private float pogoSpikeGraceTimeRemaining;
 
     public GameController(
         HollowKnightGame game
@@ -80,17 +84,22 @@ public class GameController {
 
         player = new Player(
             SPAWN_X,
-            GROUND_Y
+            SPAWN_Y
         );
+
+        playerBody = new PlayerBody();
+
+        platformWorld =
+            new PlatformWorld();
 
         movement = new PlayerMovement(
             player,
             SPAWN_X,
-            GROUND_Y
+            SPAWN_Y,
+            platformWorld
         );
 
         combat = new PlayerCombat();
-        playerBody = new PlayerBody();
 
         health = new PlayerHealth();
         soul = new PlayerSoul();
@@ -99,7 +108,7 @@ public class GameController {
         checkpoint =
             new PlayerCheckpoint(
                 SPAWN_X,
-                GROUND_Y
+                SPAWN_Y
             );
 
         checkpointDangerZone =
@@ -134,11 +143,20 @@ public class GameController {
         float knightDrawWidth,
         float knightDrawHeight
     ) {
-        currentInput = readPlayerInput();
+        currentInput =
+            readPlayerInput();
 
         float safeDelta = Math.min(
             delta,
             1f / 30f
+        );
+
+        /*
+         * For now, the temporary platform arrangement
+         * adjusts itself to the window width.
+         */
+        platformWorld.updateLayout(
+            worldWidth
         );
 
         updateTimers(safeDelta);
@@ -163,18 +181,21 @@ public class GameController {
             return;
         }
 
+        movement.applyJumpCutoff(
+            currentInput
+        );
+
         updateActiveFocus(safeDelta);
 
-        float maximumX =
-            movement.getMaximumX(
-                worldWidth,
-                knightDrawWidth
-            );
-
+        /*
+         * Dash controls horizontal movement while it
+         * is active. Gravity remains paused.
+         */
         if (movement.isDashing()) {
             updateDash(
                 safeDelta,
-                maximumX
+                knightDrawWidth,
+                knightDrawHeight
             );
 
             finishGameplayFrame(
@@ -200,10 +221,14 @@ public class GameController {
 
         resolveCombatHits();
 
+        /*
+         * handleActionInput may have started a dash.
+         */
         if (movement.isDashing()) {
             updateDash(
                 safeDelta,
-                maximumX
+                knightDrawWidth,
+                knightDrawHeight
             );
 
             finishGameplayFrame(
@@ -215,18 +240,27 @@ public class GameController {
             return;
         }
 
+        /*
+         * A wall jump briefly pushes the Knight away
+         * from the wall before normal control returns.
+         */
         if (
             movement.isWallJumpPushActive()
         ) {
             movement.updateWallJumpPush(
                 safeDelta,
-                maximumX
+                playerBody,
+                knightDrawWidth,
+                knightDrawHeight
             );
 
             movement.updateVerticalMovement(
                 safeDelta,
                 false,
-                isMovementLocked()
+                isMovementLocked(),
+                playerBody,
+                knightDrawWidth,
+                knightDrawHeight
             );
 
             finishGameplayFrame(
@@ -247,20 +281,27 @@ public class GameController {
             startedWallJump =
                 movement.handleJumpInput(
                     currentInput,
-                    maximumX
+                    playerBody,
+                    knightDrawWidth,
+                    knightDrawHeight
                 );
         }
 
         if (startedWallJump) {
             movement.updateWallJumpPush(
                 safeDelta,
-                maximumX
+                playerBody,
+                knightDrawWidth,
+                knightDrawHeight
             );
 
             movement.updateVerticalMovement(
                 safeDelta,
                 false,
-                isMovementLocked()
+                isMovementLocked(),
+                playerBody,
+                knightDrawWidth,
+                knightDrawHeight
             );
 
             finishGameplayFrame(
@@ -276,7 +317,9 @@ public class GameController {
             movement.updateHorizontalMovement(
                 safeDelta,
                 currentInput,
-                maximumX
+                playerBody,
+                knightDrawWidth,
+                knightDrawHeight
             );
         }
 
@@ -284,13 +327,16 @@ public class GameController {
             !movementLocked
                 && movement.shouldWallSlide(
                 currentInput,
-                maximumX
+                playerBody
             );
 
         movement.updateVerticalMovement(
             safeDelta,
             wallSliding,
-            movementLocked
+            movementLocked,
+            playerBody,
+            knightDrawWidth,
+            knightDrawHeight
         );
 
         movement.updateMovementAnimation(
@@ -306,19 +352,23 @@ public class GameController {
         );
     }
 
-    private void updateTimers(float delta) {
+    private void updateTimers(
+        float delta
+    ) {
         health.update(delta);
 
         if (
-            pogoSpikeGraceTimeRemaining > 0f
+            pogoSpikeGraceTimeRemaining <= 0f
         ) {
-            pogoSpikeGraceTimeRemaining -= delta;
+            return;
+        }
 
-            if (
-                pogoSpikeGraceTimeRemaining < 0f
-            ) {
-                pogoSpikeGraceTimeRemaining = 0f;
-            }
+        pogoSpikeGraceTimeRemaining -= delta;
+
+        if (
+            pogoSpikeGraceTimeRemaining < 0f
+        ) {
+            pogoSpikeGraceTimeRemaining = 0f;
         }
     }
 
@@ -329,13 +379,13 @@ public class GameController {
         practiceEnemy.update(
             delta,
             worldWidth,
-            GROUND_Y
+            SPAWN_Y
         );
 
         spikeHazard.update(
             delta,
             worldWidth,
-            GROUND_Y
+            SPAWN_Y
         );
     }
 
@@ -347,14 +397,11 @@ public class GameController {
         }
 
         boolean cancelRequested =
-            currentInput
-                .getHorizontalDirection() != 0
-                || currentInput
-                .isJumpPressed()
-                || currentInput
-                .isDashPressed()
-                || currentInput
-                .isAttackPressed()
+            currentInput.getHorizontalDirection()
+                != 0
+                || currentInput.isJumpPressed()
+                || currentInput.isDashPressed()
+                || currentInput.isAttackPressed()
                 || currentInput
                 .isAlternateAttackPressed();
 
@@ -383,7 +430,11 @@ public class GameController {
                     PlayerAnimationType.FOCUS_END
                 );
             }
-        } else if (
+
+            return;
+        }
+
+        if (
             result
                 == PlayerFocus
                 .UpdateResult.HEALED
@@ -429,9 +480,11 @@ public class GameController {
         }
 
         if (
-            !playerBody.getBounds().overlaps(
-                spikeHazard.getBounds()
-            )
+            !playerBody
+                .getBounds()
+                .overlaps(
+                    spikeHazard.getBounds()
+                )
         ) {
             return false;
         }
@@ -451,12 +504,12 @@ public class GameController {
 
             checkpoint.save(
                 SPAWN_X,
-                GROUND_Y
+                SPAWN_Y
             );
 
             movement.respawnAt(
                 SPAWN_X,
-                GROUND_Y
+                SPAWN_Y
             );
 
             player.setAnimation(
@@ -478,22 +531,24 @@ public class GameController {
         );
 
         /*
-         * Protect against a checkpoint that was saved
-         * inside or directly beside the spikes.
+         * Protect against an old checkpoint which
+         * overlaps the spikes.
          */
         if (
-            playerBody.getBounds().overlaps(
-                spikeHazard.getBounds()
-            )
+            playerBody
+                .getBounds()
+                .overlaps(
+                    spikeHazard.getBounds()
+                )
         ) {
             checkpoint.save(
                 SPAWN_X,
-                GROUND_Y
+                SPAWN_Y
             );
 
             movement.respawnAt(
                 SPAWN_X,
-                GROUND_Y
+                SPAWN_Y
             );
 
             playerBody.update(
@@ -531,16 +586,17 @@ public class GameController {
             spikes.y,
 
             spikes.width
-                + CHECKPOINT_HAZARD_MARGIN
-                * 2f,
+                + CHECKPOINT_HAZARD_MARGIN * 2f,
 
             spikes.height + 30f
         );
 
         if (
-            playerBody.getBounds().overlaps(
-                checkpointDangerZone
-            )
+            playerBody
+                .getBounds()
+                .overlaps(
+                    checkpointDangerZone
+                )
         ) {
             return;
         }
@@ -562,6 +618,10 @@ public class GameController {
             ),
 
             Gdx.input.isKeyJustPressed(
+                keyBindings.getJump()
+            ),
+
+            Gdx.input.isKeyPressed(
                 keyBindings.getJump()
             ),
 
@@ -622,12 +682,15 @@ public class GameController {
 
     private void updateDash(
         float delta,
-        float maximumX
+        float knightDrawWidth,
+        float knightDrawHeight
     ) {
         boolean finished =
             movement.updateDash(
                 delta,
-                maximumX
+                playerBody,
+                knightDrawWidth,
+                knightDrawHeight
             );
 
         if (finished) {
@@ -652,6 +715,9 @@ public class GameController {
     }
 
     private void handleActionInput() {
+        /*
+         * Temporary death animation test.
+         */
         if (currentInput.isDeathPressed()) {
             combat.finishAttack();
             focus.cancel();
@@ -695,7 +761,7 @@ public class GameController {
         }
 
         /*
-         * Temporary Soul test key.
+         * Temporary Soul-gain test.
          */
         if (
             currentInput.isSoulGainPressed()
@@ -713,8 +779,7 @@ public class GameController {
             currentInput.isFireballPressed()
         ) {
             player.setAnimation(
-                PlayerAnimationType
-                    .FIREBALL_CAST
+                PlayerAnimationType.FIREBALL_CAST
             );
 
             return;
@@ -735,7 +800,8 @@ public class GameController {
         ) {
             boolean stationary =
                 currentInput
-                    .getHorizontalDirection() == 0;
+                    .getHorizontalDirection()
+                    == 0;
 
             boolean started =
                 focus.tryStart(
@@ -747,8 +813,7 @@ public class GameController {
 
             if (started) {
                 player.setAnimation(
-                    PlayerAnimationType
-                        .FOCUS_START
+                    PlayerAnimationType.FOCUS_START
                 );
             }
 
@@ -779,7 +844,8 @@ public class GameController {
         }
 
         if (
-            !combat.getAttackHitbox()
+            !combat
+                .getAttackHitbox()
                 .overlaps(
                     practiceEnemy.getBounds()
                 )
@@ -796,9 +862,6 @@ public class GameController {
             combat.getDamage()
         );
 
-        /*
-         * Every successful nail hit grants 11 Soul.
-         */
         soul.gainFromNailHit();
 
         if (
@@ -807,6 +870,7 @@ public class GameController {
                 && canPogo
         ) {
             practiceEnemy.onPogo();
+
             applySuccessfulPogo();
         }
 
@@ -817,14 +881,14 @@ public class GameController {
         if (
             !combat.isDownwardAttack()
                 || movement.isOnGround()
-                || !spikeHazard
-                .canBePogoed()
+                || !spikeHazard.canBePogoed()
         ) {
             return false;
         }
 
         if (
-            !combat.getAttackHitbox()
+            !combat
+                .getAttackHitbox()
                 .overlaps(
                     spikeHazard
                         .getPogoBounds()
@@ -834,6 +898,7 @@ public class GameController {
         }
 
         combat.registerHit();
+
         spikeHazard.onPogo();
 
         applySuccessfulPogo();
@@ -868,8 +933,7 @@ public class GameController {
                     );
                 } else {
                     player.setAnimation(
-                        PlayerAnimationType
-                            .FOCUS_END
+                        PlayerAnimationType.FOCUS_END
                     );
                 }
             }
@@ -896,7 +960,7 @@ public class GameController {
 
             case DEATH -> {
                 /*
-                 * Keep the final death frame.
+                 * Keep the final death frame visible.
                  */
             }
 
@@ -905,12 +969,10 @@ public class GameController {
                  WALL_JUMP -> {
                 if (movement.isOnGround()) {
                     player.setAnimation(
-                        PlayerAnimationType
-                            .LANDING
+                        PlayerAnimationType.LANDING
                     );
                 } else if (
-                    movement
-                        .getVerticalVelocity()
+                    movement.getVerticalVelocity()
                         <= 0f
                 ) {
                     player.setAnimation(
@@ -929,6 +991,7 @@ public class GameController {
 
     public void applySuccessfulPogo() {
         combat.finishAttack();
+
         movement.pogoBounce();
 
         pogoSpikeGraceTimeRemaining =
@@ -937,6 +1000,10 @@ public class GameController {
 
     public Player getPlayer() {
         return player;
+    }
+
+    public Array<Platform> getPlatforms() {
+        return platformWorld.getPlatforms();
     }
 
     public boolean shouldDrawPlayer() {

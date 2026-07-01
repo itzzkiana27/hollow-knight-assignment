@@ -1,19 +1,15 @@
 package com.hollowknight.model.input;
 
-/**
- * A frame-by-frame snapshot of player input.
- *
- * Keeping LibGDX input access out of the movement model makes the movement
- * rules easier to test and keeps the controller responsible for translating
- * keyboard input into model data.
- */
 public final class PlayerInput {
 
     private final boolean moveLeftHeld;
     private final boolean moveRightHeld;
 
     private final boolean jumpPressed;
+    private final boolean jumpHeld;
+
     private final boolean dashPressed;
+
     private final boolean attackPressed;
     private final boolean alternateAttackPressed;
 
@@ -34,6 +30,7 @@ public final class PlayerInput {
         boolean moveLeftHeld,
         boolean moveRightHeld,
         boolean jumpPressed,
+        boolean jumpHeld,
         boolean dashPressed,
         boolean attackPressed,
         boolean alternateAttackPressed,
@@ -50,14 +47,22 @@ public final class PlayerInput {
     ) {
         this.moveLeftHeld = moveLeftHeld;
         this.moveRightHeld = moveRightHeld;
+
         this.jumpPressed = jumpPressed;
+        this.jumpHeld = jumpHeld;
+
         this.dashPressed = dashPressed;
+
         this.attackPressed = attackPressed;
-        this.alternateAttackPressed = alternateAttackPressed;
+        this.alternateAttackPressed =
+            alternateAttackPressed;
+
         this.upHeld = upHeld;
         this.downHeld = downHeld;
+
         this.focusHeld = focusHeld;
         this.focusPressed = focusPressed;
+
         this.hurtPressed = hurtPressed;
         this.soulGainPressed = soulGainPressed;
         this.fireballPressed = fireballPressed;
@@ -83,8 +88,20 @@ public final class PlayerInput {
             false,
             false,
             false,
+            false,
             false
         );
+    }
+
+    public int getHorizontalDirection() {
+        if (
+            moveLeftHeld
+                == moveRightHeld
+        ) {
+            return 0;
+        }
+
+        return moveRightHeld ? 1 : -1;
     }
 
     public boolean isMoveLeftHeld() {
@@ -95,22 +112,12 @@ public final class PlayerInput {
         return moveRightHeld;
     }
 
-    public int getHorizontalDirection() {
-        int direction = 0;
-
-        if (moveLeftHeld) {
-            direction--;
-        }
-
-        if (moveRightHeld) {
-            direction++;
-        }
-
-        return direction;
-    }
-
     public boolean isJumpPressed() {
         return jumpPressed;
+    }
+
+    public boolean isJumpHeld() {
+        return jumpHeld;
     }
 
     public boolean isDashPressed() {

@@ -20,11 +20,32 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.GameController;
 import com.hollowknight.model.player.Player;
 import com.hollowknight.model.player.PlayerAnimationType;
+import com.hollowknight.model.world.Platform;
 import com.hollowknight.view.animation.KnightAnimationManager;
+import com.hollowknight.view.camera.GameCamera;
 
 public class GameScreen extends ScreenAdapter {
 
-    private static final float GROUND_Y = 100f;
+    /*
+     * Complete temporary level dimensions.
+     *
+     * These are larger than the visible camera area,
+     * allowing the camera to travel through the level.
+     */
+    private static final float WORLD_WIDTH =
+        2400f;
+
+    private static final float WORLD_HEIGHT =
+        1000f;
+
+    /*
+     * Amount of the world visible at one time.
+     */
+    private static final float CAMERA_VIEW_WIDTH =
+        1280f;
+
+    private static final float CAMERA_VIEW_HEIGHT =
+        720f;
 
     private static final float SOURCE_FRAME_WIDTH =
         349f;
@@ -54,6 +75,8 @@ public class GameScreen extends ScreenAdapter {
     private KnightAnimationManager
         animationManager;
 
+    private GameCamera worldCamera;
+
     public GameScreen(
         GameController controller
     ) {
@@ -62,6 +85,10 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void show() {
+        /*
+         * This stage is only responsible for fixed
+         * screen-space UI.
+         */
         stage = new Stage(
             new ScreenViewport()
         );
@@ -80,9 +107,33 @@ public class GameScreen extends ScreenAdapter {
         animationManager =
             new KnightAnimationManager();
 
+        worldCamera = new GameCamera(
+            CAMERA_VIEW_WIDTH,
+            CAMERA_VIEW_HEIGHT,
+            WORLD_WIDTH,
+            WORLD_HEIGHT
+        );
+
+        worldCamera.resize(
+            Gdx.graphics.getWidth(),
+            Gdx.graphics.getHeight()
+        );
+
+        resetWorldCamera();
+
         createInterface();
 
         Gdx.input.setInputProcessor(stage);
+    }
+
+    private void resetWorldCamera() {
+        Player player =
+            controller.getPlayer();
+
+        worldCamera.reset(
+            getPlayerCameraTargetX(player),
+            getPlayerCameraTargetY(player)
+        );
     }
 
     private void createInterface() {
@@ -195,14 +246,18 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void render(float delta) {
+        /*
+         * The controller now receives the width of the
+         * complete level instead of only the screen.
+         */
         controller.update(
             delta,
-            stage
-                .getViewport()
-                .getWorldWidth(),
+            WORLD_WIDTH,
             KNIGHT_DRAW_WIDTH,
             KNIGHT_DRAW_HEIGHT
         );
+
+        updateWorldCamera(delta);
 
         Gdx.gl.glClearColor(
             0.02f,
@@ -215,12 +270,16 @@ public class GameScreen extends ScreenAdapter {
             GL20.GL_COLOR_BUFFER_BIT
         );
 
-        drawTemporaryGround();
+        /*
+         * Apply the moving world camera.
+         */
+        worldCamera.apply();
+
+        drawPlatforms();
         drawSpikeHazard();
         drawPracticeEnemy();
         drawKnight();
         drawActiveAttackHitbox();
-        drawPlayerHud();
 
         stage.act(
             Math.min(
@@ -229,14 +288,52 @@ public class GameScreen extends ScreenAdapter {
             )
         );
 
+        /*
+         * Restore the fixed UI viewport before
+         * drawing the HUD and Scene2D actors.
+         */
+        stage.getViewport().apply();
+
+        drawPlayerHud();
+
         stage.draw();
 
         finishAnimationIfNecessary();
     }
 
-    private void drawTemporaryGround() {
+    private void updateWorldCamera(
+        float delta
+    ) {
+        Player player =
+            controller.getPlayer();
+
+        worldCamera.update(
+            Math.min(
+                delta,
+                1f / 30f
+            ),
+            getPlayerCameraTargetX(player),
+            getPlayerCameraTargetY(player)
+        );
+    }
+
+    private float getPlayerCameraTargetX(
+        Player player
+    ) {
+        return player.getPosition().x
+            + KNIGHT_DRAW_WIDTH / 2f;
+    }
+
+    private float getPlayerCameraTargetY(
+        Player player
+    ) {
+        return player.getPosition().y
+            + KNIGHT_DRAW_HEIGHT / 2f;
+    }
+
+    private void drawPlatforms() {
         shapeRenderer.setProjectionMatrix(
-            stage.getCamera().combined
+            worldCamera.getCombined()
         );
 
         shapeRenderer.begin(
@@ -250,14 +347,20 @@ public class GameScreen extends ScreenAdapter {
             1f
         );
 
-        shapeRenderer.rect(
-            0f,
-            0f,
-            stage
-                .getViewport()
-                .getWorldWidth(),
-            GROUND_Y
-        );
+        for (
+            Platform platform
+            : controller.getPlatforms()
+        ) {
+            Rectangle bounds =
+                platform.getBounds();
+
+            shapeRenderer.rect(
+                bounds.x,
+                bounds.y,
+                bounds.width,
+                bounds.height
+            );
+        }
 
         shapeRenderer.end();
     }
@@ -267,7 +370,7 @@ public class GameScreen extends ScreenAdapter {
             controller.getSpikeBounds();
 
         shapeRenderer.setProjectionMatrix(
-            stage.getCamera().combined
+            worldCamera.getCombined()
         );
 
         shapeRenderer.begin(
@@ -329,7 +432,7 @@ public class GameScreen extends ScreenAdapter {
                 .getPracticeEnemyBounds();
 
         shapeRenderer.setProjectionMatrix(
-            stage.getCamera().combined
+            worldCamera.getCombined()
         );
 
         shapeRenderer.begin(
@@ -419,6 +522,7 @@ public class GameScreen extends ScreenAdapter {
                 .getPracticeEnemyMaxHealth();
 
         float barX = enemy.x;
+
         float barY =
             enemy.y
                 + enemy.height
@@ -457,9 +561,12 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void drawKnight() {
-        if (!controller.shouldDrawPlayer()) {
+        if (
+            !controller.shouldDrawPlayer()
+        ) {
             return;
         }
+
         Player player =
             controller.getPlayer();
 
@@ -470,7 +577,7 @@ public class GameScreen extends ScreenAdapter {
             );
 
         batch.setProjectionMatrix(
-            stage.getCamera().combined
+            worldCamera.getCombined()
         );
 
         batch.begin();
@@ -518,7 +625,7 @@ public class GameScreen extends ScreenAdapter {
             controller.getAttackHitbox();
 
         shapeRenderer.setProjectionMatrix(
-            stage.getCamera().combined
+            worldCamera.getCombined()
         );
 
         Gdx.gl.glLineWidth(2f);
@@ -543,7 +650,6 @@ public class GameScreen extends ScreenAdapter {
         Gdx.gl.glLineWidth(1f);
     }
 
-
     private void drawPlayerHud() {
         int currentMasks =
             controller.getCurrentMasks();
@@ -564,7 +670,8 @@ public class GameScreen extends ScreenAdapter {
 
         float vesselCenterX =
             maskStartX
-                + maximumMasks * maskSpacing
+                + maximumMasks
+                * maskSpacing
                 + 20f;
 
         float vesselCenterY = maskY;
@@ -572,6 +679,9 @@ public class GameScreen extends ScreenAdapter {
         float vesselOuterRadius = 20f;
         float vesselInnerRadius = 15f;
 
+        /*
+         * HUD uses the fixed stage camera.
+         */
         shapeRenderer.setProjectionMatrix(
             stage.getCamera().combined
         );
@@ -580,9 +690,6 @@ public class GameScreen extends ScreenAdapter {
             ShapeRenderer.ShapeType.Filled
         );
 
-        /*
-         * Health masks.
-         */
         for (
             int index = 0;
             index < maximumMasks;
@@ -612,9 +719,6 @@ public class GameScreen extends ScreenAdapter {
             );
         }
 
-        /*
-         * Soul vessel background.
-         */
         shapeRenderer.setColor(
             0.10f,
             0.11f,
@@ -641,15 +745,12 @@ public class GameScreen extends ScreenAdapter {
             vesselInnerRadius
         );
 
-        /*
-         * Draw the Soul fill row by row so it follows
-         * the circular vessel shape.
-         */
         float soulRatio =
             controller.getSoulFillRatio();
 
         float vesselBottom =
-            vesselCenterY - vesselInnerRadius;
+            vesselCenterY
+                - vesselInnerRadius;
 
         float fillTop =
             vesselBottom
@@ -667,7 +768,9 @@ public class GameScreen extends ScreenAdapter {
         int rows = 30;
 
         float rowHeight =
-            vesselInnerRadius * 2f / rows;
+            vesselInnerRadius
+                * 2f
+                / rows;
 
         for (
             int row = 0;
@@ -687,27 +790,26 @@ public class GameScreen extends ScreenAdapter {
                     - vesselCenterY
                     + rowHeight / 2f;
 
-            float halfWidth = (float) Math.sqrt(
-                Math.max(
-                    0f,
-                    vesselInnerRadius
-                        * vesselInnerRadius
-                        - relativeY
-                        * relativeY
-                )
-            );
+            float halfWidth =
+                (float) Math.sqrt(
+                    Math.max(
+                        0f,
+                        vesselInnerRadius
+                            * vesselInnerRadius
+                            - relativeY
+                            * relativeY
+                    )
+                );
 
             shapeRenderer.rect(
-                vesselCenterX - halfWidth,
+                vesselCenterX
+                    - halfWidth,
                 rowY,
                 halfWidth * 2f,
                 rowHeight + 0.5f
             );
         }
 
-        /*
-         * Focus progress bar.
-         */
         if (controller.isFocusing()) {
             float barWidth = 80f;
             float barHeight = 6f;
@@ -754,9 +856,6 @@ public class GameScreen extends ScreenAdapter {
 
         shapeRenderer.end();
 
-        /*
-         * HUD outlines.
-         */
         shapeRenderer.begin(
             ShapeRenderer.ShapeType.Line
         );
@@ -789,6 +888,7 @@ public class GameScreen extends ScreenAdapter {
 
         shapeRenderer.end();
     }
+
     private void finishAnimationIfNecessary() {
         Player player =
             controller.getPlayer();
@@ -821,17 +921,28 @@ public class GameScreen extends ScreenAdapter {
         int width,
         int height
     ) {
-        stage.getViewport().update(
-            width,
-            height,
-            true
-        );
+        if (worldCamera != null) {
+            worldCamera.resize(
+                width,
+                height
+            );
+        }
+
+        if (stage != null) {
+            stage.getViewport().update(
+                width,
+                height,
+                true
+            );
+        }
     }
 
     @Override
     public void hide() {
         if (
-            Gdx.input.getInputProcessor()
+            stage != null
+                && Gdx.input
+                .getInputProcessor()
                 == stage
         ) {
             Gdx.input.setInputProcessor(

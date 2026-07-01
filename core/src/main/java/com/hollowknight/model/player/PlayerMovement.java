@@ -1,42 +1,39 @@
 package com.hollowknight.model.player;
 
-import com.badlogic.gdx.math.MathUtils;
 import com.hollowknight.model.input.PlayerInput;
+import com.hollowknight.model.world.PlatformWorld;
 
-/**
- * Owns all current movement state and movement rules for the Knight.
- *
- * This class does not read keyboard input directly. The controller supplies a
- * PlayerInput snapshot, while this model updates position, velocity, movement
- * state, and movement-related animations.
- */
 public final class PlayerMovement {
 
     private static final float MOVE_SPEED = 230f;
 
-    private static final float GRAVITY = -1400f;
-    private static final float JUMP_SPEED = 560f;
-    private static final float DOUBLE_JUMP_SPEED = 520f;
+    private static final float GRAVITY = -1200f;
+    private static final float JUMP_SPEED = 680f;
+    private static final float DOUBLE_JUMP_SPEED = 650f;
+    private static final float JUMP_CUTOFF_MULTIPLIER = 0.40f;
     private static final float MAX_FALL_SPEED = -850f;
 
     private static final float DASH_DURATION = 0.54f;
     private static final float DASH_SPEED = 390f;
     private static final float DASH_COOLDOWN = 0.30f;
 
-    private static final float WALL_CONTACT_TOLERANCE = 3f;
     private static final float WALL_SLIDE_SPEED = -170f;
 
-    private static final float WALL_JUMP_VERTICAL_SPEED = 560f;
+    private static final float WALL_JUMP_VERTICAL_SPEED = 680f;
     private static final float WALL_JUMP_HORIZONTAL_SPEED = 340f;
     private static final float WALL_JUMP_PUSH_DURATION = 0.18f;
     private static final float WALL_JUMP_DETACH_DISTANCE = 5f;
 
+
     private final Player player;
+    private final PlatformWorld platformWorld;
+
     private final float spawnX;
-    private final float groundY;
+    private final float spawnY;
 
     private float verticalVelocity;
 
+    private boolean jumpCutAvailable;
     private int jumpsUsed;
     private boolean onGround;
     private boolean airDashUsed;
@@ -51,17 +48,23 @@ public final class PlayerMovement {
     public PlayerMovement(
         Player player,
         float spawnX,
-        float groundY
+        float spawnY,
+        PlatformWorld platformWorld
     ) {
         this.player = player;
         this.spawnX = spawnX;
-        this.groundY = groundY;
+        this.spawnY = spawnY;
+        this.platformWorld = platformWorld;
 
         resetState();
     }
 
     public void resetPlayer() {
-        player.reset(spawnX, groundY);
+        player.reset(
+            spawnX,
+            spawnY
+        );
+
         resetState();
     }
 
@@ -77,6 +80,7 @@ public final class PlayerMovement {
         verticalVelocity = 0f;
 
         jumpsUsed = 0;
+        jumpCutAvailable = false;
         onGround = true;
         airDashUsed = false;
 
@@ -89,10 +93,15 @@ public final class PlayerMovement {
     }
 
     public void prepareForDeath() {
-        player.getPosition().y = groundY;
+        player.getPosition().set(
+            spawnX,
+            spawnY
+        );
 
         verticalVelocity = 0f;
+
         jumpsUsed = 0;
+        jumpCutAvailable = false;
         onGround = true;
         airDashUsed = false;
 
@@ -100,7 +109,9 @@ public final class PlayerMovement {
         wallJumpPushTimeRemaining = 0f;
     }
 
-    public void updateDashCooldown(float delta) {
+    public void updateDashCooldown(
+        float delta
+    ) {
         if (dashCooldownRemaining <= 0f) {
             return;
         }
@@ -117,7 +128,9 @@ public final class PlayerMovement {
             && (onGround || !airDashUsed);
     }
 
-    public void startDash(PlayerInput input) {
+    public void startDash(
+        PlayerInput input
+    ) {
         int requestedDirection =
             input.getHorizontalDirection();
 
@@ -157,29 +170,42 @@ public final class PlayerMovement {
         return dashTimeRemaining > 0f;
     }
 
-    /**
-     * Updates horizontal dash movement.
-     *
-     * @return true when this update finishes the dash.
-     */
     public boolean updateDash(
         float delta,
-        float maximumX
+        PlayerBody playerBody,
+        float drawWidth,
+        float drawHeight
     ) {
+        float previousX =
+            player.getPosition().x;
+
         player.getPosition().x +=
             dashDirection
                 * DASH_SPEED
                 * delta;
 
-        clampHorizontalPosition(maximumX);
+        playerBody.update(
+            player,
+            drawWidth,
+            drawHeight
+        );
 
-        /*
-         * Gravity intentionally remains paused
-         * during the dash.
-         */
+        boolean hitWall =
+            platformWorld.resolveHorizontal(
+                player,
+                playerBody,
+                previousX,
+                dashDirection,
+                drawWidth,
+                drawHeight
+            );
+
         dashTimeRemaining -= delta;
 
-        if (dashTimeRemaining <= 0f) {
+        if (
+            hitWall
+                || dashTimeRemaining <= 0f
+        ) {
             dashTimeRemaining = 0f;
             return true;
         }
@@ -191,7 +217,9 @@ public final class PlayerMovement {
         dashTimeRemaining = 0f;
     }
 
-    public void finishDash(PlayerInput input) {
+    public void finishDash(
+        PlayerInput input
+    ) {
         if (onGround) {
             player.setMovementState(
                 PlayerMovementState.GROUNDED
@@ -209,23 +237,20 @@ public final class PlayerMovement {
         selectAnimationAfterAction(input);
     }
 
-    /**
-     * Handles normal jump, double jump, and wall jump.
-     *
-     * @return true only when a wall jump has just started.
-     */
     public boolean handleJumpInput(
         PlayerInput input,
-        float maximumX
+        PlayerBody playerBody,
+        float drawWidth,
+        float drawHeight
     ) {
         if (!input.isJumpPressed()) {
             return false;
         }
 
         int heldWallSide =
-            getHeldWallSide(
-                input,
-                maximumX
+            platformWorld.getHeldWallSide(
+                playerBody.getBounds(),
+                input
             );
 
         if (
@@ -235,19 +260,19 @@ public final class PlayerMovement {
         ) {
             startWallJump(
                 heldWallSide,
-                maximumX
+                playerBody,
+                drawWidth,
+                drawHeight
             );
 
             return true;
         }
 
-        /*
-         * First jump from the ground.
-         */
         if (onGround) {
             onGround = false;
             jumpsUsed = 1;
             airDashUsed = false;
+            jumpCutAvailable = true;
 
             verticalVelocity =
                 JUMP_SPEED;
@@ -263,11 +288,9 @@ public final class PlayerMovement {
             return false;
         }
 
-        /*
-         * Double jump.
-         */
         if (jumpsUsed < 2) {
             jumpsUsed = 2;
+            jumpCutAvailable = true;
 
             verticalVelocity =
                 DOUBLE_JUMP_SPEED;
@@ -284,18 +307,51 @@ public final class PlayerMovement {
         return false;
     }
 
+    public void applyJumpCutoff(
+        PlayerInput input
+    ) {
+        if (!jumpCutAvailable) {
+            return;
+        }
+
+        /*
+         * Dash pauses the vertical movement. The jump
+         * cutoff will be checked after the dash finishes.
+         */
+        if (isDashing()) {
+            return;
+        }
+
+        /*
+         * Once the Knight reaches the top of the jump,
+         * there is no remaining upward velocity to cut.
+         */
+        if (verticalVelocity <= 0f) {
+            jumpCutAvailable = false;
+            return;
+        }
+
+        if (input.isJumpHeld()) {
+            return;
+        }
+
+        /*
+         * The key was released while travelling upward.
+         * Immediately remove most of the remaining
+         * upward velocity.
+         */
+        verticalVelocity *=
+            JUMP_CUTOFF_MULTIPLIER;
+
+        jumpCutAvailable = false;
+    }
+
     private void startWallJump(
         int wallSide,
-        float maximumX
+        PlayerBody playerBody,
+        float drawWidth,
+        float drawHeight
     ) {
-        /*
-         * wallSide:
-         *
-         * -1 = left wall
-         *  1 = right wall
-         *
-         * The jump direction is away from the wall.
-         */
         wallJumpDirection = -wallSide;
 
         wallJumpPushTimeRemaining =
@@ -304,19 +360,27 @@ public final class PlayerMovement {
         verticalVelocity =
             WALL_JUMP_VERTICAL_SPEED;
 
-        onGround = false;
+        jumpCutAvailable = true;
 
-        /*
-         * One double jump remains available
-         * after the wall jump.
-         */
+        onGround = false;
         jumpsUsed = 1;
 
         player.getPosition().x +=
             wallJumpDirection
                 * WALL_JUMP_DETACH_DISTANCE;
 
-        clampHorizontalPosition(maximumX);
+        playerBody.update(
+            player,
+            drawWidth,
+            drawHeight
+        );
+
+        platformWorld.clampPlayerInsideWorld(
+            player,
+            playerBody,
+            drawWidth,
+            drawHeight
+        );
 
         player.setFacingRight(
             wallJumpDirection > 0
@@ -337,14 +401,32 @@ public final class PlayerMovement {
 
     public void updateWallJumpPush(
         float delta,
-        float maximumX
+        PlayerBody playerBody,
+        float drawWidth,
+        float drawHeight
     ) {
+        float previousX =
+            player.getPosition().x;
+
         player.getPosition().x +=
             wallJumpDirection
                 * WALL_JUMP_HORIZONTAL_SPEED
                 * delta;
 
-        clampHorizontalPosition(maximumX);
+        playerBody.update(
+            player,
+            drawWidth,
+            drawHeight
+        );
+
+        platformWorld.resolveHorizontal(
+            player,
+            playerBody,
+            previousX,
+            wallJumpDirection,
+            drawWidth,
+            drawHeight
+        );
 
         wallJumpPushTimeRemaining -= delta;
 
@@ -356,38 +438,67 @@ public final class PlayerMovement {
     public void updateHorizontalMovement(
         float delta,
         PlayerInput input,
-        float maximumX
+        PlayerBody playerBody,
+        float drawWidth,
+        float drawHeight
     ) {
-        int horizontalDirection =
+        int direction =
             input.getHorizontalDirection();
 
-        if (horizontalDirection == 0) {
+        if (direction == 0) {
             return;
         }
 
+        float previousX =
+            player.getPosition().x;
+
         player.getPosition().x +=
-            horizontalDirection
+            direction
                 * MOVE_SPEED
                 * delta;
 
-        clampHorizontalPosition(maximumX);
+        playerBody.update(
+            player,
+            drawWidth,
+            drawHeight
+        );
+
+        platformWorld.resolveHorizontal(
+            player,
+            playerBody,
+            previousX,
+            direction,
+            drawWidth,
+            drawHeight
+        );
 
         player.setFacingRight(
-            horizontalDirection > 0
+            direction > 0
         );
     }
 
     public void updateVerticalMovement(
         float delta,
         boolean wallSliding,
-        boolean movementLocked
+        boolean movementLocked,
+        PlayerBody playerBody,
+        float drawWidth,
+        float drawHeight
     ) {
         if (onGround) {
-            player.getPosition().y =
-                groundY;
+            if (
+                platformWorld.hasGroundSupport(
+                    playerBody.getBounds()
+                )
+            ) {
+                verticalVelocity = 0f;
+                return;
+            }
 
-            verticalVelocity = 0f;
-            return;
+            /*
+             * The Knight walked off a platform.
+             */
+            onGround = false;
         }
 
         verticalVelocity +=
@@ -405,24 +516,44 @@ public final class PlayerMovement {
             );
         }
 
+        float previousBottom =
+            playerBody.getBounds().y;
+
+        float previousTop =
+            playerBody.getBounds().y
+                + playerBody.getBounds().height;
+
         player.getPosition().y +=
             verticalVelocity * delta;
 
-        /*
-         * The Knight reached the temporary floor.
-         */
-        if (
-            player.getPosition().y
-                <= groundY
-        ) {
-            player.getPosition().y =
-                groundY;
+        playerBody.update(
+            player,
+            drawWidth,
+            drawHeight
+        );
 
+        PlatformWorld.VerticalCollision collision =
+            platformWorld.resolveVertical(
+                player,
+                playerBody,
+                previousBottom,
+                previousTop,
+                verticalVelocity,
+                drawWidth,
+                drawHeight
+            );
+
+        if (
+            collision
+                == PlatformWorld
+                .VerticalCollision.LANDED
+        ) {
             verticalVelocity = 0f;
 
             jumpsUsed = 0;
             onGround = true;
             airDashUsed = false;
+            jumpCutAvailable = false;
 
             wallJumpPushTimeRemaining = 0f;
 
@@ -437,6 +568,15 @@ public final class PlayerMovement {
             }
 
             return;
+        }
+
+        if (
+            collision
+                == PlatformWorld
+                .VerticalCollision.HIT_CEILING
+        ) {
+            verticalVelocity = 0f;
+            jumpCutAvailable = false;
         }
 
         if (wallSliding) {
@@ -456,7 +596,7 @@ public final class PlayerMovement {
 
     public boolean shouldWallSlide(
         PlayerInput input,
-        float maximumX
+        PlayerBody playerBody
     ) {
         if (
             onGround
@@ -465,58 +605,10 @@ public final class PlayerMovement {
             return false;
         }
 
-        return getHeldWallSide(
-            input,
-            maximumX
+        return platformWorld.getHeldWallSide(
+            playerBody.getBounds(),
+            input
         ) != 0;
-    }
-
-    private int getHeldWallSide(
-        PlayerInput input,
-        float maximumX
-    ) {
-        int wallSide =
-            getTouchingWallSide(maximumX);
-
-        if (
-            wallSide == -1
-                && input.isMoveLeftHeld()
-        ) {
-            return -1;
-        }
-
-        if (
-            wallSide == 1
-                && input.isMoveRightHeld()
-        ) {
-            return 1;
-        }
-
-        return 0;
-    }
-
-    private int getTouchingWallSide(
-        float maximumX
-    ) {
-        float playerX =
-            player.getPosition().x;
-
-        if (
-            playerX
-                <= WALL_CONTACT_TOLERANCE
-        ) {
-            return -1;
-        }
-
-        if (
-            playerX
-                >= maximumX
-                - WALL_CONTACT_TOLERANCE
-        ) {
-            return 1;
-        }
-
-        return 0;
     }
 
     public void updateMovementAnimation(
@@ -531,12 +623,9 @@ public final class PlayerMovement {
             return;
         }
 
-        PlayerAnimationType currentAnimation =
+        PlayerAnimationType current =
             player.getAnimationType();
 
-        /*
-         * Wall slide has priority over falling.
-         */
         if (wallSliding) {
             player.setAnimation(
                 PlayerAnimationType.WALL_SLIDE
@@ -545,12 +634,9 @@ public final class PlayerMovement {
             return;
         }
 
-        /*
-         * Air animations.
-         */
         if (!onGround) {
             if (
-                currentAnimation
+                current
                     == PlayerAnimationType.WALL_JUMP
                     && verticalVelocity > 0f
             ) {
@@ -562,9 +648,9 @@ public final class PlayerMovement {
                     PlayerAnimationType.FALL
                 );
             } else if (
-                currentAnimation
+                current
                     != PlayerAnimationType.AIRBORNE
-                    && currentAnimation
+                    && current
                     != PlayerAnimationType.DOUBLE_JUMP
             ) {
                 player.setAnimation(
@@ -575,14 +661,10 @@ public final class PlayerMovement {
             return;
         }
 
-        int horizontalDirection =
-            input.getHorizontalDirection();
-
-        /*
-         * The same movement keys produce normal
-         * running movement.
-         */
-        if (horizontalDirection != 0) {
+        if (
+            input.getHorizontalDirection()
+                != 0
+        ) {
             player.setAnimation(
                 PlayerAnimationType.RUN
             );
@@ -590,22 +672,18 @@ public final class PlayerMovement {
             return;
         }
 
-        /*
-         * Allow transition animations to finish.
-         */
         if (
-            currentAnimation
+            current
                 == PlayerAnimationType.LANDING
-                || currentAnimation
+                || current
                 == PlayerAnimationType.RUN_TO_IDLE
         ) {
             return;
         }
 
         if (
-            currentAnimation
-                == PlayerAnimationType.RUN
-                || currentAnimation
+            current == PlayerAnimationType.RUN
+                || current
                 == PlayerAnimationType.WALK
         ) {
             player.setAnimation(
@@ -663,29 +741,15 @@ public final class PlayerMovement {
         }
     }
 
-    /**
-     * Called after a successful downward nail hit
-     * against an enemy or spike.
-     *
-     * The pogo:
-     * - launches the Knight upward;
-     * - restores one double jump;
-     * - restores the aerial dash.
-     */
     public void pogoBounce() {
         onGround = false;
 
         verticalVelocity =
             JUMP_SPEED;
 
-        /*
-         * One double jump remains available.
-         */
         jumpsUsed = 1;
+        jumpCutAvailable = false;
 
-        /*
-         * Restore the aerial dash.
-         */
         dashCooldownRemaining = 0f;
         dashTimeRemaining = 0f;
         airDashUsed = false;
@@ -698,27 +762,6 @@ public final class PlayerMovement {
 
         player.setAnimation(
             PlayerAnimationType.AIRBORNE
-        );
-    }
-
-    private void clampHorizontalPosition(
-        float maximumX
-    ) {
-        player.getPosition().x =
-            MathUtils.clamp(
-                player.getPosition().x,
-                0f,
-                maximumX
-            );
-    }
-
-    public float getMaximumX(
-        float worldWidth,
-        float playerDrawWidth
-    ) {
-        return Math.max(
-            0f,
-            worldWidth - playerDrawWidth
         );
     }
 
