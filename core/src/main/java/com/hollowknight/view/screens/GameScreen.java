@@ -220,7 +220,7 @@ public class GameScreen extends ScreenAdapter {
         drawPracticeEnemy();
         drawKnight();
         drawActiveAttackHitbox();
-        drawHealthHud();
+        drawPlayerHud();
 
         stage.act(
             Math.min(
@@ -543,7 +543,8 @@ public class GameScreen extends ScreenAdapter {
         Gdx.gl.glLineWidth(1f);
     }
 
-    private void drawHealthHud() {
+
+    private void drawPlayerHud() {
         int currentMasks =
             controller.getCurrentMasks();
 
@@ -555,11 +556,21 @@ public class GameScreen extends ScreenAdapter {
                 .getViewport()
                 .getWorldHeight();
 
-        float startX = 28f;
-        float y = screenHeight - 32f;
+        float maskStartX = 28f;
+        float maskY = screenHeight - 32f;
 
-        float spacing = 31f;
-        float radius = 11f;
+        float maskSpacing = 31f;
+        float maskRadius = 11f;
+
+        float vesselCenterX =
+            maskStartX
+                + maximumMasks * maskSpacing
+                + 20f;
+
+        float vesselCenterY = maskY;
+
+        float vesselOuterRadius = 20f;
+        float vesselInnerRadius = 15f;
 
         shapeRenderer.setProjectionMatrix(
             stage.getCamera().combined
@@ -569,6 +580,9 @@ public class GameScreen extends ScreenAdapter {
             ShapeRenderer.ShapeType.Filled
         );
 
+        /*
+         * Health masks.
+         */
         for (
             int index = 0;
             index < maximumMasks;
@@ -591,14 +605,158 @@ public class GameScreen extends ScreenAdapter {
             }
 
             shapeRenderer.circle(
-                startX + index * spacing,
-                y,
-                radius
+                maskStartX
+                    + index * maskSpacing,
+                maskY,
+                maskRadius
+            );
+        }
+
+        /*
+         * Soul vessel background.
+         */
+        shapeRenderer.setColor(
+            0.10f,
+            0.11f,
+            0.16f,
+            1f
+        );
+
+        shapeRenderer.circle(
+            vesselCenterX,
+            vesselCenterY,
+            vesselOuterRadius
+        );
+
+        shapeRenderer.setColor(
+            0.20f,
+            0.22f,
+            0.29f,
+            1f
+        );
+
+        shapeRenderer.circle(
+            vesselCenterX,
+            vesselCenterY,
+            vesselInnerRadius
+        );
+
+        /*
+         * Draw the Soul fill row by row so it follows
+         * the circular vessel shape.
+         */
+        float soulRatio =
+            controller.getSoulFillRatio();
+
+        float vesselBottom =
+            vesselCenterY - vesselInnerRadius;
+
+        float fillTop =
+            vesselBottom
+                + vesselInnerRadius
+                * 2f
+                * soulRatio;
+
+        shapeRenderer.setColor(
+            0.93f,
+            0.95f,
+            1f,
+            1f
+        );
+
+        int rows = 30;
+
+        float rowHeight =
+            vesselInnerRadius * 2f / rows;
+
+        for (
+            int row = 0;
+            row < rows;
+            row++
+        ) {
+            float rowY =
+                vesselBottom
+                    + row * rowHeight;
+
+            if (rowY > fillTop) {
+                break;
+            }
+
+            float relativeY =
+                rowY
+                    - vesselCenterY
+                    + rowHeight / 2f;
+
+            float halfWidth = (float) Math.sqrt(
+                Math.max(
+                    0f,
+                    vesselInnerRadius
+                        * vesselInnerRadius
+                        - relativeY
+                        * relativeY
+                )
+            );
+
+            shapeRenderer.rect(
+                vesselCenterX - halfWidth,
+                rowY,
+                halfWidth * 2f,
+                rowHeight + 0.5f
+            );
+        }
+
+        /*
+         * Focus progress bar.
+         */
+        if (controller.isFocusing()) {
+            float barWidth = 80f;
+            float barHeight = 6f;
+
+            float barX =
+                vesselCenterX
+                    - barWidth / 2f;
+
+            float barY =
+                vesselCenterY
+                    - vesselOuterRadius
+                    - 13f;
+
+            shapeRenderer.setColor(
+                0.15f,
+                0.16f,
+                0.21f,
+                1f
+            );
+
+            shapeRenderer.rect(
+                barX,
+                barY,
+                barWidth,
+                barHeight
+            );
+
+            shapeRenderer.setColor(
+                0.90f,
+                0.92f,
+                1f,
+                1f
+            );
+
+            shapeRenderer.rect(
+                barX,
+                barY,
+                barWidth
+                    * controller
+                    .getFocusProgress(),
+                barHeight
             );
         }
 
         shapeRenderer.end();
 
+        /*
+         * HUD outlines.
+         */
         shapeRenderer.begin(
             ShapeRenderer.ShapeType.Line
         );
@@ -616,15 +774,21 @@ public class GameScreen extends ScreenAdapter {
             index++
         ) {
             shapeRenderer.circle(
-                startX + index * spacing,
-                y,
-                radius
+                maskStartX
+                    + index * maskSpacing,
+                maskY,
+                maskRadius
             );
         }
 
+        shapeRenderer.circle(
+            vesselCenterX,
+            vesselCenterY,
+            vesselOuterRadius
+        );
+
         shapeRenderer.end();
     }
-
     private void finishAnimationIfNecessary() {
         Player player =
             controller.getPlayer();

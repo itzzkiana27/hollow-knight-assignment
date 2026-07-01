@@ -13,9 +13,11 @@ import com.hollowknight.model.player.Player;
 import com.hollowknight.model.player.PlayerAnimationType;
 import com.hollowknight.model.player.PlayerBody;
 import com.hollowknight.model.player.PlayerCheckpoint;
+import com.hollowknight.model.player.PlayerFocus;
 import com.hollowknight.model.player.PlayerHealth;
 import com.hollowknight.model.player.PlayerMovement;
 import com.hollowknight.model.player.PlayerMovementState;
+import com.hollowknight.model.player.PlayerSoul;
 
 import java.util.EnumSet;
 
@@ -26,6 +28,7 @@ public class GameController {
 
     private static final float
         POGO_SPIKE_GRACE_DURATION = 0.12f;
+
     private static final float
         CHECKPOINT_HAZARD_MARGIN = 110f;
 
@@ -51,16 +54,21 @@ public class GameController {
     private final PlayerMovement movement;
     private final PlayerCombat combat;
     private final PlayerBody playerBody;
+
     private final PlayerHealth health;
+    private final PlayerSoul soul;
+    private final PlayerFocus focus;
+
     private final PlayerCheckpoint checkpoint;
 
     private final PracticeEnemy practiceEnemy;
     private final SpikeHazard spikeHazard;
 
+    private final Rectangle checkpointDangerZone;
+
     private final KeyBindings keyBindings;
 
     private PlayerInput currentInput;
-    private final Rectangle checkpointDangerZone;
 
     private float
         pogoSpikeGraceTimeRemaining;
@@ -83,13 +91,19 @@ public class GameController {
 
         combat = new PlayerCombat();
         playerBody = new PlayerBody();
+
         health = new PlayerHealth();
+        soul = new PlayerSoul();
+        focus = new PlayerFocus();
 
         checkpoint =
             new PlayerCheckpoint(
                 SPAWN_X,
                 GROUND_Y
             );
+
+        checkpointDangerZone =
+            new Rectangle();
 
         practiceEnemy =
             new PracticeEnemy();
@@ -112,7 +126,6 @@ public class GameController {
             PlayerInput.empty();
 
         pogoSpikeGraceTimeRemaining = 0f;
-        checkpointDangerZone = new Rectangle();
     }
 
     public void update(
@@ -150,7 +163,7 @@ public class GameController {
             return;
         }
 
-        handleFocusRelease();
+        updateActiveFocus(safeDelta);
 
         float maximumX =
             movement.getMaximumX(
@@ -326,6 +339,61 @@ public class GameController {
         );
     }
 
+    private void updateActiveFocus(
+        float delta
+    ) {
+        if (!focus.isActive()) {
+            return;
+        }
+
+        boolean cancelRequested =
+            currentInput
+                .getHorizontalDirection() != 0
+                || currentInput
+                .isJumpPressed()
+                || currentInput
+                .isDashPressed()
+                || currentInput
+                .isAttackPressed()
+                || currentInput
+                .isAlternateAttackPressed();
+
+        PlayerFocus.UpdateResult result =
+            focus.update(
+                delta,
+                currentInput.isFocusHeld(),
+                cancelRequested,
+                health,
+                soul
+            );
+
+        if (
+            result
+                == PlayerFocus
+                .UpdateResult.CANCELLED
+        ) {
+            if (
+                player.getAnimationType()
+                    == PlayerAnimationType.FOCUS
+                    || player.getAnimationType()
+                    == PlayerAnimationType
+                    .FOCUS_START
+            ) {
+                player.setAnimation(
+                    PlayerAnimationType.FOCUS_END
+                );
+            }
+        } else if (
+            result
+                == PlayerFocus
+                .UpdateResult.HEALED
+        ) {
+            player.setAnimation(
+                PlayerAnimationType.FOCUS_GET
+            );
+        }
+    }
+
     private void finishGameplayFrame(
         float delta,
         float knightDrawWidth,
@@ -372,6 +440,7 @@ public class GameController {
             health.takeDamage(1);
 
         combat.finishAttack();
+        focus.cancel();
 
         if (
             result
@@ -402,9 +471,6 @@ public class GameController {
             checkpoint.getY()
         );
 
-        /*
-         * Recalculate the body after respawning.
-         */
         playerBody.update(
             player,
             knightDrawWidth,
@@ -412,9 +478,8 @@ public class GameController {
         );
 
         /*
-         * Older checkpoints may already have been
-         * saved too close to the spikes. Fall back to
-         * the original spawn point in that case.
+         * Protect against a checkpoint that was saved
+         * inside or directly beside the spikes.
          */
         if (
             playerBody.getBounds().overlaps(
@@ -451,7 +516,6 @@ public class GameController {
         return true;
     }
 
-
     private void updateSafeCheckpoint() {
         if (!movement.isOnGround()) {
             return;
@@ -460,11 +524,6 @@ public class GameController {
         Rectangle spikes =
             spikeHazard.getBounds();
 
-        /*
-         * Do not save checkpoints directly beside the
-         * spikes. The Knight's sprite is wider than its
-         * physical body, so a safety margin is needed.
-         */
         checkpointDangerZone.set(
             spikes.x
                 - CHECKPOINT_HAZARD_MARGIN,
@@ -585,27 +644,17 @@ public class GameController {
             currentInput.isRevivePressed()
         ) {
             combat.finishAttack();
+            focus.cancel();
             movement.resetPlayer();
         }
 
         player.updateAnimationTime(delta);
     }
 
-    private void handleFocusRelease() {
-        if (
-            player.getAnimationType()
-                == PlayerAnimationType.FOCUS
-                && !currentInput.isFocusHeld()
-        ) {
-            player.setAnimation(
-                PlayerAnimationType.FOCUS_END
-            );
-        }
-    }
-
     private void handleActionInput() {
         if (currentInput.isDeathPressed()) {
             combat.finishAttack();
+            focus.cancel();
 
             player.setDead(true);
 
@@ -645,9 +694,14 @@ public class GameController {
             return;
         }
 
+        /*
+         * Temporary Soul test key.
+         */
         if (
             currentInput.isSoulGainPressed()
         ) {
+            soul.gainFromNailHit();
+
             player.setAnimation(
                 PlayerAnimationType.FOCUS_GET
             );
@@ -677,13 +731,26 @@ public class GameController {
         }
 
         if (
-            movement.isOnGround()
-                && currentInput
-                .isFocusPressed()
+            currentInput.isFocusPressed()
         ) {
-            player.setAnimation(
-                PlayerAnimationType.FOCUS_START
-            );
+            boolean stationary =
+                currentInput
+                    .getHorizontalDirection() == 0;
+
+            boolean started =
+                focus.tryStart(
+                    movement.isOnGround(),
+                    stationary,
+                    health,
+                    soul
+                );
+
+            if (started) {
+                player.setAnimation(
+                    PlayerAnimationType
+                        .FOCUS_START
+                );
+            }
 
             return;
         }
@@ -720,17 +787,24 @@ public class GameController {
             return false;
         }
 
+        boolean canPogo =
+            practiceEnemy.canBePogoed();
+
         combat.registerHit();
 
         practiceEnemy.takeDamage(
             combat.getDamage()
         );
 
+        /*
+         * Every successful nail hit grants 11 Soul.
+         */
+        soul.gainFromNailHit();
+
         if (
             combat.isDownwardAttack()
                 && !movement.isOnGround()
-                && practiceEnemy
-                .canBePogoed()
+                && canPogo
         ) {
             practiceEnemy.onPogo();
             applySuccessfulPogo();
@@ -768,7 +842,8 @@ public class GameController {
     }
 
     private boolean isMovementLocked() {
-        return combat.isAttacking()
+        return focus.isActive()
+            || combat.isAttacking()
             || LOCKING_NON_COMBAT_ANIMATIONS
             .contains(
                 player.getAnimationType()
@@ -787,9 +862,7 @@ public class GameController {
 
         switch (finishedAnimation) {
             case FOCUS_START -> {
-                if (
-                    currentInput.isFocusHeld()
-                ) {
+                if (focus.isActive()) {
                     player.setAnimation(
                         PlayerAnimationType.FOCUS
                     );
@@ -876,6 +949,26 @@ public class GameController {
 
     public int getMaximumMasks() {
         return health.getMaximumMasks();
+    }
+
+    public int getCurrentSoul() {
+        return soul.getCurrentSoul();
+    }
+
+    public int getMaximumSoul() {
+        return soul.getMaximumSoul();
+    }
+
+    public float getSoulFillRatio() {
+        return soul.getFillRatio();
+    }
+
+    public boolean isFocusing() {
+        return focus.isActive();
+    }
+
+    public float getFocusProgress() {
+        return focus.getProgress();
     }
 
     public boolean isAttackHitboxActive() {

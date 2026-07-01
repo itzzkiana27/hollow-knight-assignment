@@ -71,13 +71,27 @@ public final class PlayerHealth {
         return DamageResult.DAMAGED;
     }
 
-    /**
-     * Used after losing all masks.
-     *
-     * The invincibility timer is intentionally kept
-     * so the Knight cannot immediately receive
-     * another hit after returning to the start.
-     */
+    public int heal(int amount) {
+        if (amount <= 0) {
+            return 0;
+        }
+
+        int masksBeforeHealing =
+            currentMasks;
+
+        currentMasks = Math.min(
+            MAX_MASKS,
+            currentMasks + amount
+        );
+
+        return currentMasks
+            - masksBeforeHealing;
+    }
+
+    public boolean isFullHealth() {
+        return currentMasks >= MAX_MASKS;
+    }
+
     public void restoreFullHealth() {
         currentMasks = MAX_MASKS;
     }
@@ -87,9 +101,6 @@ public final class PlayerHealth {
             invincibilityTimeRemaining > 0f;
     }
 
-    /**
-     * Produces a blinking effect while invincible.
-     */
     public boolean shouldDrawPlayer() {
         if (!isInvincible()) {
             return true;
