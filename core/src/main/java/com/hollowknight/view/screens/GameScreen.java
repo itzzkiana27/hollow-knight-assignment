@@ -27,6 +27,9 @@ import com.hollowknight.view.animation.CrawlidAnimationManager;
 import com.hollowknight.view.animation.HuskHornheadAnimationManager;
 import com.hollowknight.view.animation.KnightAnimationManager;
 import com.hollowknight.view.camera.GameCamera;
+import com.hollowknight.model.enemy.CrystalGuardian;
+import com.hollowknight.view.animation.CrystalGuardianAnimationManager;
+import com.hollowknight.view.effects.CrystalGuardianLaserRenderer;
 
 public class GameScreen extends ScreenAdapter {
 
@@ -45,20 +48,16 @@ public class GameScreen extends ScreenAdapter {
     private static final float CAMERA_VIEW_WIDTH =
         1280f;
 
-    private static final float CAMERA_VIEW_HEIGHT =
-        720f;
+    private static final float CAMERA_VIEW_HEIGHT = 720f;
 
     /*
      * Knight rendering values.
      */
-    private static final float
-        KNIGHT_SOURCE_FRAME_WIDTH = 349f;
+    private static final float KNIGHT_SOURCE_FRAME_WIDTH = 349f;
 
-    private static final float
-        KNIGHT_SOURCE_FRAME_HEIGHT = 186f;
+    private static final float KNIGHT_SOURCE_FRAME_HEIGHT = 186f;
 
-    private static final float
-        KNIGHT_DRAW_HEIGHT = 150f;
+    private static final float KNIGHT_DRAW_HEIGHT = 150f;
 
     private static final float
         KNIGHT_DRAW_WIDTH =
@@ -69,22 +68,18 @@ public class GameScreen extends ScreenAdapter {
     /*
      * The supplied Knight frames face left.
      */
-    private static final boolean
-        KNIGHT_SOURCE_FACES_RIGHT = false;
+    private static final boolean KNIGHT_SOURCE_FACES_RIGHT = false;
 
     /*
      * Husk Hornhead rendering values.
      *
      * Every Husk frame is 239 x 219.
      */
-    private static final float
-        HUSK_SOURCE_WIDTH = 239f;
+    private static final float HUSK_SOURCE_WIDTH = 239f;
 
-    private static final float
-        HUSK_SOURCE_HEIGHT = 219f;
+    private static final float HUSK_SOURCE_HEIGHT = 219f;
 
-    private static final float
-        HUSK_DRAW_HEIGHT = 145f;
+    private static final float HUSK_DRAW_HEIGHT = 145f;
 
     private static final float
         HUSK_DRAW_WIDTH =
@@ -112,11 +107,9 @@ public class GameScreen extends ScreenAdapter {
      * size. The renderer calculates their dimensions
      * dynamically while keeping the same scale.
      */
-    private static final float
-        CRAWLID_SOURCE_HEIGHT = 149f;
+    private static final float CRAWLID_SOURCE_HEIGHT = 149f;
 
-    private static final float
-        CRAWLID_DRAW_HEIGHT = 105f;
+    private static final float CRAWLID_DRAW_HEIGHT = 105f;
 
     private static final float
         CRAWLID_DRAW_SCALE =
@@ -135,6 +128,23 @@ public class GameScreen extends ScreenAdapter {
     private static final boolean
         DRAW_CRAWLID_DEBUG = false;
 
+    private static final float
+        CRYSTAL_SOURCE_HEIGHT = 189f;
+
+    private static final float
+        CRYSTAL_DRAW_HEIGHT = 165f;
+
+    private static final float
+        CRYSTAL_DRAW_SCALE =
+        CRYSTAL_DRAW_HEIGHT
+            / CRYSTAL_SOURCE_HEIGHT;
+
+    private static final boolean
+        CRYSTAL_SOURCE_FACES_RIGHT = false;
+
+    private static final boolean
+        DRAW_CRYSTAL_DEBUG = true;
+
     private final GameController controller;
 
     private Stage stage;
@@ -151,6 +161,12 @@ public class GameScreen extends ScreenAdapter {
 
     private CrawlidAnimationManager
         crawlidAnimationManager;
+
+    private CrystalGuardianAnimationManager
+        crystalAnimationManager;
+
+    private CrystalGuardianLaserRenderer
+        crystalLaserRenderer;
 
     private GameCamera worldCamera;
 
@@ -189,6 +205,12 @@ public class GameScreen extends ScreenAdapter {
 
         crawlidAnimationManager =
             new CrawlidAnimationManager();
+
+        crystalAnimationManager =
+            new CrystalGuardianAnimationManager();
+
+        crystalLaserRenderer =
+            new CrystalGuardianLaserRenderer();
 
         worldCamera = new GameCamera(
             CAMERA_VIEW_WIDTH,
@@ -372,6 +394,13 @@ public class GameScreen extends ScreenAdapter {
 
         if (DRAW_CRAWLID_DEBUG) {
             drawCrawlidDebug();
+        }
+
+        drawCrystalGuardian();
+        drawCrystalGuardianLaser();
+
+        if (DRAW_CRYSTAL_DEBUG) {
+            drawCrystalGuardianDebug();
         }
 
         drawKnight();
@@ -751,6 +780,159 @@ public class GameScreen extends ScreenAdapter {
             body.width,
             body.height
         );
+
+        shapeRenderer.end();
+
+        Gdx.gl.glLineWidth(1f);
+    }
+
+    private void drawCrystalGuardianLaser() {
+        CrystalGuardian guardian =
+            controller.getCrystalGuardian();
+
+        if (!guardian.isLaserActive()) {
+            return;
+        }
+
+        crystalLaserRenderer.draw(
+            batch,
+            guardian.getLaserBounds(),
+            guardian.getLaserDirection(),
+            guardian.getLaserActiveTime(),
+            worldCamera.getCombined()
+        );
+    }
+
+    private void drawCrystalGuardian() {
+        CrystalGuardian guardian =
+            controller.getCrystalGuardian();
+
+        TextureRegion frame =
+            crystalAnimationManager.getFrame(
+                guardian.getAnimationType(),
+                guardian.getAnimationTime()
+            );
+
+        Rectangle body =
+            guardian.getBounds();
+
+        float drawWidth =
+            frame.getRegionWidth()
+                * CRYSTAL_DRAW_SCALE;
+
+        float drawHeight =
+            frame.getRegionHeight()
+                * CRYSTAL_DRAW_SCALE;
+
+        float drawX =
+            body.x
+                + body.width / 2f
+                - drawWidth / 2f;
+
+        float drawY =
+            body.y - 7f;
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.begin();
+
+        if (guardian.isFlashing()) {
+            batch.setColor(
+                1f,
+                0.55f,
+                0.55f,
+                1f
+            );
+        }
+
+        boolean shouldFlip =
+            guardian.isFacingRight()
+                != CRYSTAL_SOURCE_FACES_RIGHT;
+
+        if (shouldFlip) {
+            batch.draw(
+                frame,
+                drawX + drawWidth,
+                drawY,
+                -drawWidth,
+                drawHeight
+            );
+        } else {
+            batch.draw(
+                frame,
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight
+            );
+        }
+
+        batch.setColor(Color.WHITE);
+
+        batch.end();
+    }
+
+    private void drawCrystalGuardianDebug() {
+        CrystalGuardian guardian =
+            controller.getCrystalGuardian();
+
+        shapeRenderer.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        Gdx.gl.glLineWidth(2f);
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        Rectangle body =
+            guardian.getBounds();
+
+        shapeRenderer.setColor(
+            Color.YELLOW
+        );
+
+        shapeRenderer.rect(
+            body.x,
+            body.y,
+            body.width,
+            body.height
+        );
+
+        if (guardian.isAlive()) {
+            Rectangle vision =
+                guardian.getVisionBounds();
+
+            shapeRenderer.setColor(
+                Color.GREEN
+            );
+
+            shapeRenderer.rect(
+                vision.x,
+                vision.y,
+                vision.width,
+                vision.height
+            );
+        }
+
+        if (guardian.isLaserActive()) {
+            Rectangle laser =
+                guardian.getLaserBounds();
+
+            shapeRenderer.setColor(
+                Color.MAGENTA
+            );
+
+            shapeRenderer.rect(
+                laser.x,
+                laser.y,
+                laser.width,
+                laser.height
+            );
+        }
 
         shapeRenderer.end();
 
@@ -1197,6 +1379,18 @@ public class GameScreen extends ScreenAdapter {
 
         if (skin != null) {
             skin.dispose();
+        }
+
+        if (
+            crystalAnimationManager != null
+        ) {
+            crystalAnimationManager.dispose();
+        }
+
+        if (
+            crystalLaserRenderer != null
+        ) {
+            crystalLaserRenderer.dispose();
         }
     }
 }

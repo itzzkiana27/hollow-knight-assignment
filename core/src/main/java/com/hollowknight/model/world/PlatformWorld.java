@@ -441,6 +441,92 @@ public final class PlatformWorld {
         );
     }
 
+    public float getHorizontalRayLength(
+        float startX,
+        float rayY,
+        float rayHeight,
+        int direction,
+        float maximumRange
+    ) {
+        if (
+            direction == 0
+                || maximumRange <= 0f
+                || rayHeight <= 0f
+        ) {
+            return 0f;
+        }
+
+        int normalizedDirection =
+            direction > 0 ? 1 : -1;
+
+        float distanceToWorldBoundary =
+            normalizedDirection > 0
+                ? worldWidth - startX
+                : startX;
+
+        float result =
+            Math.min(
+                maximumRange,
+                Math.max(
+                    0f,
+                    distanceToWorldBoundary
+                )
+            );
+
+        float rayTop =
+            rayY + rayHeight;
+
+        for (Platform platform : platforms) {
+            Rectangle solid =
+                platform.getBounds();
+
+            float solidTop =
+                solid.y + solid.height;
+
+            /*
+             * Ignore platforms that do not intersect the
+             * laser vertically.
+             */
+            if (
+                solid.y >= rayTop
+                    || solidTop <= rayY
+            ) {
+                continue;
+            }
+
+            float distance;
+
+            if (normalizedDirection > 0) {
+                if (solid.x < startX) {
+                    continue;
+                }
+
+                distance =
+                    solid.x - startX;
+            } else {
+                float solidRight =
+                    solid.x + solid.width;
+
+                if (solidRight > startX) {
+                    continue;
+                }
+
+                distance =
+                    startX - solidRight;
+            }
+
+            if (distance < result) {
+                result = Math.max(
+                    0f,
+                    distance
+                );
+            }
+        }
+
+        return result;
+    }
+
+
     private boolean overlapsAnyPlatform(
         Rectangle rectangle
     ) {
