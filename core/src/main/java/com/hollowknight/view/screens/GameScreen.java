@@ -30,6 +30,8 @@ import com.hollowknight.view.camera.GameCamera;
 import com.hollowknight.model.enemy.CrystalGuardian;
 import com.hollowknight.view.animation.CrystalGuardianAnimationManager;
 import com.hollowknight.view.effects.CrystalGuardianLaserRenderer;
+import com.hollowknight.model.enemy.WingedSentry;
+import com.hollowknight.view.animation.WingedSentryAnimationManager;
 
 public class GameScreen extends ScreenAdapter {
 
@@ -139,11 +141,24 @@ public class GameScreen extends ScreenAdapter {
         CRYSTAL_DRAW_HEIGHT
             / CRYSTAL_SOURCE_HEIGHT;
 
-    private static final boolean
-        CRYSTAL_SOURCE_FACES_RIGHT = false;
+    private static final boolean CRYSTAL_SOURCE_FACES_RIGHT = false;
 
-    private static final boolean
-        DRAW_CRYSTAL_DEBUG = true;
+    private static final boolean DRAW_CRYSTAL_DEBUG = false;
+
+    private static final float WINGED_SOURCE_HEIGHT = 398f;
+    private static final float WINGED_DRAW_HEIGHT = 170f;
+
+    private static final float
+        WINGED_DRAW_SCALE =
+        WINGED_DRAW_HEIGHT
+            / WINGED_SOURCE_HEIGHT;
+
+    /*
+     * The supplied Winged Sentry frames face left.
+     */
+    private static final boolean WINGED_SOURCE_FACES_RIGHT = false;
+
+    private static final boolean DRAW_WINGED_DEBUG = false;
 
     private final GameController controller;
 
@@ -153,20 +168,12 @@ public class GameScreen extends ScreenAdapter {
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
 
-    private KnightAnimationManager
-        knightAnimationManager;
-
-    private HuskHornheadAnimationManager
-        huskAnimationManager;
-
-    private CrawlidAnimationManager
-        crawlidAnimationManager;
-
-    private CrystalGuardianAnimationManager
-        crystalAnimationManager;
-
-    private CrystalGuardianLaserRenderer
-        crystalLaserRenderer;
+    private KnightAnimationManager knightAnimationManager;
+    private HuskHornheadAnimationManager huskAnimationManager;
+    private CrawlidAnimationManager crawlidAnimationManager;
+    private CrystalGuardianAnimationManager crystalAnimationManager;
+    private CrystalGuardianLaserRenderer crystalLaserRenderer;
+    private WingedSentryAnimationManager wingedAnimationManager;
 
     private GameCamera worldCamera;
 
@@ -194,23 +201,14 @@ public class GameScreen extends ScreenAdapter {
 
         batch = new SpriteBatch();
 
-        shapeRenderer =
-            new ShapeRenderer();
+        shapeRenderer = new ShapeRenderer();
 
-        knightAnimationManager =
-            new KnightAnimationManager();
-
-        huskAnimationManager =
-            new HuskHornheadAnimationManager();
-
-        crawlidAnimationManager =
-            new CrawlidAnimationManager();
-
-        crystalAnimationManager =
-            new CrystalGuardianAnimationManager();
-
-        crystalLaserRenderer =
-            new CrystalGuardianLaserRenderer();
+        knightAnimationManager = new KnightAnimationManager();
+        huskAnimationManager = new HuskHornheadAnimationManager();
+        crawlidAnimationManager = new CrawlidAnimationManager();
+        crystalAnimationManager = new CrystalGuardianAnimationManager();
+        crystalLaserRenderer = new CrystalGuardianLaserRenderer();
+        wingedAnimationManager = new WingedSentryAnimationManager();
 
         worldCamera = new GameCamera(
             CAMERA_VIEW_WIDTH,
@@ -401,6 +399,11 @@ public class GameScreen extends ScreenAdapter {
 
         if (DRAW_CRYSTAL_DEBUG) {
             drawCrystalGuardianDebug();
+        }
+        drawWingedSentry();
+
+        if (DRAW_WINGED_DEBUG) {
+            drawWingedSentryDebug();
         }
 
         drawKnight();
@@ -939,6 +942,159 @@ public class GameScreen extends ScreenAdapter {
         Gdx.gl.glLineWidth(1f);
     }
 
+    private void drawWingedSentry() {
+        WingedSentry sentry =
+            controller.getWingedSentry();
+
+        TextureRegion frame =
+            wingedAnimationManager.getFrame(
+                sentry.getAnimationType(),
+                sentry.getAnimationTime()
+            );
+
+        Rectangle body =
+            sentry.getBounds();
+
+        float drawWidth =
+            frame.getRegionWidth()
+                * WINGED_DRAW_SCALE;
+
+        float drawHeight =
+            frame.getRegionHeight()
+                * WINGED_DRAW_SCALE;
+
+        /*
+         * This offset aligns the visible flying body
+         * with its gameplay rectangle.
+         */
+        float drawX =
+            body.x
+                + body.width / 2f
+                - drawWidth / 2f;
+
+        float drawY =
+            body.y - 72f;
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.begin();
+
+        if (sentry.isFlashing()) {
+            batch.setColor(
+                1f,
+                0.55f,
+                0.55f,
+                1f
+            );
+        }
+
+        boolean shouldFlip =
+            sentry.isFacingRight()
+                != WINGED_SOURCE_FACES_RIGHT;
+
+        if (shouldFlip) {
+            batch.draw(
+                frame,
+                drawX + drawWidth,
+                drawY,
+                -drawWidth,
+                drawHeight
+            );
+        } else {
+            batch.draw(
+                frame,
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight
+            );
+        }
+
+        batch.setColor(Color.WHITE);
+
+        batch.end();
+    }
+
+
+    private void drawWingedSentryDebug() {
+        WingedSentry sentry =
+            controller.getWingedSentry();
+
+        shapeRenderer.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        Gdx.gl.glLineWidth(2f);
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        Rectangle body =
+            sentry.getBounds();
+
+        /*
+         * Yellow: physical collision body.
+         */
+        shapeRenderer.setColor(
+            Color.YELLOW
+        );
+
+        shapeRenderer.rect(
+            body.x,
+            body.y,
+            body.width,
+            body.height
+        );
+
+        /*
+         * Green: detection region.
+         */
+        if (sentry.isAlive()) {
+            Rectangle detection =
+                sentry.getDetectionBounds();
+
+            shapeRenderer.setColor(
+                Color.GREEN
+            );
+
+            shapeRenderer.rect(
+                detection.x,
+                detection.y,
+                detection.width,
+                detection.height
+            );
+        }
+
+        /*
+         * Cyan: the exact height captured when the
+         * Knight was first detected.
+         */
+        if (sentry.isAttackHeightLocked()) {
+            float lockedY =
+                sentry.getLockedChargeCenterY();
+
+            shapeRenderer.setColor(
+                Color.CYAN
+            );
+
+            shapeRenderer.line(
+                0f,
+                lockedY,
+                WORLD_WIDTH,
+                lockedY
+            );
+        }
+
+        shapeRenderer.end();
+
+        Gdx.gl.glLineWidth(1f);
+    }
+
+
+
     private void drawKnight() {
         if (
             !controller.shouldDrawPlayer()
@@ -1391,6 +1547,11 @@ public class GameScreen extends ScreenAdapter {
             crystalLaserRenderer != null
         ) {
             crystalLaserRenderer.dispose();
+        }
+        if (
+            wingedAnimationManager != null
+        ) {
+            wingedAnimationManager.dispose();
         }
     }
 }

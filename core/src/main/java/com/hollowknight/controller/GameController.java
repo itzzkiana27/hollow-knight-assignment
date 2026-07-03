@@ -23,6 +23,7 @@ import com.hollowknight.model.player.PlayerMovementState;
 import com.hollowknight.model.player.PlayerSoul;
 import com.hollowknight.model.world.Platform;
 import com.hollowknight.model.world.PlatformWorld;
+import com.hollowknight.model.enemy.WingedSentry;
 
 import java.util.EnumSet;
 
@@ -68,6 +69,7 @@ public class GameController {
     private final HuskHornhead huskHornhead;
     private final Crawlid crawlid;
     private final CrystalGuardian crystalGuardian;
+    private final WingedSentry wingedSentry;
 
     private final SpikeHazard spikeHazard;
 
@@ -139,6 +141,18 @@ public class GameController {
             new CrystalGuardian(
                 450f,
                 SPAWN_Y,
+                false
+            );
+
+        /*
+         * City of Tears temporary test instance.
+         *
+         * It starts in the air and initially faces left.
+         */
+        wingedSentry =
+            new WingedSentry(
+                1750f,
+                500f,
                 false
             );
 
@@ -430,6 +444,13 @@ public class GameController {
             platformWorld
         );
 
+        wingedSentry.update(
+            delta,
+            playerBody.getBounds(),
+            !player.isDead(),
+            platformWorld
+        );
+
         spikeHazard.update(
             delta,
             worldWidth,
@@ -528,6 +549,11 @@ public class GameController {
         if (!touchedHazard) {
             touchedHazard =
                 handleCrystalGuardianContact();
+        }
+
+        if (!touchedHazard) {
+            touchedHazard =
+                handleWingedSentryContact();
         }
 
         if (!touchedHazard) {
@@ -734,6 +760,28 @@ public class GameController {
         return applyEnemyContact(
             crystalGuardian.getBounds(),
             crystalGuardian.getContactDamage()
+        );
+    }
+
+    private boolean
+    handleWingedSentryContact() {
+        if (!wingedSentry.isAlive()) {
+            return false;
+        }
+
+        if (
+            !playerBody
+                .getBounds()
+                .overlaps(
+                    wingedSentry.getBounds()
+                )
+        ) {
+            return false;
+        }
+
+        return applyEnemyContact(
+            wingedSentry.getBounds(),
+            wingedSentry.getContactDamage()
         );
     }
 
@@ -1048,6 +1096,10 @@ public class GameController {
             return;
         }
 
+        if (tryHitWingedSentry()) {
+            return;
+        }
+
         tryPogoSpike();
     }
 
@@ -1085,6 +1137,18 @@ public class GameController {
             crystalGuardian.getBounds(),
             crystalGuardian,
             crystalGuardian
+        );
+    }
+
+    private boolean tryHitWingedSentry() {
+        if (!wingedSentry.isAlive()) {
+            return false;
+        }
+
+        return applyNailHit(
+            wingedSentry.getBounds(),
+            wingedSentry,
+            wingedSentry
         );
     }
 
@@ -1260,17 +1324,19 @@ public class GameController {
         return crawlid;
     }
 
-    public CrystalGuardian
-    getCrystalGuardian() {
+    public CrystalGuardian getCrystalGuardian() {
         return crystalGuardian;
+    }
+
+    public WingedSentry getWingedSentry() {
+        return wingedSentry;
     }
 
     public void respawnEnemiesForRoomEntry() {
         huskHornhead.respawnForRoomEntry();
         crawlid.respawnForRoomEntry();
-
-        crystalGuardian
-            .respawnForRoomEntry();
+        crystalGuardian.respawnForRoomEntry();
+        wingedSentry.respawnForRoomEntry();
     }
 
     public boolean shouldDrawPlayer() {

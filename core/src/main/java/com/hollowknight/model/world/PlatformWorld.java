@@ -526,6 +526,63 @@ public final class PlatformWorld {
         return result;
     }
 
+    public float findLandingSurfaceY(
+        Rectangle body,
+        float previousBottom,
+        float nextBottom
+    ) {
+        float highestSurface =
+            Float.NEGATIVE_INFINITY;
+
+        float bodyLeft = body.x;
+        float bodyRight =
+            body.x + body.width;
+
+        for (Platform platform : platforms) {
+            Rectangle solid =
+                platform.getBounds();
+
+            float solidLeft = solid.x;
+
+            float solidRight =
+                solid.x + solid.width;
+
+            boolean horizontalOverlap =
+                bodyRight > solidLeft
+                    && bodyLeft < solidRight;
+
+            if (!horizontalOverlap) {
+                continue;
+            }
+
+            float platformTop =
+                solid.y + solid.height;
+
+            boolean crossedSurface =
+                previousBottom
+                    >= platformTop
+                    - COLLISION_TOLERANCE
+                    && nextBottom
+                    <= platformTop
+                    + COLLISION_TOLERANCE;
+
+            if (
+                crossedSurface
+                    && platformTop > highestSurface
+            ) {
+                highestSurface = platformTop;
+            }
+        }
+
+        if (
+            highestSurface
+                == Float.NEGATIVE_INFINITY
+        ) {
+            return Float.NaN;
+        }
+
+        return highestSurface;
+    }
 
     private boolean overlapsAnyPlatform(
         Rectangle rectangle
