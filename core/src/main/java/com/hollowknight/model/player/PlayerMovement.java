@@ -24,6 +24,9 @@ public final class PlayerMovement {
     private static final float WALL_JUMP_PUSH_DURATION = 0.18f;
     private static final float WALL_JUMP_DETACH_DISTANCE = 5f;
 
+    private static final float KNOCKBACK_HORIZONTAL_SPEED = 330f;
+    private static final float KNOCKBACK_VERTICAL_SPEED = 300f;
+    private static final float KNOCKBACK_DURATION = 0.20f;
 
     private final Player player;
     private final PlatformWorld platformWorld;
@@ -44,6 +47,9 @@ public final class PlayerMovement {
 
     private float wallJumpPushTimeRemaining;
     private int wallJumpDirection;
+
+    private float knockbackTimeRemaining;
+    private int knockbackDirection;
 
     public PlayerMovement(
         Player player,
@@ -90,6 +96,9 @@ public final class PlayerMovement {
 
         wallJumpPushTimeRemaining = 0f;
         wallJumpDirection = 1;
+
+        knockbackTimeRemaining = 0f;
+        knockbackDirection = 1;
     }
 
     public void prepareForDeath() {
@@ -107,6 +116,8 @@ public final class PlayerMovement {
 
         dashTimeRemaining = 0f;
         wallJumpPushTimeRemaining = 0f;
+
+        knockbackTimeRemaining = 0f;
     }
 
     public void updateDashCooldown(
@@ -307,9 +318,7 @@ public final class PlayerMovement {
         return false;
     }
 
-    public void applyJumpCutoff(
-        PlayerInput input
-    ) {
+    public void applyJumpCutoff( PlayerInput input ) {
         if (!jumpCutAvailable) {
             return;
         }
@@ -344,6 +353,88 @@ public final class PlayerMovement {
             JUMP_CUTOFF_MULTIPLIER;
 
         jumpCutAvailable = false;
+    }
+
+    public void applyKnockback(
+        int direction
+    ) {
+        knockbackDirection =
+            direction >= 0 ? 1 : -1;
+
+        knockbackTimeRemaining =
+            KNOCKBACK_DURATION;
+
+        dashTimeRemaining = 0f;
+        wallJumpPushTimeRemaining = 0f;
+
+        onGround = false;
+        jumpCutAvailable = false;
+
+        verticalVelocity =
+            KNOCKBACK_VERTICAL_SPEED;
+
+        /*
+         * Face the enemy while moving away from it.
+         */
+        player.setFacingRight(
+            knockbackDirection < 0
+        );
+
+        player.setMovementState(
+            PlayerMovementState.AIRBORNE
+        );
+
+        player.setAnimation(
+            PlayerAnimationType.IDLE_HURT
+        );
+    }
+
+    public boolean isKnockbackActive() {
+        return knockbackTimeRemaining > 0f;
+    }
+
+    public void updateKnockback(
+        float delta,
+        PlayerBody playerBody,
+        float drawWidth,
+        float drawHeight
+    ) {
+        if (!isKnockbackActive()) {
+            return;
+        }
+
+        float previousX =
+            player.getPosition().x;
+
+        player.getPosition().x +=
+            knockbackDirection
+                * KNOCKBACK_HORIZONTAL_SPEED
+                * delta;
+
+        playerBody.update(
+            player,
+            drawWidth,
+            drawHeight
+        );
+
+        boolean hitWall =
+            platformWorld.resolveHorizontal(
+                player,
+                playerBody,
+                previousX,
+                knockbackDirection,
+                drawWidth,
+                drawHeight
+            );
+
+        knockbackTimeRemaining -= delta;
+
+        if (
+            hitWall
+                || knockbackTimeRemaining < 0f
+        ) {
+            knockbackTimeRemaining = 0f;
+        }
     }
 
     private void startWallJump(

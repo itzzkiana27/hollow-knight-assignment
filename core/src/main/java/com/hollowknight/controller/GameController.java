@@ -6,7 +6,7 @@ import com.badlogic.gdx.utils.Array;
 import com.hollowknight.HollowKnightGame;
 import com.hollowknight.model.GameSettings;
 import com.hollowknight.model.combat.PlayerCombat;
-import com.hollowknight.model.combat.PracticeEnemy;
+import com.hollowknight.model.enemy.HuskHornhead;
 import com.hollowknight.model.combat.SpikeHazard;
 import com.hollowknight.model.input.KeyBindings;
 import com.hollowknight.model.input.PlayerInput;
@@ -29,11 +29,9 @@ public class GameController {
     private static final float SPAWN_X = 20f;
     private static final float SPAWN_Y = 100f;
 
-    private static final float
-        POGO_SPIKE_GRACE_DURATION = 0.12f;
+    private static final float POGO_SPIKE_GRACE_DURATION = 0.12f;
 
-    private static final float
-        CHECKPOINT_HAZARD_MARGIN = 110f;
+    private static final float CHECKPOINT_HAZARD_MARGIN = 110f;
 
     private static final EnumSet<PlayerAnimationType>
         LOCKING_NON_COMBAT_ANIMATIONS =
@@ -66,7 +64,8 @@ public class GameController {
 
     private final PlatformWorld platformWorld;
 
-    private final PracticeEnemy practiceEnemy;
+    private final HuskHornhead huskHornhead;
+
     private final SpikeHazard spikeHazard;
 
     private final Rectangle checkpointDangerZone;
@@ -111,11 +110,18 @@ public class GameController {
                 SPAWN_Y
             );
 
-        checkpointDangerZone =
-            new Rectangle();
+        checkpointDangerZone = new Rectangle();
 
-        practiceEnemy =
-            new PracticeEnemy();
+        /*
+         * Temporary test position. Later this comes from
+         * the environment or room definition.
+         */
+        huskHornhead =
+            new HuskHornhead(
+                650f,
+                SPAWN_Y,
+                false
+            );
 
         spikeHazard =
             new SpikeHazard();
@@ -161,11 +167,6 @@ public class GameController {
 
         updateTimers(safeDelta);
 
-        updateCombatObjects(
-            safeDelta,
-            worldWidth
-        );
-
         movement.updateDashCooldown(
             safeDelta
         );
@@ -174,6 +175,11 @@ public class GameController {
             player,
             knightDrawWidth,
             knightDrawHeight
+        );
+
+        updateWorldObjects(
+            safeDelta,
+            worldWidth
         );
 
         if (player.isDead()) {
@@ -186,6 +192,32 @@ public class GameController {
         );
 
         updateActiveFocus(safeDelta);
+
+        if (movement.isKnockbackActive()) {
+            movement.updateKnockback(
+                safeDelta,
+                playerBody,
+                knightDrawWidth,
+                knightDrawHeight
+            );
+
+            movement.updateVerticalMovement(
+                safeDelta,
+                false,
+                true,
+                playerBody,
+                knightDrawWidth,
+                knightDrawHeight
+            );
+
+            finishGameplayFrame(
+                delta,
+                knightDrawWidth,
+                knightDrawHeight
+            );
+
+            return;
+        }
 
         /*
          * Dash controls horizontal movement while it
@@ -372,14 +404,15 @@ public class GameController {
         }
     }
 
-    private void updateCombatObjects(
+    private void updateWorldObjects(
         float delta,
         float worldWidth
     ) {
-        practiceEnemy.update(
+        huskHornhead.update(
             delta,
-            worldWidth,
-            SPAWN_Y
+            playerBody.getBounds(),
+            !player.isDead(),
+            platformWorld
         );
 
         spikeHazard.update(
@@ -456,13 +489,18 @@ public class GameController {
             knightDrawHeight
         );
 
-        boolean touchedSpike =
+        boolean touchedHazard =
             handleSpikeContact(
                 knightDrawWidth,
                 knightDrawHeight
             );
 
-        if (!touchedSpike) {
+        if (!touchedHazard) {
+            touchedHazard =
+                handleHuskHornheadContact();
+        }
+
+        if (!touchedHazard) {
             updateSafeCheckpoint();
         }
 
@@ -500,22 +538,7 @@ public class GameController {
                 == PlayerHealth
                 .DamageResult.DEFEATED
         ) {
-            health.restoreFullHealth();
-
-            checkpoint.save(
-                SPAWN_X,
-                SPAWN_Y
-            );
-
-            movement.respawnAt(
-                SPAWN_X,
-                SPAWN_Y
-            );
-
-            player.setAnimation(
-                PlayerAnimationType.IDLE_HURT
-            );
-
+            resetPlayerAfterDefeat();
             return true;
         }
 
@@ -604,6 +627,87 @@ public class GameController {
         checkpoint.save(
             player.getPosition().x,
             player.getPosition().y
+        );
+    }
+
+    private boolean
+    handleHuskHornheadContact() {
+        if (!huskHornhead.isAlive()) {
+            return false;
+        }
+
+        if (
+            !playerBody
+                .getBounds()
+                .overlaps(
+                    huskHornhead.getBounds()
+                )
+        ) {
+            return false;
+        }
+
+        PlayerHealth.DamageResult result =
+            health.takeDamage(
+                huskHornhead.getContactDamage()
+            );
+
+        if (
+            result
+                == PlayerHealth
+                .DamageResult.IGNORED
+        ) {
+            return false;
+        }
+
+        combat.finishAttack();
+        focus.cancel();
+
+        if (
+            result
+                == PlayerHealth
+                .DamageResult.DEFEATED
+        ) {
+            resetPlayerAfterDefeat();
+            return true;
+        }
+
+        float playerCenterX =
+            playerBody.getBounds().x
+                + playerBody.getBounds().width
+                / 2f;
+
+        float enemyCenterX =
+            huskHornhead.getBounds().x
+                + huskHornhead.getBounds().width
+                / 2f;
+
+        int knockbackDirection =
+            playerCenterX < enemyCenterX
+                ? -1
+                : 1;
+
+        movement.applyKnockback(
+            knockbackDirection
+        );
+
+        return true;
+    }
+
+    private void resetPlayerAfterDefeat() {
+        health.restoreFullHealth();
+
+        checkpoint.save(
+            SPAWN_X,
+            SPAWN_Y
+        );
+
+        movement.respawnAt(
+            SPAWN_X,
+            SPAWN_Y
+        );
+
+        player.setAnimation(
+            PlayerAnimationType.IDLE_HURT
         );
     }
 
@@ -831,15 +935,15 @@ public class GameController {
             return;
         }
 
-        if (tryHitPracticeEnemy()) {
+        if (tryHitHuskHornhead()) {
             return;
         }
 
         tryPogoSpike();
     }
 
-    private boolean tryHitPracticeEnemy() {
-        if (!practiceEnemy.isAlive()) {
+    private boolean tryHitHuskHornhead() {
+        if (!huskHornhead.isAlive()) {
             return false;
         }
 
@@ -847,18 +951,23 @@ public class GameController {
             !combat
                 .getAttackHitbox()
                 .overlaps(
-                    practiceEnemy.getBounds()
+                    huskHornhead.getBounds()
                 )
         ) {
             return false;
         }
 
+        /*
+         * Remember this before applying damage so that
+         * a killing downward hit can still produce a
+         * successful pogo bounce.
+         */
         boolean canPogo =
-            practiceEnemy.canBePogoed();
+            huskHornhead.canBePogoed();
 
         combat.registerHit();
 
-        practiceEnemy.takeDamage(
+        huskHornhead.takeDamage(
             combat.getDamage()
         );
 
@@ -869,12 +978,23 @@ public class GameController {
                 && !movement.isOnGround()
                 && canPogo
         ) {
-            practiceEnemy.onPogo();
+            huskHornhead.onPogo();
 
             applySuccessfulPogo();
         }
 
         return true;
+    }
+    public HuskHornhead getHuskHornhead() {
+        return huskHornhead;
+    }
+
+    /**
+     * The future room controller can call this when
+     * entering a new room.
+     */
+    public void respawnEnemiesForRoomEntry() {
+        huskHornhead.respawnForRoomEntry();
     }
 
     private boolean tryPogoSpike() {
@@ -1044,26 +1164,6 @@ public class GameController {
 
     public Rectangle getAttackHitbox() {
         return combat.getAttackHitbox();
-    }
-
-    public Rectangle getPracticeEnemyBounds() {
-        return practiceEnemy.getBounds();
-    }
-
-    public boolean isPracticeEnemyAlive() {
-        return practiceEnemy.isAlive();
-    }
-
-    public boolean isPracticeEnemyFlashing() {
-        return practiceEnemy.isFlashing();
-    }
-
-    public int getPracticeEnemyHealth() {
-        return practiceEnemy.getHealth();
-    }
-
-    public int getPracticeEnemyMaxHealth() {
-        return practiceEnemy.getMaxHealth();
     }
 
     public Rectangle getSpikeBounds() {

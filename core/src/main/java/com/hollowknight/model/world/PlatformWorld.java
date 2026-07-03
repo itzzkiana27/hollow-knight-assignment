@@ -400,6 +400,47 @@ public final class PlatformWorld {
         return 0;
     }
 
+    public boolean overlapsSolid(
+        Rectangle rectangle
+    ) {
+        return overlapsAnyPlatform(
+            rectangle
+        );
+    }
+
+    public boolean hasGroundAhead(
+        Rectangle body,
+        int direction,
+        float lookAhead,
+        float probeDepth
+    ) {
+        if (direction == 0) {
+            return hasGroundSupport(body);
+        }
+
+        float probeWidth = 4f;
+
+        float probeX =
+            direction > 0
+                ? body.x
+                + body.width
+                + lookAhead
+                : body.x
+                - lookAhead
+                - probeWidth;
+
+        groundProbe.set(
+            probeX,
+            body.y - probeDepth,
+            probeWidth,
+            probeDepth + 2f
+        );
+
+        return overlapsAnyPlatform(
+            groundProbe
+        );
+    }
+
     private boolean overlapsAnyPlatform(
         Rectangle rectangle
     ) {

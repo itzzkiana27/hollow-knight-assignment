@@ -23,6 +23,8 @@ import com.hollowknight.model.player.PlayerAnimationType;
 import com.hollowknight.model.world.Platform;
 import com.hollowknight.view.animation.KnightAnimationManager;
 import com.hollowknight.view.camera.GameCamera;
+import com.hollowknight.model.enemy.HuskHornhead;
+import com.hollowknight.view.animation.HuskHornheadAnimationManager;
 
 public class GameScreen extends ScreenAdapter {
 
@@ -56,6 +58,32 @@ public class GameScreen extends ScreenAdapter {
     private static final float KNIGHT_DRAW_HEIGHT =
         150f;
 
+    private static final float
+        HUSK_SOURCE_WIDTH = 239f;
+
+    private static final float
+        HUSK_SOURCE_HEIGHT = 219f;
+
+    private static final float
+        HUSK_DRAW_HEIGHT = 145f;
+
+    private static final float
+        HUSK_DRAW_WIDTH =
+        HUSK_DRAW_HEIGHT
+            * HUSK_SOURCE_WIDTH
+            / HUSK_SOURCE_HEIGHT;
+
+    /*
+     * The original Husk frames face left.
+     */
+    private static final boolean HUSK_SOURCE_FACES_RIGHT = false;
+
+    /*
+     * Keep this true while testing the vision field.
+     * Change it to false afterward.
+     */
+    private static final boolean DRAW_HUSK_DEBUG = false;
+
     private static final float KNIGHT_DRAW_WIDTH =
         KNIGHT_DRAW_HEIGHT
             * SOURCE_FRAME_WIDTH
@@ -72,10 +100,11 @@ public class GameScreen extends ScreenAdapter {
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
 
-    private KnightAnimationManager
-        animationManager;
+    private KnightAnimationManager animationManager;
 
     private GameCamera worldCamera;
+
+    private HuskHornheadAnimationManager huskAnimationManager;
 
     public GameScreen(
         GameController controller
@@ -101,11 +130,11 @@ public class GameScreen extends ScreenAdapter {
 
         batch = new SpriteBatch();
 
-        shapeRenderer =
-            new ShapeRenderer();
+        shapeRenderer = new ShapeRenderer();
 
-        animationManager =
-            new KnightAnimationManager();
+        animationManager = new KnightAnimationManager();
+
+        huskAnimationManager = new HuskHornheadAnimationManager();
 
         worldCamera = new GameCamera(
             CAMERA_VIEW_WIDTH,
@@ -277,7 +306,11 @@ public class GameScreen extends ScreenAdapter {
 
         drawPlatforms();
         drawSpikeHazard();
-        drawPracticeEnemy();
+        drawHuskHornhead();
+
+        if (DRAW_HUSK_DEBUG) {
+            drawHuskHornheadDebug();
+        }
         drawKnight();
         drawActiveAttackHitbox();
 
@@ -426,138 +459,133 @@ public class GameScreen extends ScreenAdapter {
         shapeRenderer.end();
     }
 
-    private void drawPracticeEnemy() {
-        Rectangle enemy =
-            controller
-                .getPracticeEnemyBounds();
 
-        shapeRenderer.setProjectionMatrix(
+
+
+    private void drawHuskHornhead() {
+        HuskHornhead husk =
+            controller.getHuskHornhead();
+
+        TextureRegion frame =
+            huskAnimationManager.getFrame(
+                husk.getAnimationType(),
+                husk.getAnimationTime()
+            );
+
+        Rectangle body =
+            husk.getBounds();
+
+        /*
+         * Center the larger transparent source frame
+         * around the smaller physical collision body.
+         */
+        float drawX =
+            body.x
+                + body.width / 2f
+                - HUSK_DRAW_WIDTH / 2f;
+
+        /*
+         * The source frames contain a small transparent
+         * margin below the creature.
+         */
+        float drawY =
+            body.y - 7f;
+
+        batch.setProjectionMatrix(
             worldCamera.getCombined()
         );
 
-        shapeRenderer.begin(
-            ShapeRenderer.ShapeType.Filled
-        );
+        batch.begin();
 
-        if (
-            !controller
-                .isPracticeEnemyAlive()
-        ) {
-            shapeRenderer.setColor(
-                0.18f,
-                0.19f,
-                0.23f,
-                1f
-            );
-        } else if (
-            controller
-                .isPracticeEnemyFlashing()
-        ) {
-            shapeRenderer.setColor(
-                Color.WHITE
-            );
-        } else {
-            shapeRenderer.setColor(
-                0.45f,
-                0.48f,
+        if (husk.isFlashing()) {
+            batch.setColor(
+                1f,
+                0.55f,
                 0.55f,
                 1f
             );
         }
 
-        shapeRenderer.rect(
-            enemy.x,
-            enemy.y,
-            enemy.width,
-            enemy.height
+        boolean shouldFlip =
+            husk.isFacingRight()
+                != HUSK_SOURCE_FACES_RIGHT;
+
+        if (shouldFlip) {
+            batch.draw(
+                frame,
+                drawX + HUSK_DRAW_WIDTH,
+                drawY,
+                -HUSK_DRAW_WIDTH,
+                HUSK_DRAW_HEIGHT
+            );
+        } else {
+            batch.draw(
+                frame,
+                drawX,
+                drawY,
+                HUSK_DRAW_WIDTH,
+                HUSK_DRAW_HEIGHT
+            );
+        }
+
+        batch.setColor(Color.WHITE);
+
+        batch.end();
+    }
+
+    private void drawHuskHornheadDebug() {
+        HuskHornhead husk =
+            controller.getHuskHornhead();
+
+        shapeRenderer.setProjectionMatrix(
+            worldCamera.getCombined()
         );
 
-        if (
-            controller
-                .isPracticeEnemyAlive()
-        ) {
-            drawPracticeEnemyEyes(enemy);
-            drawPracticeEnemyHealth(enemy);
+        Gdx.gl.glLineWidth(2f);
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        /*
+         * Yellow: physical enemy body.
+         */
+        shapeRenderer.setColor(
+            Color.YELLOW
+        );
+
+        Rectangle body =
+            husk.getBounds();
+
+        shapeRenderer.rect(
+            body.x,
+            body.y,
+            body.width,
+            body.height
+        );
+
+        /*
+         * Green: forward rectangular field of vision.
+         */
+        if (husk.isAlive()) {
+            shapeRenderer.setColor(
+                Color.GREEN
+            );
+
+            Rectangle vision =
+                husk.getVisionBounds();
+
+            shapeRenderer.rect(
+                vision.x,
+                vision.y,
+                vision.width,
+                vision.height
+            );
         }
 
         shapeRenderer.end();
-    }
 
-    private void drawPracticeEnemyEyes(
-        Rectangle enemy
-    ) {
-        shapeRenderer.setColor(
-            0.12f,
-            0.13f,
-            0.18f,
-            1f
-        );
-
-        float eyeY =
-            enemy.y
-                + enemy.height * 0.64f;
-
-        shapeRenderer.circle(
-            enemy.x
-                + enemy.width * 0.34f,
-            eyeY,
-            4f
-        );
-
-        shapeRenderer.circle(
-            enemy.x
-                + enemy.width * 0.66f,
-            eyeY,
-            4f
-        );
-    }
-
-    private void drawPracticeEnemyHealth(
-        Rectangle enemy
-    ) {
-        float healthRatio =
-            (float) controller
-                .getPracticeEnemyHealth()
-                / controller
-                .getPracticeEnemyMaxHealth();
-
-        float barX = enemy.x;
-
-        float barY =
-            enemy.y
-                + enemy.height
-                + 9f;
-
-        float barWidth = enemy.width;
-        float barHeight = 7f;
-
-        shapeRenderer.setColor(
-            0.12f,
-            0.12f,
-            0.15f,
-            1f
-        );
-
-        shapeRenderer.rect(
-            barX,
-            barY,
-            barWidth,
-            barHeight
-        );
-
-        shapeRenderer.setColor(
-            0.85f,
-            0.85f,
-            0.90f,
-            1f
-        );
-
-        shapeRenderer.rect(
-            barX,
-            barY,
-            barWidth * healthRatio,
-            barHeight
-        );
+        Gdx.gl.glLineWidth(1f);
     }
 
     private void drawKnight() {
@@ -971,6 +999,9 @@ public class GameScreen extends ScreenAdapter {
 
         if (skin != null) {
             skin.dispose();
+        }
+        if (huskAnimationManager != null) {
+            huskAnimationManager.dispose();
         }
     }
 }
