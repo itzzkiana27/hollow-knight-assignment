@@ -6,8 +6,9 @@ import com.badlogic.gdx.utils.Array;
 import com.hollowknight.HollowKnightGame;
 import com.hollowknight.model.GameSettings;
 import com.hollowknight.model.combat.PlayerCombat;
-import com.hollowknight.model.enemy.HuskHornhead;
 import com.hollowknight.model.combat.SpikeHazard;
+import com.hollowknight.model.enemy.Crawlid;
+import com.hollowknight.model.enemy.HuskHornhead;
 import com.hollowknight.model.input.KeyBindings;
 import com.hollowknight.model.input.PlayerInput;
 import com.hollowknight.model.player.Player;
@@ -29,9 +30,11 @@ public class GameController {
     private static final float SPAWN_X = 20f;
     private static final float SPAWN_Y = 100f;
 
-    private static final float POGO_SPIKE_GRACE_DURATION = 0.12f;
+    private static final float
+        POGO_SPIKE_GRACE_DURATION = 0.12f;
 
-    private static final float CHECKPOINT_HAZARD_MARGIN = 110f;
+    private static final float
+        CHECKPOINT_HAZARD_MARGIN = 110f;
 
     private static final EnumSet<PlayerAnimationType>
         LOCKING_NON_COMBAT_ANIMATIONS =
@@ -65,6 +68,7 @@ public class GameController {
     private final PlatformWorld platformWorld;
 
     private final HuskHornhead huskHornhead;
+    private final Crawlid crawlid;
 
     private final SpikeHazard spikeHazard;
 
@@ -110,17 +114,31 @@ public class GameController {
                 SPAWN_Y
             );
 
-        checkpointDangerZone = new Rectangle();
+        checkpointDangerZone =
+            new Rectangle();
 
         /*
-         * Temporary test position. Later this comes from
-         * the environment or room definition.
+         * Shared enemy test instance.
+         *
+         * false means the Husk initially faces left.
          */
         huskHornhead =
             new HuskHornhead(
                 650f,
                 SPAWN_Y,
                 false
+            );
+
+        /*
+         * Forgotten Crossroads test instance.
+         *
+         * true means the Crawlid initially faces right.
+         */
+        crawlid =
+            new Crawlid(
+                1300f,
+                SPAWN_Y,
+                true
             );
 
         spikeHazard =
@@ -157,10 +175,6 @@ public class GameController {
             1f / 30f
         );
 
-        /*
-         * For now, the temporary platform arrangement
-         * adjusts itself to the window width.
-         */
         platformWorld.updateLayout(
             worldWidth
         );
@@ -193,6 +207,10 @@ public class GameController {
 
         updateActiveFocus(safeDelta);
 
+        /*
+         * Player input and normal movement are disabled
+         * while damage knockback is active.
+         */
         if (movement.isKnockbackActive()) {
             movement.updateKnockback(
                 safeDelta,
@@ -220,8 +238,8 @@ public class GameController {
         }
 
         /*
-         * Dash controls horizontal movement while it
-         * is active. Gravity remains paused.
+         * Dash controls horizontal movement while
+         * gravity remains paused.
          */
         if (movement.isDashing()) {
             updateDash(
@@ -415,6 +433,12 @@ public class GameController {
             platformWorld
         );
 
+        crawlid.update(
+            delta,
+            playerBody.getBounds(),
+            platformWorld
+        );
+
         spikeHazard.update(
             delta,
             worldWidth,
@@ -430,8 +454,8 @@ public class GameController {
         }
 
         boolean cancelRequested =
-            currentInput.getHorizontalDirection()
-                != 0
+            currentInput
+                .getHorizontalDirection() != 0
                 || currentInput.isJumpPressed()
                 || currentInput.isDashPressed()
                 || currentInput.isAttackPressed()
@@ -501,6 +525,11 @@ public class GameController {
         }
 
         if (!touchedHazard) {
+            touchedHazard =
+                handleCrawlidContact();
+        }
+
+        if (!touchedHazard) {
             updateSafeCheckpoint();
         }
 
@@ -542,6 +571,10 @@ public class GameController {
             return true;
         }
 
+        /*
+         * The Knight must not remain standing on
+         * spikes, including while invincible.
+         */
         movement.respawnAt(
             checkpoint.getX(),
             checkpoint.getY()
@@ -554,8 +587,8 @@ public class GameController {
         );
 
         /*
-         * Protect against an old checkpoint which
-         * overlaps the spikes.
+         * Protect against an old checkpoint that
+         * overlaps the spike hazard.
          */
         if (
             playerBody
@@ -594,6 +627,157 @@ public class GameController {
         return true;
     }
 
+    private boolean
+    handleHuskHornheadContact() {
+        if (!huskHornhead.isAlive()) {
+            return false;
+        }
+
+        if (
+            !playerBody
+                .getBounds()
+                .overlaps(
+                    huskHornhead.getBounds()
+                )
+        ) {
+            return false;
+        }
+
+        PlayerHealth.DamageResult result =
+            health.takeDamage(
+                huskHornhead.getContactDamage()
+            );
+
+        /*
+         * The overlap still counts as unsafe while
+         * the Knight is temporarily invincible.
+         */
+        if (
+            result
+                == PlayerHealth
+                .DamageResult.IGNORED
+        ) {
+            return true;
+        }
+
+        combat.finishAttack();
+        focus.cancel();
+
+        if (
+            result
+                == PlayerHealth
+                .DamageResult.DEFEATED
+        ) {
+            resetPlayerAfterDefeat();
+            return true;
+        }
+
+        float playerCenterX =
+            playerBody.getBounds().x
+                + playerBody
+                .getBounds().width / 2f;
+
+        float enemyCenterX =
+            huskHornhead.getBounds().x
+                + huskHornhead
+                .getBounds().width / 2f;
+
+        int knockbackDirection =
+            playerCenterX < enemyCenterX
+                ? -1
+                : 1;
+
+        movement.applyKnockback(
+            knockbackDirection
+        );
+
+        return true;
+    }
+
+    private boolean handleCrawlidContact() {
+        if (!crawlid.isAlive()) {
+            return false;
+        }
+
+        if (
+            !playerBody
+                .getBounds()
+                .overlaps(
+                    crawlid.getBounds()
+                )
+        ) {
+            return false;
+        }
+
+        PlayerHealth.DamageResult result =
+            health.takeDamage(
+                crawlid.getContactDamage()
+            );
+
+        /*
+         * Do not save a checkpoint while the Knight
+         * is overlapping the enemy.
+         */
+        if (
+            result
+                == PlayerHealth
+                .DamageResult.IGNORED
+        ) {
+            return true;
+        }
+
+        combat.finishAttack();
+        focus.cancel();
+
+        if (
+            result
+                == PlayerHealth
+                .DamageResult.DEFEATED
+        ) {
+            resetPlayerAfterDefeat();
+            return true;
+        }
+
+        float playerCenterX =
+            playerBody.getBounds().x
+                + playerBody
+                .getBounds().width / 2f;
+
+        float enemyCenterX =
+            crawlid.getBounds().x
+                + crawlid
+                .getBounds().width / 2f;
+
+        int knockbackDirection =
+            playerCenterX < enemyCenterX
+                ? -1
+                : 1;
+
+        movement.applyKnockback(
+            knockbackDirection
+        );
+
+        return true;
+    }
+
+    private void resetPlayerAfterDefeat() {
+        health.restoreFullHealth();
+
+        checkpoint.save(
+            SPAWN_X,
+            SPAWN_Y
+        );
+
+        movement.respawnAt(
+            SPAWN_X,
+            SPAWN_Y
+        );
+
+        player.setAnimation(
+            PlayerAnimationType.IDLE_HURT
+        );
+    }
+
     private void updateSafeCheckpoint() {
         if (!movement.isOnGround()) {
             return;
@@ -627,87 +811,6 @@ public class GameController {
         checkpoint.save(
             player.getPosition().x,
             player.getPosition().y
-        );
-    }
-
-    private boolean
-    handleHuskHornheadContact() {
-        if (!huskHornhead.isAlive()) {
-            return false;
-        }
-
-        if (
-            !playerBody
-                .getBounds()
-                .overlaps(
-                    huskHornhead.getBounds()
-                )
-        ) {
-            return false;
-        }
-
-        PlayerHealth.DamageResult result =
-            health.takeDamage(
-                huskHornhead.getContactDamage()
-            );
-
-        if (
-            result
-                == PlayerHealth
-                .DamageResult.IGNORED
-        ) {
-            return false;
-        }
-
-        combat.finishAttack();
-        focus.cancel();
-
-        if (
-            result
-                == PlayerHealth
-                .DamageResult.DEFEATED
-        ) {
-            resetPlayerAfterDefeat();
-            return true;
-        }
-
-        float playerCenterX =
-            playerBody.getBounds().x
-                + playerBody.getBounds().width
-                / 2f;
-
-        float enemyCenterX =
-            huskHornhead.getBounds().x
-                + huskHornhead.getBounds().width
-                / 2f;
-
-        int knockbackDirection =
-            playerCenterX < enemyCenterX
-                ? -1
-                : 1;
-
-        movement.applyKnockback(
-            knockbackDirection
-        );
-
-        return true;
-    }
-
-    private void resetPlayerAfterDefeat() {
-        health.restoreFullHealth();
-
-        checkpoint.save(
-            SPAWN_X,
-            SPAWN_Y
-        );
-
-        movement.respawnAt(
-            SPAWN_X,
-            SPAWN_Y
-        );
-
-        player.setAnimation(
-            PlayerAnimationType.IDLE_HURT
         );
     }
 
@@ -820,7 +923,7 @@ public class GameController {
 
     private void handleActionInput() {
         /*
-         * Temporary death animation test.
+         * Temporary death-animation test.
          */
         if (currentInput.isDeathPressed()) {
             combat.finishAttack();
@@ -904,8 +1007,7 @@ public class GameController {
         ) {
             boolean stationary =
                 currentInput
-                    .getHorizontalDirection()
-                    == 0;
+                    .getHorizontalDirection() == 0;
 
             boolean started =
                 focus.tryStart(
@@ -939,6 +1041,10 @@ public class GameController {
             return;
         }
 
+        if (tryHitCrawlid()) {
+            return;
+        }
+
         tryPogoSpike();
     }
 
@@ -958,9 +1064,8 @@ public class GameController {
         }
 
         /*
-         * Remember this before applying damage so that
-         * a killing downward hit can still produce a
-         * successful pogo bounce.
+         * Remember this before applying damage so a
+         * killing downward hit can still pogo.
          */
         boolean canPogo =
             huskHornhead.canBePogoed();
@@ -985,16 +1090,48 @@ public class GameController {
 
         return true;
     }
-    public HuskHornhead getHuskHornhead() {
-        return huskHornhead;
-    }
 
-    /**
-     * The future room controller can call this when
-     * entering a new room.
-     */
-    public void respawnEnemiesForRoomEntry() {
-        huskHornhead.respawnForRoomEntry();
+    private boolean tryHitCrawlid() {
+        if (!crawlid.isAlive()) {
+            return false;
+        }
+
+        if (
+            !combat
+                .getAttackHitbox()
+                .overlaps(
+                    crawlid.getBounds()
+                )
+        ) {
+            return false;
+        }
+
+        /*
+         * Remember this before applying damage so a
+         * killing downward hit can still pogo.
+         */
+        boolean canPogo =
+            crawlid.canBePogoed();
+
+        combat.registerHit();
+
+        crawlid.takeDamage(
+            combat.getDamage()
+        );
+
+        soul.gainFromNailHit();
+
+        if (
+            combat.isDownwardAttack()
+                && !movement.isOnGround()
+                && canPogo
+        ) {
+            crawlid.onPogo();
+
+            applySuccessfulPogo();
+        }
+
+        return true;
     }
 
     private boolean tryPogoSpike() {
@@ -1124,6 +1261,23 @@ public class GameController {
 
     public Array<Platform> getPlatforms() {
         return platformWorld.getPlatforms();
+    }
+
+    public HuskHornhead getHuskHornhead() {
+        return huskHornhead;
+    }
+
+    public Crawlid getCrawlid() {
+        return crawlid;
+    }
+
+    /**
+     * Called later whenever the player enters a room
+     * containing these enemies.
+     */
+    public void respawnEnemiesForRoomEntry() {
+        huskHornhead.respawnForRoomEntry();
+        crawlid.respawnForRoomEntry();
     }
 
     public boolean shouldDrawPlayer() {

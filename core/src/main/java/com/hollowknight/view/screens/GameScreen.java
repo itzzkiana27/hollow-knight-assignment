@@ -18,21 +18,20 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.GameController;
+import com.hollowknight.model.enemy.Crawlid;
+import com.hollowknight.model.enemy.HuskHornhead;
 import com.hollowknight.model.player.Player;
 import com.hollowknight.model.player.PlayerAnimationType;
 import com.hollowknight.model.world.Platform;
+import com.hollowknight.view.animation.CrawlidAnimationManager;
+import com.hollowknight.view.animation.HuskHornheadAnimationManager;
 import com.hollowknight.view.animation.KnightAnimationManager;
 import com.hollowknight.view.camera.GameCamera;
-import com.hollowknight.model.enemy.HuskHornhead;
-import com.hollowknight.view.animation.HuskHornheadAnimationManager;
 
 public class GameScreen extends ScreenAdapter {
 
     /*
      * Complete temporary level dimensions.
-     *
-     * These are larger than the visible camera area,
-     * allowing the camera to travel through the level.
      */
     private static final float WORLD_WIDTH =
         2400f;
@@ -41,7 +40,7 @@ public class GameScreen extends ScreenAdapter {
         1000f;
 
     /*
-     * Amount of the world visible at one time.
+     * Visible camera area.
      */
     private static final float CAMERA_VIEW_WIDTH =
         1280f;
@@ -49,15 +48,35 @@ public class GameScreen extends ScreenAdapter {
     private static final float CAMERA_VIEW_HEIGHT =
         720f;
 
-    private static final float SOURCE_FRAME_WIDTH =
-        349f;
+    /*
+     * Knight rendering values.
+     */
+    private static final float
+        KNIGHT_SOURCE_FRAME_WIDTH = 349f;
 
-    private static final float SOURCE_FRAME_HEIGHT =
-        186f;
+    private static final float
+        KNIGHT_SOURCE_FRAME_HEIGHT = 186f;
 
-    private static final float KNIGHT_DRAW_HEIGHT =
-        150f;
+    private static final float
+        KNIGHT_DRAW_HEIGHT = 150f;
 
+    private static final float
+        KNIGHT_DRAW_WIDTH =
+        KNIGHT_DRAW_HEIGHT
+            * KNIGHT_SOURCE_FRAME_WIDTH
+            / KNIGHT_SOURCE_FRAME_HEIGHT;
+
+    /*
+     * The supplied Knight frames face left.
+     */
+    private static final boolean
+        KNIGHT_SOURCE_FACES_RIGHT = false;
+
+    /*
+     * Husk Hornhead rendering values.
+     *
+     * Every Husk frame is 239 x 219.
+     */
     private static final float
         HUSK_SOURCE_WIDTH = 239f;
 
@@ -74,23 +93,47 @@ public class GameScreen extends ScreenAdapter {
             / HUSK_SOURCE_HEIGHT;
 
     /*
-     * The original Husk frames face left.
+     * The supplied Husk frames face left.
      */
-    private static final boolean HUSK_SOURCE_FACES_RIGHT = false;
+    private static final boolean
+        HUSK_SOURCE_FACES_RIGHT = false;
 
     /*
-     * Keep this true while testing the vision field.
-     * Change it to false afterward.
+     * Change to true to display the Husk body
+     * and vision rectangles.
      */
-    private static final boolean DRAW_HUSK_DEBUG = false;
+    private static final boolean
+        DRAW_HUSK_DEBUG = false;
 
-    private static final float KNIGHT_DRAW_WIDTH =
-        KNIGHT_DRAW_HEIGHT
-            * SOURCE_FRAME_WIDTH
-            / SOURCE_FRAME_HEIGHT;
+    /*
+     * Crawlid walk frames are 301 x 149.
+     *
+     * Death frames have a slightly different canvas
+     * size. The renderer calculates their dimensions
+     * dynamically while keeping the same scale.
+     */
+    private static final float
+        CRAWLID_SOURCE_HEIGHT = 149f;
 
-    private static final boolean SOURCE_FACES_RIGHT =
-        false;
+    private static final float
+        CRAWLID_DRAW_HEIGHT = 105f;
+
+    private static final float
+        CRAWLID_DRAW_SCALE =
+        CRAWLID_DRAW_HEIGHT
+            / CRAWLID_SOURCE_HEIGHT;
+
+    /*
+     * The supplied Crawlid frames face left.
+     */
+    private static final boolean
+        CRAWLID_SOURCE_FACES_RIGHT = false;
+
+    /*
+     * Change to true to display the Crawlid body.
+     */
+    private static final boolean
+        DRAW_CRAWLID_DEBUG = false;
 
     private final GameController controller;
 
@@ -100,11 +143,16 @@ public class GameScreen extends ScreenAdapter {
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
 
-    private KnightAnimationManager animationManager;
+    private KnightAnimationManager
+        knightAnimationManager;
+
+    private HuskHornheadAnimationManager
+        huskAnimationManager;
+
+    private CrawlidAnimationManager
+        crawlidAnimationManager;
 
     private GameCamera worldCamera;
-
-    private HuskHornheadAnimationManager huskAnimationManager;
 
     public GameScreen(
         GameController controller
@@ -115,8 +163,8 @@ public class GameScreen extends ScreenAdapter {
     @Override
     public void show() {
         /*
-         * This stage is only responsible for fixed
-         * screen-space UI.
+         * The Stage is used only for fixed
+         * screen-space interface elements.
          */
         stage = new Stage(
             new ScreenViewport()
@@ -130,11 +178,17 @@ public class GameScreen extends ScreenAdapter {
 
         batch = new SpriteBatch();
 
-        shapeRenderer = new ShapeRenderer();
+        shapeRenderer =
+            new ShapeRenderer();
 
-        animationManager = new KnightAnimationManager();
+        knightAnimationManager =
+            new KnightAnimationManager();
 
-        huskAnimationManager = new HuskHornheadAnimationManager();
+        huskAnimationManager =
+            new HuskHornheadAnimationManager();
+
+        crawlidAnimationManager =
+            new CrawlidAnimationManager();
 
         worldCamera = new GameCamera(
             CAMERA_VIEW_WIDTH,
@@ -276,8 +330,8 @@ public class GameScreen extends ScreenAdapter {
     @Override
     public void render(float delta) {
         /*
-         * The controller now receives the width of the
-         * complete level instead of only the screen.
+         * The controller receives the width of the
+         * complete temporary level.
          */
         controller.update(
             delta,
@@ -300,17 +354,26 @@ public class GameScreen extends ScreenAdapter {
         );
 
         /*
-         * Apply the moving world camera.
+         * Apply the moving camera before drawing
+         * world-space objects.
          */
         worldCamera.apply();
 
         drawPlatforms();
         drawSpikeHazard();
+
         drawHuskHornhead();
 
         if (DRAW_HUSK_DEBUG) {
             drawHuskHornheadDebug();
         }
+
+        drawCrawlid();
+
+        if (DRAW_CRAWLID_DEBUG) {
+            drawCrawlidDebug();
+        }
+
         drawKnight();
         drawActiveAttackHitbox();
 
@@ -459,9 +522,6 @@ public class GameScreen extends ScreenAdapter {
         shapeRenderer.end();
     }
 
-
-
-
     private void drawHuskHornhead() {
         HuskHornhead husk =
             controller.getHuskHornhead();
@@ -476,18 +536,14 @@ public class GameScreen extends ScreenAdapter {
             husk.getBounds();
 
         /*
-         * Center the larger transparent source frame
-         * around the smaller physical collision body.
+         * Center the larger source frame around the
+         * smaller physical collision body.
          */
         float drawX =
             body.x
                 + body.width / 2f
                 - HUSK_DRAW_WIDTH / 2f;
 
-        /*
-         * The source frames contain a small transparent
-         * margin below the creature.
-         */
         float drawY =
             body.y - 7f;
 
@@ -528,7 +584,9 @@ public class GameScreen extends ScreenAdapter {
             );
         }
 
-        batch.setColor(Color.WHITE);
+        batch.setColor(
+            Color.WHITE
+        );
 
         batch.end();
     }
@@ -548,7 +606,7 @@ public class GameScreen extends ScreenAdapter {
         );
 
         /*
-         * Yellow: physical enemy body.
+         * Yellow: physical body.
          */
         shapeRenderer.setColor(
             Color.YELLOW
@@ -565,7 +623,7 @@ public class GameScreen extends ScreenAdapter {
         );
 
         /*
-         * Green: forward rectangular field of vision.
+         * Green: forward field of vision.
          */
         if (husk.isAlive()) {
             shapeRenderer.setColor(
@@ -588,6 +646,117 @@ public class GameScreen extends ScreenAdapter {
         Gdx.gl.glLineWidth(1f);
     }
 
+    private void drawCrawlid() {
+        Crawlid crawlid =
+            controller.getCrawlid();
+
+        TextureRegion frame =
+            crawlidAnimationManager.getFrame(
+                crawlid.getAnimationType(),
+                crawlid.getAnimationTime()
+            );
+
+        Rectangle body =
+            crawlid.getBounds();
+
+        /*
+         * Use one scale for all Crawlid actions.
+         * This prevents the differently sized death
+         * canvases from being stretched.
+         */
+        float drawWidth =
+            frame.getRegionWidth()
+                * CRAWLID_DRAW_SCALE;
+
+        float drawHeight =
+            frame.getRegionHeight()
+                * CRAWLID_DRAW_SCALE;
+
+        float drawX =
+            body.x
+                + body.width / 2f
+                - drawWidth / 2f;
+
+        float drawY =
+            body.y - 2f;
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.begin();
+
+        if (crawlid.isFlashing()) {
+            batch.setColor(
+                1f,
+                0.55f,
+                0.55f,
+                1f
+            );
+        }
+
+        boolean shouldFlip =
+            crawlid.isFacingRight()
+                != CRAWLID_SOURCE_FACES_RIGHT;
+
+        if (shouldFlip) {
+            batch.draw(
+                frame,
+                drawX + drawWidth,
+                drawY,
+                -drawWidth,
+                drawHeight
+            );
+        } else {
+            batch.draw(
+                frame,
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight
+            );
+        }
+
+        batch.setColor(
+            Color.WHITE
+        );
+
+        batch.end();
+    }
+
+    private void drawCrawlidDebug() {
+        Crawlid crawlid =
+            controller.getCrawlid();
+
+        Rectangle body =
+            crawlid.getBounds();
+
+        shapeRenderer.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        Gdx.gl.glLineWidth(2f);
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        shapeRenderer.setColor(
+            Color.YELLOW
+        );
+
+        shapeRenderer.rect(
+            body.x,
+            body.y,
+            body.width,
+            body.height
+        );
+
+        shapeRenderer.end();
+
+        Gdx.gl.glLineWidth(1f);
+    }
+
     private void drawKnight() {
         if (
             !controller.shouldDrawPlayer()
@@ -599,7 +768,7 @@ public class GameScreen extends ScreenAdapter {
             controller.getPlayer();
 
         TextureRegion frame =
-            animationManager.getFrame(
+            knightAnimationManager.getFrame(
                 player.getAnimationType(),
                 player.getAnimationTime()
             );
@@ -618,7 +787,7 @@ public class GameScreen extends ScreenAdapter {
 
         boolean shouldFlip =
             player.isFacingRight()
-                != SOURCE_FACES_RIGHT;
+                != KNIGHT_SOURCE_FACES_RIGHT;
 
         if (shouldFlip) {
             batch.draw(
@@ -708,7 +877,7 @@ public class GameScreen extends ScreenAdapter {
         float vesselInnerRadius = 15f;
 
         /*
-         * HUD uses the fixed stage camera.
+         * The HUD uses the fixed stage camera.
          */
         shapeRenderer.setProjectionMatrix(
             stage.getCamera().combined
@@ -718,6 +887,9 @@ public class GameScreen extends ScreenAdapter {
             ShapeRenderer.ShapeType.Filled
         );
 
+        /*
+         * Health masks.
+         */
         for (
             int index = 0;
             index < maximumMasks;
@@ -747,6 +919,9 @@ public class GameScreen extends ScreenAdapter {
             );
         }
 
+        /*
+         * Soul vessel background.
+         */
         shapeRenderer.setColor(
             0.10f,
             0.11f,
@@ -773,6 +948,9 @@ public class GameScreen extends ScreenAdapter {
             vesselInnerRadius
         );
 
+        /*
+         * Soul fill.
+         */
         float soulRatio =
             controller.getSoulFillRatio();
 
@@ -838,6 +1016,9 @@ public class GameScreen extends ScreenAdapter {
             );
         }
 
+        /*
+         * Focus progress bar.
+         */
         if (controller.isFocusing()) {
             float barWidth = 80f;
             float barHeight = 6f;
@@ -884,6 +1065,9 @@ public class GameScreen extends ScreenAdapter {
 
         shapeRenderer.end();
 
+        /*
+         * HUD outlines.
+         */
         shapeRenderer.begin(
             ShapeRenderer.ShapeType.Line
         );
@@ -925,7 +1109,7 @@ public class GameScreen extends ScreenAdapter {
             player.getAnimationType();
 
         if (
-            animationManager.isLooping(
+            knightAnimationManager.isLooping(
                 animationType
             )
         ) {
@@ -933,7 +1117,7 @@ public class GameScreen extends ScreenAdapter {
         }
 
         if (
-            animationManager.isFinished(
+            knightAnimationManager.isFinished(
                 animationType,
                 player.getAnimationTime()
             )
@@ -981,8 +1165,22 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void dispose() {
-        if (animationManager != null) {
-            animationManager.dispose();
+        if (
+            knightAnimationManager != null
+        ) {
+            knightAnimationManager.dispose();
+        }
+
+        if (
+            huskAnimationManager != null
+        ) {
+            huskAnimationManager.dispose();
+        }
+
+        if (
+            crawlidAnimationManager != null
+        ) {
+            crawlidAnimationManager.dispose();
         }
 
         if (batch != null) {
@@ -999,9 +1197,6 @@ public class GameScreen extends ScreenAdapter {
 
         if (skin != null) {
             skin.dispose();
-        }
-        if (huskAnimationManager != null) {
-            huskAnimationManager.dispose();
         }
     }
 }
