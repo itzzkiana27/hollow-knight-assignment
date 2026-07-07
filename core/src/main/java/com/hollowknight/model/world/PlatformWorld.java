@@ -15,7 +15,6 @@ public final class PlatformWorld {
         HIT_CEILING
     }
 
-    private static final float FLOOR_HEIGHT = 100f;
     private static final float COLLISION_TOLERANCE = 3f;
 
     private final Array<Platform> platforms;
@@ -24,6 +23,8 @@ public final class PlatformWorld {
     private final Rectangle leftWallProbe;
     private final Rectangle rightWallProbe;
 
+    private float worldMinX;
+    private float worldMaxX;
     private float worldWidth;
 
     public PlatformWorld() {
@@ -33,96 +34,59 @@ public final class PlatformWorld {
         leftWallProbe = new Rectangle();
         rightWallProbe = new Rectangle();
 
+        worldMinX = 0f;
+        worldMaxX = 0f;
         worldWidth = 0f;
     }
 
     /**
-     * Creates a temporary platform layout that adjusts
-     * to the current window width.
-     *
-     * Later this class will receive platforms from the
-     * actual map instead.
+     * Replaces the temporary generated layout with collision rectangles
+     * loaded from Tiled.
      */
-    public void updateLayout(float newWorldWidth) {
-        if (newWorldWidth <= 0f) {
-            return;
-        }
-
+    public void configure(
+        Rectangle roomBounds,
+        Array<Platform> loadedPlatforms
+    ) {
         if (
-            Math.abs(newWorldWidth - worldWidth)
-                < 0.5f
-                && platforms.size > 0
+            roomBounds == null
+                || roomBounds.width <= 0f
         ) {
-            return;
+            throw new IllegalArgumentException(
+                "Room bounds must have a positive width."
+            );
         }
 
-        worldWidth = newWorldWidth;
+        worldMinX = roomBounds.x;
+        worldMaxX =
+            roomBounds.x + roomBounds.width;
+        worldWidth = roomBounds.width;
 
         platforms.clear();
 
-        /*
-         * Main floor.
-         */
-        platforms.add(
-            new Platform(
-                0f,
-                0f,
-                worldWidth,
-                FLOOR_HEIGHT
-            )
-        );
+        if (loadedPlatforms != null) {
+            platforms.addAll(loadedPlatforms);
+        }
+    }
 
-        /*
-         * Temporary raised platforms.
-         */
-        platforms.add(
-            new Platform(
-                worldWidth * 0.18f,
-                210f,
-                worldWidth * 0.18f,
-                30f
-            )
-        );
+    public void addPlatform(Platform platform) {
+        if (
+            platform != null
+                && !platforms.contains(
+                    platform,
+                    true
+                )
+        ) {
+            platforms.add(platform);
+        }
+    }
 
-        platforms.add(
-            new Platform(
-                worldWidth * 0.43f,
-                340f,
-                worldWidth * 0.16f,
-                30f
-            )
-        );
-
-        platforms.add(
-            new Platform(
-                worldWidth * 0.70f,
-                235f,
-                worldWidth * 0.20f,
-                30f
-            )
-        );
-
-        /*
-         * Two temporary vertical blocks for testing
-         * wall sliding and wall jumping.
-         */
-        platforms.add(
-            new Platform(
-                worldWidth * 0.37f,
-                FLOOR_HEIGHT,
-                38f,
-                175f
-            )
-        );
-
-        platforms.add(
-            new Platform(
-                worldWidth * 0.65f,
-                FLOOR_HEIGHT,
-                38f,
-                225f
-            )
-        );
+    public void removePlatform(Platform platform) {
+        if (platform != null) {
+            platforms.removeValue(
+                platform,
+                true
+            );
+        }
     }
 
     public boolean resolveHorizontal(
@@ -461,8 +425,8 @@ public final class PlatformWorld {
 
         float distanceToWorldBoundary =
             normalizedDirection > 0
-                ? worldWidth - startX
-                : startX;
+                ? worldMaxX - startX
+                : startX - worldMinX;
 
         float result =
             Math.min(
@@ -609,9 +573,9 @@ public final class PlatformWorld {
         Rectangle body =
             playerBody.getBounds();
 
-        if (body.x < 0f) {
-            player.getPosition().x -=
-                body.x;
+        if (body.x < worldMinX) {
+            player.getPosition().x +=
+                worldMinX - body.x;
 
             playerBody.update(
                 player,
@@ -625,9 +589,9 @@ public final class PlatformWorld {
         float bodyRight =
             body.x + body.width;
 
-        if (bodyRight > worldWidth) {
+        if (bodyRight > worldMaxX) {
             player.getPosition().x -=
-                bodyRight - worldWidth;
+                bodyRight - worldMaxX;
 
             playerBody.update(
                 player,
@@ -639,8 +603,8 @@ public final class PlatformWorld {
         player.getPosition().x =
             MathUtils.clamp(
                 player.getPosition().x,
-                -drawWidth,
-                worldWidth
+                worldMinX - drawWidth,
+                worldMaxX
             );
     }
 
@@ -648,10 +612,17 @@ public final class PlatformWorld {
         return platforms;
     }
 
-    public float getFloorHeight() {
-        return FLOOR_HEIGHT;
+    public float getWorldMinX() {
+        return worldMinX;
     }
 
+    public float getWorldMaxX() {
+        return worldMaxX;
+    }
+
+    /**
+     * Kept for the current enemy classes, whose Crossroads room starts at x=0.
+     */
     public float getWorldWidth() {
         return worldWidth;
     }

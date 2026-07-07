@@ -3,52 +3,42 @@ package com.hollowknight.view.camera;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
 /**
- * Controls the camera used to render the game world.
- *
- * The UI uses a different camera, so HUD elements
- * remain fixed on the screen.
+ * Controls the world camera and clamps it to the current Tiled room.
  */
 public final class GameCamera {
 
     private static final float FOLLOW_SPEED = 7f;
-
-    /*
-     * If the player suddenly moves a large distance,
-     * such as during respawning, the camera snaps
-     * instead of slowly showing an empty area.
-     */
-    private static final float
-        SNAP_DISTANCE_RATIO = 0.70f;
+    private static final float SNAP_DISTANCE_RATIO = 0.70f;
 
     private final OrthographicCamera camera;
     private final Viewport viewport;
-
-    private final float worldWidth;
-    private final float worldHeight;
+    private final Rectangle worldBounds;
 
     public GameCamera(
         float visibleWidth,
         float visibleHeight,
-        float worldWidth,
-        float worldHeight
+        Rectangle initialWorldBounds
     ) {
         if (
             visibleWidth <= 0f
                 || visibleHeight <= 0f
-                || worldWidth <= 0f
-                || worldHeight <= 0f
+                || initialWorldBounds == null
+                || initialWorldBounds.width <= 0f
+                || initialWorldBounds.height <= 0f
         ) {
             throw new IllegalArgumentException(
-                "Camera and world dimensions must be positive."
+                "Camera dimensions and world bounds must be positive."
             );
         }
 
-        this.worldWidth = worldWidth;
-        this.worldHeight = worldHeight;
+        worldBounds = new Rectangle(
+            initialWorldBounds
+        );
 
         camera = new OrthographicCamera();
 
@@ -59,10 +49,36 @@ public final class GameCamera {
         );
 
         camera.position.set(
-            visibleWidth / 2f,
-            visibleHeight / 2f,
+            worldBounds.x + visibleWidth / 2f,
+            worldBounds.y + visibleHeight / 2f,
             0f
         );
+
+        camera.update();
+    }
+
+    public void setWorldBounds(Rectangle bounds) {
+        if (
+            bounds == null
+                || bounds.width <= 0f
+                || bounds.height <= 0f
+        ) {
+            throw new IllegalArgumentException(
+                "World bounds must be positive."
+            );
+        }
+
+        worldBounds.set(bounds);
+
+        camera.position.x =
+            clampHorizontalPosition(
+                camera.position.x
+            );
+
+        camera.position.y =
+            clampVerticalPosition(
+                camera.position.y
+            );
 
         camera.update();
     }
@@ -73,21 +89,12 @@ public final class GameCamera {
         float targetY
     ) {
         float desiredX =
-            clampHorizontalPosition(
-                targetX
-            );
+            clampHorizontalPosition(targetX);
 
         float desiredY =
-            clampVerticalPosition(
-                targetY
-            );
+            clampVerticalPosition(targetY);
 
-        if (
-            shouldSnap(
-                desiredX,
-                desiredY
-            )
-        ) {
+        if (shouldSnap(desiredX, desiredY)) {
             camera.position.set(
                 desiredX,
                 desiredY,
@@ -95,17 +102,10 @@ public final class GameCamera {
             );
 
             camera.update();
-
             return;
         }
 
-        /*
-         * Exponential interpolation produces nearly
-         * the same camera behavior at different frame
-         * rates.
-         */
-        float safeDelta =
-            Math.max(0f, delta);
+        float safeDelta = Math.max(0f, delta);
 
         float interpolation =
             1f
@@ -113,22 +113,19 @@ public final class GameCamera {
                 -FOLLOW_SPEED * safeDelta
             );
 
-        camera.position.x =
-            MathUtils.lerp(
-                camera.position.x,
-                desiredX,
-                interpolation
-            );
+        camera.position.x = MathUtils.lerp(
+            camera.position.x,
+            desiredX,
+            interpolation
+        );
 
-        camera.position.y =
-            MathUtils.lerp(
-                camera.position.y,
-                desiredY,
-                interpolation
-            );
+        camera.position.y = MathUtils.lerp(
+            camera.position.y,
+            desiredY,
+            interpolation
+        );
 
         camera.position.z = 0f;
-
         camera.update();
     }
 
@@ -137,12 +134,8 @@ public final class GameCamera {
         float targetY
     ) {
         camera.position.set(
-            clampHorizontalPosition(
-                targetX
-            ),
-            clampVerticalPosition(
-                targetY
-            ),
+            clampHorizontalPosition(targetX),
+            clampVerticalPosition(targetY),
             0f
         );
 
@@ -180,16 +173,19 @@ public final class GameCamera {
                 / 2f;
 
         if (
-            worldWidth
+            worldBounds.width
                 <= halfVisibleWidth * 2f
         ) {
-            return worldWidth / 2f;
+            return worldBounds.x
+                + worldBounds.width / 2f;
         }
 
         return MathUtils.clamp(
             targetX,
-            halfVisibleWidth,
-            worldWidth - halfVisibleWidth
+            worldBounds.x + halfVisibleWidth,
+            worldBounds.x
+                + worldBounds.width
+                - halfVisibleWidth
         );
     }
 
@@ -202,16 +198,19 @@ public final class GameCamera {
                 / 2f;
 
         if (
-            worldHeight
+            worldBounds.height
                 <= halfVisibleHeight * 2f
         ) {
-            return worldHeight / 2f;
+            return worldBounds.y
+                + worldBounds.height / 2f;
         }
 
         return MathUtils.clamp(
             targetY,
-            halfVisibleHeight,
-            worldHeight - halfVisibleHeight
+            worldBounds.y + halfVisibleHeight,
+            worldBounds.y
+                + worldBounds.height
+                - halfVisibleHeight
         );
     }
 
@@ -241,6 +240,10 @@ public final class GameCamera {
     public void apply() {
         viewport.apply();
         camera.update();
+    }
+
+    public OrthographicCamera getCamera() {
+        return camera;
     }
 
     public Matrix4 getCombined() {

@@ -2,6 +2,7 @@ package com.hollowknight.controller;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.hollowknight.HollowKnightGame;
 import com.hollowknight.model.GameSettings;
@@ -23,14 +24,13 @@ import com.hollowknight.model.player.PlayerMovementState;
 import com.hollowknight.model.player.PlayerSoul;
 import com.hollowknight.model.world.Platform;
 import com.hollowknight.model.world.PlatformWorld;
+import com.hollowknight.model.world.CrackedWall;
+import com.hollowknight.model.world.TiledWorld;
 import com.hollowknight.model.enemy.WingedSentry;
 
 import java.util.EnumSet;
 
 public class GameController {
-
-    private static final float SPAWN_X = 20f;
-    private static final float SPAWN_Y = 100f;
 
     private static final float
         POGO_SPIKE_GRACE_DURATION = 0.12f;
@@ -54,6 +54,11 @@ public class GameController {
 
     private final HollowKnightGame game;
 
+    private final TiledWorld world;
+    private final float spawnX;
+    private final float spawnY;
+    private final Vector2 returnFromCitySpawn;
+
     private final Player player;
     private final PlayerBody playerBody;
     private final PlayerMovement movement;
@@ -71,7 +76,10 @@ public class GameController {
     private final CrystalGuardian crystalGuardian;
     private final WingedSentry wingedSentry;
 
-    private final SpikeHazard spikeHazard;
+    private final Array<SpikeHazard> spikeHazards;
+
+    private final CrackedWall crackedWall;
+    private final Platform crackedWallPlatform;
 
     private final Rectangle checkpointDangerZone;
     private final KeyBindings keyBindings;
@@ -85,9 +93,21 @@ public class GameController {
     ) {
         this.game = game;
 
+        world = new TiledWorld();
+
+        Vector2 startSpawn =
+            world.getCrossroadsStart();
+
+        spawnX = startSpawn.x;
+        spawnY = startSpawn.y;
+
+        returnFromCitySpawn = new Vector2(
+            world.getCrossroadsReturnFromCity()
+        );
+
         player = new Player(
-            SPAWN_X,
-            SPAWN_Y
+            spawnX,
+            spawnY
         );
 
         playerBody = new PlayerBody();
@@ -95,10 +115,36 @@ public class GameController {
         platformWorld =
             new PlatformWorld();
 
+        platformWorld.configure(
+            world.getCrossroadsBounds(),
+            world.getCollisionPlatforms()
+        );
+
+        crackedWall = world.getCrackedWall();
+
+        if (crackedWall != null) {
+            Rectangle wallBounds =
+                crackedWall.getBounds();
+
+            crackedWallPlatform =
+                new Platform(
+                    wallBounds.x,
+                    wallBounds.y,
+                    wallBounds.width,
+                    wallBounds.height
+                );
+
+            platformWorld.addPlatform(
+                crackedWallPlatform
+            );
+        } else {
+            crackedWallPlatform = null;
+        }
+
         movement = new PlayerMovement(
             player,
-            SPAWN_X,
-            SPAWN_Y,
+            spawnX,
+            spawnY,
             platformWorld
         );
 
@@ -110,54 +156,65 @@ public class GameController {
 
         checkpoint =
             new PlayerCheckpoint(
-                SPAWN_X,
-                SPAWN_Y
+                spawnX,
+                spawnY
             );
 
         checkpointDangerZone =
             new Rectangle();
 
-        huskHornhead =
-            new HuskHornhead(
-                650f,
-                SPAWN_Y,
-                false
+        TiledWorld.EnemySpawn huskSpawn =
+            world.findEnemySpawn(
+                "HUSK_HORNHEAD"
             );
 
-        crawlid =
-            new Crawlid(
-                1300f,
-                SPAWN_Y,
-                true
+        huskHornhead = huskSpawn == null
+            ? null
+            : new HuskHornhead(
+                huskSpawn.getX(),
+                huskSpawn.getY(),
+                huskSpawn.isFacingRight()
             );
 
-        /*
-         * Shared advanced enemy.
-         *
-         * It starts in the right section of the
-         * temporary world and initially faces left.
-         */
-        crystalGuardian =
-            new CrystalGuardian(
-                450f,
-                SPAWN_Y,
-                false
+        TiledWorld.EnemySpawn crawlidSpawn =
+            world.findEnemySpawn("CRAWLID");
+
+        crawlid = crawlidSpawn == null
+            ? null
+            : new Crawlid(
+                crawlidSpawn.getX(),
+                crawlidSpawn.getY(),
+                crawlidSpawn.isFacingRight()
             );
 
-        /*
-         * City of Tears temporary test instance.
-         *
-         * It starts in the air and initially faces left.
-         */
-        wingedSentry =
-            new WingedSentry(
-                1750f,
-                500f,
-                false
+        TiledWorld.EnemySpawn crystalSpawn =
+            world.findEnemySpawn(
+                "CRYSTAL_GUARDIAN"
             );
 
-        spikeHazard =
-            new SpikeHazard();
+        crystalGuardian = crystalSpawn == null
+            ? null
+            : new CrystalGuardian(
+                crystalSpawn.getX(),
+                crystalSpawn.getY(),
+                crystalSpawn.isFacingRight()
+            );
+
+        TiledWorld.EnemySpawn wingedSpawn =
+            world.findEnemySpawn(
+                "WINGED_SENTRY"
+            );
+
+        wingedSentry = wingedSpawn == null
+            ? null
+            : new WingedSentry(
+                wingedSpawn.getX(),
+                wingedSpawn.getY(),
+                wingedSpawn.isFacingRight()
+            );
+
+        spikeHazards =
+            world.getSpikeHazards();
 
         GameSettings settings =
             game.getSettings();
@@ -178,7 +235,6 @@ public class GameController {
 
     public void update(
         float delta,
-        float worldWidth,
         float knightDrawWidth,
         float knightDrawHeight
     ) {
@@ -188,10 +244,6 @@ public class GameController {
         float safeDelta = Math.min(
             delta,
             1f / 30f
-        );
-
-        platformWorld.updateLayout(
-            worldWidth
         );
 
         updateTimers(safeDelta);
@@ -207,8 +259,7 @@ public class GameController {
         );
 
         updateWorldObjects(
-            safeDelta,
-            worldWidth
+            safeDelta
         );
 
         if (player.isDead()) {
@@ -421,41 +472,50 @@ public class GameController {
     }
 
     private void updateWorldObjects(
-        float delta,
-        float worldWidth
+        float delta
     ) {
-        huskHornhead.update(
-            delta,
-            playerBody.getBounds(),
-            !player.isDead(),
-            platformWorld
-        );
+        if (huskHornhead != null) {
+            huskHornhead.update(
+                delta,
+                playerBody.getBounds(),
+                !player.isDead(),
+                platformWorld
+            );
+        }
 
-        crawlid.update(
-            delta,
-            playerBody.getBounds(),
-            platformWorld
-        );
+        if (crawlid != null) {
+            crawlid.update(
+                delta,
+                playerBody.getBounds(),
+                platformWorld
+            );
+        }
 
-        crystalGuardian.update(
-            delta,
-            playerBody.getBounds(),
-            !player.isDead(),
-            platformWorld
-        );
+        if (crystalGuardian != null) {
+            crystalGuardian.update(
+                delta,
+                playerBody.getBounds(),
+                !player.isDead(),
+                platformWorld
+            );
+        }
 
-        wingedSentry.update(
-            delta,
-            playerBody.getBounds(),
-            !player.isDead(),
-            platformWorld
-        );
+        if (wingedSentry != null) {
+            wingedSentry.update(
+                delta,
+                playerBody.getBounds(),
+                !player.isDead(),
+                platformWorld
+            );
+        }
 
-        spikeHazard.update(
-            delta,
-            worldWidth,
-            SPAWN_Y
-        );
+        for (SpikeHazard hazard : spikeHazards) {
+            hazard.update(delta);
+        }
+
+        if (crackedWall != null) {
+            crackedWall.update(delta);
+        }
     }
 
     private void updateActiveFocus(
@@ -525,6 +585,16 @@ public class GameController {
             knightDrawHeight
         );
 
+        if (
+            handleUnbuiltCityTransition(
+                knightDrawWidth,
+                knightDrawHeight
+            )
+        ) {
+            player.updateAnimationTime(delta);
+            return;
+        }
+
         boolean touchedHazard =
             handleSpikeContact(
                 knightDrawWidth,
@@ -563,6 +633,48 @@ public class GameController {
         player.updateAnimationTime(delta);
     }
 
+    /**
+     * City of Tears has not been built yet. Until it is, reaching the
+     * transition returns the player to the safe Crossroads-side spawn.
+     */
+    private boolean handleUnbuiltCityTransition(
+        float knightDrawWidth,
+        float knightDrawHeight
+    ) {
+        Rectangle transition =
+            world.getCityTransitionBounds();
+
+        if (
+            transition == null
+                || !playerBody
+                .getBounds()
+                .overlaps(transition)
+        ) {
+            return false;
+        }
+
+        combat.finishAttack();
+        focus.cancel();
+
+        movement.respawnAt(
+            returnFromCitySpawn.x,
+            returnFromCitySpawn.y
+        );
+
+        checkpoint.save(
+            returnFromCitySpawn.x,
+            returnFromCitySpawn.y
+        );
+
+        playerBody.update(
+            player,
+            knightDrawWidth,
+            knightDrawHeight
+        );
+
+        return true;
+    }
+
     private boolean handleSpikeContact(
         float knightDrawWidth,
         float knightDrawHeight
@@ -573,18 +685,29 @@ public class GameController {
             return false;
         }
 
-        if (
-            !playerBody
-                .getBounds()
-                .overlaps(
-                    spikeHazard.getBounds()
-                )
-        ) {
+        SpikeHazard touchedHazard = null;
+
+        for (SpikeHazard hazard : spikeHazards) {
+            if (
+                playerBody
+                    .getBounds()
+                    .overlaps(
+                        hazard.getBounds()
+                    )
+            ) {
+                touchedHazard = hazard;
+                break;
+            }
+        }
+
+        if (touchedHazard == null) {
             return false;
         }
 
         PlayerHealth.DamageResult result =
-            health.takeDamage(1);
+            health.takeDamage(
+                touchedHazard.getDamage()
+            );
 
         combat.finishAttack();
         focus.cancel();
@@ -609,21 +732,15 @@ public class GameController {
             knightDrawHeight
         );
 
-        if (
-            playerBody
-                .getBounds()
-                .overlaps(
-                    spikeHazard.getBounds()
-                )
-        ) {
+        if (overlapsAnySpike()) {
             checkpoint.save(
-                SPAWN_X,
-                SPAWN_Y
+                spawnX,
+                spawnY
             );
 
             movement.respawnAt(
-                SPAWN_X,
-                SPAWN_Y
+                spawnX,
+                spawnY
             );
 
             playerBody.update(
@@ -646,9 +763,24 @@ public class GameController {
         return true;
     }
 
+    private boolean overlapsAnySpike() {
+        for (SpikeHazard hazard : spikeHazards) {
+            if (
+                playerBody
+                    .getBounds()
+                    .overlaps(hazard.getBounds())
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private boolean handleCrystalLaserContact() {
         if (
-            !crystalGuardian.isLaserActive()
+            crystalGuardian == null
+                || !crystalGuardian.isLaserActive()
         ) {
             return false;
         }
@@ -700,7 +832,10 @@ public class GameController {
 
     private boolean
     handleHuskHornheadContact() {
-        if (!huskHornhead.isAlive()) {
+        if (
+            huskHornhead == null
+                || !huskHornhead.isAlive()
+        ) {
             return false;
         }
 
@@ -721,7 +856,10 @@ public class GameController {
     }
 
     private boolean handleCrawlidContact() {
-        if (!crawlid.isAlive()) {
+        if (
+            crawlid == null
+                || !crawlid.isAlive()
+        ) {
             return false;
         }
 
@@ -743,7 +881,10 @@ public class GameController {
 
     private boolean
     handleCrystalGuardianContact() {
-        if (!crystalGuardian.isAlive()) {
+        if (
+            crystalGuardian == null
+                || !crystalGuardian.isAlive()
+        ) {
             return false;
         }
 
@@ -765,7 +906,10 @@ public class GameController {
 
     private boolean
     handleWingedSentryContact() {
-        if (!wingedSentry.isAlive()) {
+        if (
+            wingedSentry == null
+                || !wingedSentry.isAlive()
+        ) {
             return false;
         }
 
@@ -837,13 +981,13 @@ public class GameController {
         health.restoreFullHealth();
 
         checkpoint.save(
-            SPAWN_X,
-            SPAWN_Y
+            spawnX,
+            spawnY
         );
 
         movement.respawnAt(
-            SPAWN_X,
-            SPAWN_Y
+            spawnX,
+            spawnY
         );
 
         player.setAnimation(
@@ -856,26 +1000,28 @@ public class GameController {
             return;
         }
 
-        Rectangle spikes =
-            spikeHazard.getBounds();
+        for (SpikeHazard hazard : spikeHazards) {
+            Rectangle spikes =
+                hazard.getBounds();
 
-        checkpointDangerZone.set(
-            spikes.x
-                - CHECKPOINT_HAZARD_MARGIN,
-            spikes.y,
-            spikes.width
-                + CHECKPOINT_HAZARD_MARGIN * 2f,
-            spikes.height + 30f
-        );
+            checkpointDangerZone.set(
+                spikes.x
+                    - CHECKPOINT_HAZARD_MARGIN,
+                spikes.y,
+                spikes.width
+                    + CHECKPOINT_HAZARD_MARGIN * 2f,
+                spikes.height + 30f
+            );
 
-        if (
-            playerBody
-                .getBounds()
-                .overlaps(
-                    checkpointDangerZone
-                )
-        ) {
-            return;
+            if (
+                playerBody
+                    .getBounds()
+                    .overlaps(
+                        checkpointDangerZone
+                    )
+            ) {
+                return;
+            }
         }
 
         checkpoint.save(
@@ -1100,11 +1246,18 @@ public class GameController {
             return;
         }
 
+        if (tryHitCrackedWall()) {
+            return;
+        }
+
         tryPogoSpike();
     }
 
     private boolean tryHitHuskHornhead() {
-        if (!huskHornhead.isAlive()) {
+        if (
+            huskHornhead == null
+                || !huskHornhead.isAlive()
+        ) {
             return false;
         }
 
@@ -1116,7 +1269,10 @@ public class GameController {
     }
 
     private boolean tryHitCrawlid() {
-        if (!crawlid.isAlive()) {
+        if (
+            crawlid == null
+                || !crawlid.isAlive()
+        ) {
             return false;
         }
 
@@ -1129,7 +1285,10 @@ public class GameController {
 
     private boolean
     tryHitCrystalGuardian() {
-        if (!crystalGuardian.isAlive()) {
+        if (
+            crystalGuardian == null
+                || !crystalGuardian.isAlive()
+        ) {
             return false;
         }
 
@@ -1141,7 +1300,10 @@ public class GameController {
     }
 
     private boolean tryHitWingedSentry() {
-        if (!wingedSentry.isAlive()) {
+        if (
+            wingedSentry == null
+                || !wingedSentry.isAlive()
+        ) {
             return false;
         }
 
@@ -1150,6 +1312,37 @@ public class GameController {
             wingedSentry,
             wingedSentry
         );
+    }
+
+    private boolean tryHitCrackedWall() {
+        if (
+            crackedWall == null
+                || crackedWall.isDestroyed()
+                || !combat
+                .getAttackHitbox()
+                .overlaps(
+                    crackedWall.getBounds()
+                )
+        ) {
+            return false;
+        }
+
+        combat.registerHit();
+
+        CrackedWall.HitResult result =
+            crackedWall.hit();
+
+        if (
+            result
+                == CrackedWall.HitResult.DESTROYED
+                && crackedWallPlatform != null
+        ) {
+            platformWorld.removePlatform(
+                crackedWallPlatform
+            );
+        }
+
+        return true;
     }
 
     private boolean applyNailHit(
@@ -1194,28 +1387,30 @@ public class GameController {
         if (
             !combat.isDownwardAttack()
                 || movement.isOnGround()
-                || !spikeHazard.canBePogoed()
         ) {
             return false;
         }
 
-        if (
-            !combat
-                .getAttackHitbox()
-                .overlaps(
-                    spikeHazard
-                        .getPogoBounds()
-                )
-        ) {
-            return false;
+        for (SpikeHazard hazard : spikeHazards) {
+            if (
+                !hazard.canBePogoed()
+                    || !combat
+                    .getAttackHitbox()
+                    .overlaps(
+                        hazard.getPogoBounds()
+                    )
+            ) {
+                continue;
+            }
+
+            combat.registerHit();
+            hazard.onPogo();
+            applySuccessfulPogo();
+
+            return true;
         }
 
-        combat.registerHit();
-        spikeHazard.onPogo();
-
-        applySuccessfulPogo();
-
-        return true;
+        return false;
     }
 
     private boolean isMovementLocked() {
@@ -1333,10 +1528,21 @@ public class GameController {
     }
 
     public void respawnEnemiesForRoomEntry() {
-        huskHornhead.respawnForRoomEntry();
-        crawlid.respawnForRoomEntry();
-        crystalGuardian.respawnForRoomEntry();
-        wingedSentry.respawnForRoomEntry();
+        if (huskHornhead != null) {
+            huskHornhead.respawnForRoomEntry();
+        }
+
+        if (crawlid != null) {
+            crawlid.respawnForRoomEntry();
+        }
+
+        if (crystalGuardian != null) {
+            crystalGuardian.respawnForRoomEntry();
+        }
+
+        if (wingedSentry != null) {
+            wingedSentry.respawnForRoomEntry();
+        }
     }
 
     public boolean shouldDrawPlayer() {
@@ -1379,18 +1585,30 @@ public class GameController {
         return combat.getAttackHitbox();
     }
 
-    public Rectangle getSpikeBounds() {
-        return spikeHazard.getBounds();
+    public Array<SpikeHazard> getSpikeHazards() {
+        return spikeHazards;
     }
 
-    public boolean isSpikeFlashing() {
-        return spikeHazard.isFlashing();
+    public TiledWorld getWorld() {
+        return world;
+    }
+
+    public Rectangle getCurrentRoomBounds() {
+        return world.getCrossroadsBounds();
+    }
+
+    public CrackedWall getCrackedWall() {
+        return crackedWall;
     }
 
     public String text(String key) {
         return game
             .getLocalization()
             .get(key);
+    }
+
+    public void dispose() {
+        world.dispose();
     }
 
     public void returnToMainMenu() {

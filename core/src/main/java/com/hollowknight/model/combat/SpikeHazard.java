@@ -3,85 +3,49 @@ package com.hollowknight.model.combat;
 import com.badlogic.gdx.math.Rectangle;
 
 /**
- * Temporary spike surface used to test pogo collision.
- *
- * Player damage from touching spikes will be connected
- * when the health and invincibility system is added.
+ * Spike collision loaded from the Tiled Hazards layer.
  */
-public final class SpikeHazard
-    implements Pogoable {
-
-    private static final float WIDTH = 120f;
-    private static final float HEIGHT = 32f;
+public final class SpikeHazard implements Pogoable {
 
     private static final float FLASH_DURATION =
         0.10f;
 
+    private final String id;
     private final Rectangle bounds;
+    private final int damage;
+    private final boolean pogoable;
 
     private float flashTimeRemaining;
     private int pogoCount;
 
-    public SpikeHazard() {
-        bounds = new Rectangle(
-            0f,
-            0f,
-            WIDTH,
-            HEIGHT
-        );
+    public SpikeHazard(
+        String id,
+        Rectangle bounds,
+        int damage,
+        boolean pogoable
+    ) {
+        this.id = id;
+        this.bounds = new Rectangle(bounds);
+        this.damage = Math.max(0, damage);
+        this.pogoable = pogoable;
 
         flashTimeRemaining = 0f;
         pogoCount = 0;
     }
 
-    public void update(
-        float delta,
-        float worldWidth,
-        float groundY
-    ) {
-        updatePosition(
-            worldWidth,
-            groundY
-        );
-
-        if (flashTimeRemaining > 0f) {
-            flashTimeRemaining -= delta;
-
-            if (flashTimeRemaining < 0f) {
-                flashTimeRemaining = 0f;
-            }
+    public void update(float delta) {
+        if (flashTimeRemaining <= 0f) {
+            return;
         }
-    }
 
-    private void updatePosition(
-        float worldWidth,
-        float groundY
-    ) {
-        float preferredX =
-            worldWidth * 0.43f
-                - WIDTH / 2f;
-
-        float maximumX =
-            Math.max(
-                30f,
-                worldWidth
-                    - WIDTH
-                    - 30f
-            );
-
-        float spikeX =
-            Math.max(
-                30f,
-                Math.min(
-                    preferredX,
-                    maximumX
-                )
-            );
-
-        bounds.setPosition(
-            spikeX,
-            groundY
+        flashTimeRemaining -= Math.max(
+            delta,
+            0f
         );
+
+        if (flashTimeRemaining < 0f) {
+            flashTimeRemaining = 0f;
+        }
     }
 
     @Override
@@ -91,19 +55,29 @@ public final class SpikeHazard
 
     @Override
     public boolean canBePogoed() {
-        return true;
+        return pogoable;
     }
 
     @Override
     public void onPogo() {
-        pogoCount++;
+        if (!pogoable) {
+            return;
+        }
 
-        flashTimeRemaining =
-            FLASH_DURATION;
+        pogoCount++;
+        flashTimeRemaining = FLASH_DURATION;
+    }
+
+    public String getId() {
+        return id;
     }
 
     public Rectangle getBounds() {
         return bounds;
+    }
+
+    public int getDamage() {
+        return damage;
     }
 
     public boolean isFlashing() {

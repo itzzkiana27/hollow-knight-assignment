@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -22,7 +23,6 @@ import com.hollowknight.model.enemy.Crawlid;
 import com.hollowknight.model.enemy.HuskHornhead;
 import com.hollowknight.model.player.Player;
 import com.hollowknight.model.player.PlayerAnimationType;
-import com.hollowknight.model.world.Platform;
 import com.hollowknight.view.animation.CrawlidAnimationManager;
 import com.hollowknight.view.animation.HuskHornheadAnimationManager;
 import com.hollowknight.view.animation.KnightAnimationManager;
@@ -30,19 +30,14 @@ import com.hollowknight.view.camera.GameCamera;
 import com.hollowknight.model.enemy.CrystalGuardian;
 import com.hollowknight.view.animation.CrystalGuardianAnimationManager;
 import com.hollowknight.view.effects.CrystalGuardianLaserRenderer;
+import com.hollowknight.view.effects.CrackedWallRenderer;
+import com.hollowknight.model.world.CrackedWall;
+import com.hollowknight.model.world.TiledWorld;
 import com.hollowknight.model.enemy.WingedSentry;
 import com.hollowknight.view.animation.WingedSentryAnimationManager;
+import com.hollowknight.view.effects.RainEffect;
 
 public class GameScreen extends ScreenAdapter {
-
-    /*
-     * Complete temporary level dimensions.
-     */
-    private static final float WORLD_WIDTH =
-        2400f;
-
-    private static final float WORLD_HEIGHT =
-        1000f;
 
     /*
      * Visible camera area.
@@ -167,6 +162,9 @@ public class GameScreen extends ScreenAdapter {
 
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
+    private OrthogonalTiledMapRenderer mapRenderer;
+    private CrackedWallRenderer crackedWallRenderer;
+    private RainEffect rainEffect;
 
     private KnightAnimationManager knightAnimationManager;
     private HuskHornheadAnimationManager huskAnimationManager;
@@ -203,6 +201,21 @@ public class GameScreen extends ScreenAdapter {
 
         shapeRenderer = new ShapeRenderer();
 
+        TiledWorld world =
+            controller.getWorld();
+
+        mapRenderer =
+            new OrthogonalTiledMapRenderer(
+                world.getTiledMap(),
+                1f
+            );
+
+        crackedWallRenderer =
+            new CrackedWallRenderer(
+                controller.getCrackedWall()
+            );
+        rainEffect = new RainEffect();
+
         knightAnimationManager = new KnightAnimationManager();
         huskAnimationManager = new HuskHornheadAnimationManager();
         crawlidAnimationManager = new CrawlidAnimationManager();
@@ -213,8 +226,7 @@ public class GameScreen extends ScreenAdapter {
         worldCamera = new GameCamera(
             CAMERA_VIEW_WIDTH,
             CAMERA_VIEW_HEIGHT,
-            WORLD_WIDTH,
-            WORLD_HEIGHT
+            controller.getCurrentRoomBounds()
         );
 
         worldCamera.resize(
@@ -240,67 +252,6 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void createInterface() {
-        Table instructionsTable =
-            new Table();
-
-        instructionsTable.setFillParent(
-            true
-        );
-
-        instructionsTable.top();
-
-        Label title = new Label(
-            controller.text(
-                "game.animationTest.title"
-            ),
-            skin
-        );
-
-        title.setFontScale(1.35f);
-
-        Label instructions = new Label(
-            controller.text(
-                "game.animationTest.controls1"
-            )
-                + "\n"
-                + controller.text(
-                "game.animationTest.controls2"
-            )
-                + "\n"
-                + controller.text(
-                "game.animationTest.controls3"
-            )
-                + "\n"
-                + controller.text(
-                "game.animationTest.controls4"
-            )
-                + "\n"
-                + controller.text(
-                "game.animationTest.controls5"
-            )
-                + "\n"
-                + controller.text(
-                "game.animationTest.controls6"
-            ),
-            skin
-        );
-
-        instructions.setAlignment(
-            Align.center
-        );
-
-        instructions.setWrap(true);
-
-        instructionsTable.add(title)
-            .padTop(15f)
-            .padBottom(8f)
-            .row();
-
-        instructionsTable
-            .add(instructions)
-            .width(900f)
-            .row();
-
         TextButton backButton =
             new TextButton(
                 controller.text(
@@ -316,8 +267,7 @@ public class GameScreen extends ScreenAdapter {
                     ChangeEvent event,
                     Actor actor
                 ) {
-                    controller
-                        .returnToMainMenu();
+                    controller.returnToMainMenu();
                 }
             }
         );
@@ -339,23 +289,14 @@ public class GameScreen extends ScreenAdapter {
             .pad(20f);
 
         stage.addActor(
-            instructionsTable
-        );
-
-        stage.addActor(
             backButtonTable
         );
     }
 
     @Override
     public void render(float delta) {
-        /*
-         * The controller receives the width of the
-         * complete temporary level.
-         */
         controller.update(
             delta,
-            WORLD_WIDTH,
             KNIGHT_DRAW_WIDTH,
             KNIGHT_DRAW_HEIGHT
         );
@@ -379,8 +320,11 @@ public class GameScreen extends ScreenAdapter {
          */
         worldCamera.apply();
 
-        drawPlatforms();
-        drawSpikeHazard();
+        drawMapBackground();
+        drawHiddenRoomCover();
+        drawCrackedWall();
+
+        drawRain();
 
         drawHuskHornhead();
 
@@ -408,6 +352,7 @@ public class GameScreen extends ScreenAdapter {
 
         drawKnight();
         drawActiveAttackHitbox();
+        drawMapForeground();
 
         stage.act(
             Math.min(
@@ -459,7 +404,47 @@ public class GameScreen extends ScreenAdapter {
             + KNIGHT_DRAW_HEIGHT / 2f;
     }
 
-    private void drawPlatforms() {
+    private void drawMapBackground() {
+        mapRenderer.setView(
+            worldCamera.getCamera()
+        );
+
+        mapRenderer.render(
+            controller
+                .getWorld()
+                .getBackgroundLayerIndices()
+        );
+    }
+
+    private void drawMapForeground() {
+        mapRenderer.setView(
+            worldCamera.getCamera()
+        );
+
+        mapRenderer.render(
+            controller
+                .getWorld()
+                .getForegroundLayerIndices()
+        );
+    }
+
+    private void drawHiddenRoomCover() {
+        CrackedWall wall =
+            controller.getCrackedWall();
+
+        Rectangle hiddenRoom =
+            controller
+                .getWorld()
+                .getHiddenRoomBounds();
+
+        if (
+            wall == null
+                || wall.isDestroyed()
+                || hiddenRoom == null
+        ) {
+            return;
+        }
+
         shapeRenderer.setProjectionMatrix(
             worldCamera.getCombined()
         );
@@ -468,95 +453,59 @@ public class GameScreen extends ScreenAdapter {
             ShapeRenderer.ShapeType.Filled
         );
 
-        shapeRenderer.setColor(
-            0.16f,
-            0.18f,
-            0.25f,
-            1f
+        shapeRenderer.setColor(Color.BLACK);
+
+        shapeRenderer.rect(
+            hiddenRoom.x,
+            hiddenRoom.y,
+            hiddenRoom.width,
+            hiddenRoom.height
         );
-
-        for (
-            Platform platform
-            : controller.getPlatforms()
-        ) {
-            Rectangle bounds =
-                platform.getBounds();
-
-            shapeRenderer.rect(
-                bounds.x,
-                bounds.y,
-                bounds.width,
-                bounds.height
-            );
-        }
 
         shapeRenderer.end();
     }
 
-    private void drawSpikeHazard() {
-        Rectangle spikes =
-            controller.getSpikeBounds();
+    private void drawCrackedWall() {
+        CrackedWall wall =
+            controller.getCrackedWall();
 
-        shapeRenderer.setProjectionMatrix(
+        if (wall == null) {
+            return;
+        }
+
+        batch.setProjectionMatrix(
             worldCamera.getCombined()
         );
 
-        shapeRenderer.begin(
-            ShapeRenderer.ShapeType.Filled
+        batch.begin();
+        crackedWallRenderer.draw(batch, wall);
+        batch.end();
+    }
+
+    private void drawRain() {
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
         );
 
-        if (
-            controller.isSpikeFlashing()
-        ) {
-            shapeRenderer.setColor(
-                Color.WHITE
-            );
-        } else {
-            shapeRenderer.setColor(
-                0.72f,
-                0.74f,
-                0.82f,
-                1f
-            );
-        }
+        batch.begin();
 
-        int spikeCount = 6;
+        rainEffect.update(
+            Gdx.graphics.getDeltaTime()
+        );
 
-        float spikeWidth =
-            spikes.width / spikeCount;
+        rainEffect.draw(batch);
 
-        for (
-            int index = 0;
-            index < spikeCount;
-            index++
-        ) {
-            float left =
-                spikes.x
-                    + index * spikeWidth;
-
-            float right =
-                left + spikeWidth;
-
-            float center =
-                left + spikeWidth / 2f;
-
-            shapeRenderer.triangle(
-                left,
-                spikes.y,
-                right,
-                spikes.y,
-                center,
-                spikes.y
-                    + spikes.height
-            );
-        }
-
-        shapeRenderer.end();
+        batch.end();
     }
 
     private void drawHuskHornhead() {
         HuskHornhead husk =
             controller.getHuskHornhead();
+
+        if (husk == null) {
+            return;
+        }
 
         TextureRegion frame =
             huskAnimationManager.getFrame(
@@ -627,6 +576,10 @@ public class GameScreen extends ScreenAdapter {
         HuskHornhead husk =
             controller.getHuskHornhead();
 
+        if (husk == null) {
+            return;
+        }
+
         shapeRenderer.setProjectionMatrix(
             worldCamera.getCombined()
         );
@@ -681,6 +634,10 @@ public class GameScreen extends ScreenAdapter {
     private void drawCrawlid() {
         Crawlid crawlid =
             controller.getCrawlid();
+
+        if (crawlid == null) {
+            return;
+        }
 
         TextureRegion frame =
             crawlidAnimationManager.getFrame(
@@ -760,6 +717,10 @@ public class GameScreen extends ScreenAdapter {
         Crawlid crawlid =
             controller.getCrawlid();
 
+        if (crawlid == null) {
+            return;
+        }
+
         Rectangle body =
             crawlid.getBounds();
 
@@ -793,6 +754,10 @@ public class GameScreen extends ScreenAdapter {
         CrystalGuardian guardian =
             controller.getCrystalGuardian();
 
+        if (guardian == null) {
+            return;
+        }
+
         if (!guardian.isLaserActive()) {
             return;
         }
@@ -809,6 +774,10 @@ public class GameScreen extends ScreenAdapter {
     private void drawCrystalGuardian() {
         CrystalGuardian guardian =
             controller.getCrystalGuardian();
+
+        if (guardian == null) {
+            return;
+        }
 
         TextureRegion frame =
             crystalAnimationManager.getFrame(
@@ -881,6 +850,10 @@ public class GameScreen extends ScreenAdapter {
         CrystalGuardian guardian =
             controller.getCrystalGuardian();
 
+        if (guardian == null) {
+            return;
+        }
+
         shapeRenderer.setProjectionMatrix(
             worldCamera.getCombined()
         );
@@ -945,6 +918,10 @@ public class GameScreen extends ScreenAdapter {
     private void drawWingedSentry() {
         WingedSentry sentry =
             controller.getWingedSentry();
+
+        if (sentry == null) {
+            return;
+        }
 
         TextureRegion frame =
             wingedAnimationManager.getFrame(
@@ -1022,6 +999,10 @@ public class GameScreen extends ScreenAdapter {
         WingedSentry sentry =
             controller.getWingedSentry();
 
+        if (sentry == null) {
+            return;
+        }
+
         shapeRenderer.setProjectionMatrix(
             worldCamera.getCombined()
         );
@@ -1080,10 +1061,13 @@ public class GameScreen extends ScreenAdapter {
                 Color.CYAN
             );
 
+            Rectangle roomBounds =
+                controller.getCurrentRoomBounds();
+
             shapeRenderer.line(
-                0f,
+                roomBounds.x,
                 lockedY,
-                WORLD_WIDTH,
+                roomBounds.x + roomBounds.width,
                 lockedY
             );
         }
@@ -1521,6 +1505,14 @@ public class GameScreen extends ScreenAdapter {
             crawlidAnimationManager.dispose();
         }
 
+        if (crackedWallRenderer != null) {
+            crackedWallRenderer.dispose();
+        }
+
+        if (mapRenderer != null) {
+            mapRenderer.dispose();
+        }
+
         if (batch != null) {
             batch.dispose();
         }
@@ -1553,5 +1545,7 @@ public class GameScreen extends ScreenAdapter {
         ) {
             wingedAnimationManager.dispose();
         }
+
+        controller.dispose();
     }
 }
