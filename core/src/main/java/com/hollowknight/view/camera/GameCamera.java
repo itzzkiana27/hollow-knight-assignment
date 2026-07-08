@@ -15,9 +15,32 @@ public final class GameCamera {
     private static final float FOLLOW_SPEED = 7f;
     private static final float SNAP_DISTANCE_RATIO = 0.70f;
 
+    /*
+     * Camera shake tuning. The magnitude is expressed as a fraction of the
+     * visible width so the shake feels the same regardless of zoom / screen
+     * size, and the duration grows with the requested intensity so that a
+     * heavy Power Mace Slam shakes noticeably longer than a light landing.
+     */
+    private static final float MAX_SHAKE_FRACTION = 0.048f;
+    private static final float MIN_SHAKE_DURATION = 0.24f;
+    private static final float SHAKE_DURATION_SCALE = 0.55f;
+    private static final float MAX_SHAKE_INTENSITY = 1.7f;
+
     private final OrthographicCamera camera;
     private final Viewport viewport;
     private final Rectangle worldBounds;
+
+    /*
+     * The clamped, logical camera position (what the follow logic drives).
+     * The shake offset is added on top of this only for rendering, so it
+     * never feeds back into the follow interpolation.
+     */
+    private float baseX;
+    private float baseY;
+
+    private float shakeTimeRemaining;
+    private float shakeDuration;
+    private float shakeMagnitude;
 
     public GameCamera(
         float visibleWidth,
@@ -48,13 +71,49 @@ public final class GameCamera {
             camera
         );
 
+        baseX = worldBounds.x + visibleWidth / 2f;
+        baseY = worldBounds.y + visibleHeight / 2f;
+
         camera.position.set(
-            worldBounds.x + visibleWidth / 2f,
-            worldBounds.y + visibleHeight / 2f,
+            baseX,
+            baseY,
             0f
         );
 
         camera.update();
+    }
+
+    /**
+     * Requests a temporary camera shake. The strongest active shake wins so a
+     * small hit landing during a big one cannot cut the big one short. Intended
+     * to be driven by boss landings and heavy attacks, with intensity roughly
+     * in the 0..1 range (larger values are clamped).
+     */
+    public void shake(float intensity) {
+        if (intensity <= 0f) {
+            return;
+        }
+
+        float clamped = MathUtils.clamp(intensity, 0f, MAX_SHAKE_INTENSITY);
+
+        float newMagnitude =
+            clamped
+                * camera.viewportWidth
+                * camera.zoom
+                * MAX_SHAKE_FRACTION;
+
+        float newDuration =
+            MIN_SHAKE_DURATION
+                + clamped * SHAKE_DURATION_SCALE;
+
+        if (
+            shakeTimeRemaining <= 0f
+                || newMagnitude >= shakeMagnitude
+        ) {
+            shakeMagnitude = newMagnitude;
+            shakeDuration = newDuration;
+            shakeTimeRemaining = newDuration;
+        }
     }
 
     public void setWorldBounds(Rectangle bounds) {
@@ -70,17 +129,13 @@ public final class GameCamera {
 
         worldBounds.set(bounds);
 
-        camera.position.x =
-            clampHorizontalPosition(
-                camera.position.x
-            );
+        baseX =
+            clampHorizontalPosition(baseX);
 
-        camera.position.y =
-            clampVerticalPosition(
-                camera.position.y
-            );
+        baseY =
+            clampVerticalPosition(baseY);
 
-        camera.update();
+        applyRenderPosition(0f);
     }
 
     public void update(
@@ -94,48 +149,87 @@ public final class GameCamera {
         float desiredY =
             clampVerticalPosition(targetY);
 
-        if (shouldSnap(desiredX, desiredY)) {
-            camera.position.set(
-                desiredX,
-                desiredY,
-                0f
-            );
-
-            camera.update();
-            return;
-        }
-
         float safeDelta = Math.max(0f, delta);
 
-        float interpolation =
-            1f
-                - (float) Math.exp(
-                -FOLLOW_SPEED * safeDelta
+        if (shouldSnap(desiredX, desiredY)) {
+            baseX = desiredX;
+            baseY = desiredY;
+        } else {
+            float interpolation =
+                1f
+                    - (float) Math.exp(
+                    -FOLLOW_SPEED * safeDelta
+                );
+
+            baseX = MathUtils.lerp(
+                baseX,
+                desiredX,
+                interpolation
             );
 
-        camera.position.x = MathUtils.lerp(
-            camera.position.x,
-            desiredX,
-            interpolation
-        );
+            baseY = MathUtils.lerp(
+                baseY,
+                desiredY,
+                interpolation
+            );
+        }
 
-        camera.position.y = MathUtils.lerp(
-            camera.position.y,
-            desiredY,
-            interpolation
-        );
-
-        camera.position.z = 0f;
-        camera.update();
+        applyRenderPosition(safeDelta);
     }
 
     public void reset(
         float targetX,
         float targetY
     ) {
+        baseX = clampHorizontalPosition(targetX);
+        baseY = clampVerticalPosition(targetY);
+
+        shakeTimeRemaining = 0f;
+        shakeMagnitude = 0f;
+
+        applyRenderPosition(0f);
+    }
+
+    /**
+     * Advances the shake timer and writes {@code base + shakeOffset} into the
+     * actual camera. The offset uses a quadratic ease-out so the shake hits
+     * hard and settles quickly.
+     */
+    private void applyRenderPosition(float delta) {
+        float offsetX = 0f;
+        float offsetY = 0f;
+
+        if (shakeTimeRemaining > 0f) {
+            shakeTimeRemaining -= delta;
+
+            if (shakeTimeRemaining < 0f) {
+                shakeTimeRemaining = 0f;
+            }
+
+            float progress =
+                shakeDuration > 0f
+                    ? shakeTimeRemaining / shakeDuration
+                    : 0f;
+
+            /*
+             * Linear falloff keeps the shake energetic for most of its life so
+             * it reads as a real impact rather than a quick flicker.
+             */
+            float currentMagnitude =
+                shakeMagnitude * progress;
+
+            offsetX =
+                MathUtils.random(-1f, 1f)
+                    * currentMagnitude;
+
+            offsetY =
+                MathUtils.random(-1f, 1f)
+                    * currentMagnitude;
+        }
+
         camera.position.set(
-            clampHorizontalPosition(targetX),
-            clampVerticalPosition(targetY),
+            baseX + offsetX,
+            baseY + offsetY,
             0f
         );
 
@@ -157,10 +251,10 @@ public final class GameCamera {
                 * SNAP_DISTANCE_RATIO;
 
         return Math.abs(
-            desiredX - camera.position.x
+            desiredX - baseX
         ) > horizontalSnapDistance
             || Math.abs(
-            desiredY - camera.position.y
+            desiredY - baseY
         ) > verticalSnapDistance;
     }
 
@@ -224,17 +318,13 @@ public final class GameCamera {
             false
         );
 
-        camera.position.x =
-            clampHorizontalPosition(
-                camera.position.x
-            );
+        baseX =
+            clampHorizontalPosition(baseX);
 
-        camera.position.y =
-            clampVerticalPosition(
-                camera.position.y
-            );
+        baseY =
+            clampVerticalPosition(baseY);
 
-        camera.update();
+        applyRenderPosition(0f);
     }
 
     public void apply() {

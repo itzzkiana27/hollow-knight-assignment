@@ -450,6 +450,23 @@ public class GameScreen extends ScreenAdapter {
             controller.getCurrentCameraBounds()
         );
 
+        /*
+         * The False Knight queues a shake whenever a heavy attack or landing
+         * hits the ground. Drain that request here so the strike actually
+         * moves the camera, proportional to the requested intensity.
+         */
+        FalseKnight falseKnight =
+            controller.getFalseKnight();
+
+        if (
+            falseKnight != null
+                && falseKnight.consumeCameraShakeRequest()
+        ) {
+            worldCamera.shake(
+                falseKnight.getPendingShakeIntensity()
+            );
+        }
+
         worldCamera.update(
             Math.min(
                 delta,

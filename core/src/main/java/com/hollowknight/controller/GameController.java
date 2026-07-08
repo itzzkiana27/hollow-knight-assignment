@@ -1374,10 +1374,13 @@ public class GameController {
          * Body contact damage.
          */
         if (
-            playerBounds.overlaps(
+            falseKnight.canApplyBodyContactNow()
+                && playerBounds.overlaps(
                 falseKnight.getBounds()
             )
         ) {
+            falseKnight.registerBodyContact();
+
             return applyEnemyContact(
                 falseKnight.getBounds(),
                 falseKnight.getBodyDamage()
