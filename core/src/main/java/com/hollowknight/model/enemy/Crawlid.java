@@ -4,6 +4,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.hollowknight.model.combat.Damageable;
 import com.hollowknight.model.combat.Pogoable;
 import com.hollowknight.model.world.PlatformWorld;
+import com.hollowknight.model.combat.Knockbackable;
 
 /**
  * Simple ground enemy used in the Forgotten
@@ -14,7 +15,7 @@ import com.hollowknight.model.world.PlatformWorld;
  * encountering a wall, world boundary, or pit.
  */
 public final class Crawlid
-    implements Damageable, Pogoable {
+    implements Damageable, Pogoable, Knockbackable {
 
     /*
      * The source frame is 301 x 149, but most of it
@@ -48,9 +49,9 @@ public final class Crawlid
     private static final float GROUND_LOOK_AHEAD = 8f;
 
     private static final float GROUND_PROBE_DEPTH = 14f;
-
-    private static final float
-        RESPAWN_DISTANCE = 900f;
+    private static final float RESPAWN_DISTANCE = 900f;
+    private static final float KNOCKBACK_SPEED = 360f;
+    private static final float KNOCKBACK_DURATION = 0.13f;
 
     private static final float
         RESPAWN_DISTANCE_SQUARED =
@@ -69,6 +70,8 @@ public final class Crawlid
 
     private float stateTime;
     private float flashTimeRemaining;
+    private float knockbackTimeRemaining;
+    private int knockbackDirection;
 
     private boolean facingRight;
 
@@ -125,6 +128,15 @@ public final class Crawlid
         }
 
         stateTime += safeDelta;
+
+        if (knockbackTimeRemaining > 0f) {
+            updateKnockback(
+                safeDelta,
+                platformWorld
+            );
+
+            return;
+        }
 
         switch (state) {
             case WALKING ->
@@ -344,6 +356,8 @@ public final class Crawlid
 
         stateTime = 0f;
         flashTimeRemaining = 0f;
+        knockbackTimeRemaining = 0f;
+        knockbackDirection = 0;
     }
 
     @Override
@@ -368,7 +382,82 @@ public final class Crawlid
         if (health == 0) {
             state = CrawlidState.DYING;
             stateTime = 0f;
+            knockbackTimeRemaining = 0f;
         }
+    }
+    private void updateKnockback(
+        float delta,
+        PlatformWorld platformWorld
+    ) {
+        float moveAmount =
+            KNOCKBACK_SPEED * delta;
+
+        nextBounds.set(bounds);
+
+        nextBounds.x +=
+            knockbackDirection * moveAmount;
+
+        if (
+            nextBounds.x < 0f
+                || nextBounds.x
+                + nextBounds.width
+                > platformWorld.getWorldWidth()
+        ) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        if (
+            platformWorld.overlapsSolid(
+                nextBounds
+            )
+        ) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        if (
+            !platformWorld.hasGroundAhead(
+                nextBounds,
+                knockbackDirection,
+                GROUND_LOOK_AHEAD,
+                GROUND_PROBE_DEPTH
+            )
+        ) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        bounds.x = nextBounds.x;
+
+        knockbackTimeRemaining -= delta;
+
+        if (knockbackTimeRemaining < 0f) {
+            knockbackTimeRemaining = 0f;
+        }
+    }
+
+    @Override
+    public void applyKnockback(
+        int direction,
+        PlatformWorld platformWorld
+    ) {
+        if (!isAlive()) {
+            return;
+        }
+
+        if (direction == 0) {
+            return;
+        }
+
+        knockbackDirection =
+            direction < 0 ? -1 : 1;
+
+        knockbackTimeRemaining =
+            KNOCKBACK_DURATION;
+
+        flashTimeRemaining =
+            FLASH_DURATION;
     }
 
     @Override

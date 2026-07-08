@@ -39,6 +39,8 @@ import com.hollowknight.model.world.TiledWorld;
 import com.hollowknight.model.enemy.WingedSentry;
 import com.hollowknight.view.animation.WingedSentryAnimationManager;
 import com.hollowknight.view.effects.RainEffect;
+import com.hollowknight.model.boss.FalseKnight;
+import com.hollowknight.view.animation.FalseKnightAnimationManager;
 
 public class GameScreen extends ScreenAdapter {
 
@@ -179,6 +181,19 @@ public class GameScreen extends ScreenAdapter {
      */
     private static final boolean ZOTE_SOURCE_FACES_RIGHT = false;
 
+    /*
+     * False Knight rendering values.
+     * Change this if the boss looks too large or too small.
+     */
+    private static final float FALSE_KNIGHT_DRAW_HEIGHT = 400f;
+
+    /*
+     * If False Knight faces the wrong direction, flip this value.
+     */
+    private static final boolean FALSE_KNIGHT_SOURCE_FACES_RIGHT = false;
+
+    private static final boolean DRAW_FALSE_KNIGHT_DEBUG = false;
+
     private final GameController controller;
 
     private Stage stage;
@@ -196,6 +211,7 @@ public class GameScreen extends ScreenAdapter {
     private CrystalGuardianAnimationManager crystalAnimationManager;
     private CrystalGuardianLaserRenderer crystalLaserRenderer;
     private WingedSentryAnimationManager wingedAnimationManager;
+    private FalseKnightAnimationManager falseKnightAnimationManager;
     private ZoteAnimationManager zoteAnimationManager;
 
     private GameCamera worldCamera;
@@ -247,6 +263,7 @@ public class GameScreen extends ScreenAdapter {
         crystalAnimationManager = new CrystalGuardianAnimationManager();
         crystalLaserRenderer = new CrystalGuardianLaserRenderer();
         wingedAnimationManager = new WingedSentryAnimationManager();
+        falseKnightAnimationManager = new FalseKnightAnimationManager();
         zoteAnimationManager = new ZoteAnimationManager();
 
         worldCamera = new GameCamera(
@@ -271,10 +288,10 @@ public class GameScreen extends ScreenAdapter {
         Player player =
             controller.getPlayer();
 //for debug
-        System.out.println("RESET CAMERA");
-        System.out.println("Player X: " + player.getPosition().x);
-        System.out.println("Player Y: " + player.getPosition().y);
-        System.out.println("Camera bounds: " + controller.getCurrentCameraBounds());
+      //  System.out.println("RESET CAMERA");
+      //  System.out.println("Player X: " + player.getPosition().x);
+       // System.out.println("Player Y: " + player.getPosition().y);
+     //   System.out.println("Camera bounds: " + controller.getCurrentCameraBounds());
 
 
         worldCamera.reset(
@@ -283,8 +300,8 @@ public class GameScreen extends ScreenAdapter {
         );
 
         //for debug
-        System.out.println("Camera X: " + worldCamera.getCamera().position.x);
-        System.out.println("Camera Y: " + worldCamera.getCamera().position.y);
+       // System.out.println("Camera X: " + worldCamera.getCamera().position.x);
+       // System.out.println("Camera Y: " + worldCamera.getCamera().position.y);
 
     }
 
@@ -387,6 +404,13 @@ public class GameScreen extends ScreenAdapter {
 
         if (DRAW_WINGED_DEBUG) {
             drawWingedSentryDebug();
+        }
+
+        drawFalseKnight();
+        drawFalseKnightShockwave();
+
+        if (DRAW_FALSE_KNIGHT_DEBUG) {
+            drawFalseKnightDebug();
         }
 
         drawZote();
@@ -1123,6 +1147,215 @@ public class GameScreen extends ScreenAdapter {
         Gdx.gl.glLineWidth(1f);
     }
 
+    private void drawFalseKnight() {
+        FalseKnight falseKnight =
+            controller.getFalseKnight();
+
+        if (falseKnight == null) {
+            return;
+        }
+
+        TextureRegion frame =
+            falseKnightAnimationManager.getFrame(
+                falseKnight
+            );
+
+        Rectangle body =
+            falseKnight.getBounds();
+
+        float scale =
+            FALSE_KNIGHT_DRAW_HEIGHT
+                / frame.getRegionHeight();
+
+        float drawWidth =
+            frame.getRegionWidth()
+                * scale;
+
+        float drawHeight =
+            frame.getRegionHeight()
+                * scale;
+
+        /*
+         * Center the big visual sprite around the smaller
+         * physical boss body.
+         */
+        float drawX =
+            body.x
+                + body.width / 2f
+                - drawWidth / 2f;
+
+        float drawY =
+            body.y - 18f;
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.begin();
+
+        boolean shouldFlip =
+            falseKnight.isFacingRight()
+                != FALSE_KNIGHT_SOURCE_FACES_RIGHT;
+
+        if (shouldFlip) {
+            batch.draw(
+                frame,
+                drawX + drawWidth,
+                drawY,
+                -drawWidth,
+                drawHeight
+            );
+        } else {
+            batch.draw(
+                frame,
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight
+            );
+        }
+
+        batch.end();
+    }
+
+    private void drawFalseKnightShockwave() {
+        FalseKnight falseKnight =
+            controller.getFalseKnight();
+
+        if (
+            falseKnight == null
+                || !falseKnight.isShockwaveActive()
+        ) {
+            return;
+        }
+
+        Rectangle shockwave =
+            falseKnight.getShockwaveHitbox();
+
+        shapeRenderer.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        /*
+         * Temporary visual shockwave.
+         * Later we can replace this with a sprite effect.
+         */
+        shapeRenderer.setColor(
+            0.8f,
+            0.85f,
+            1f,
+            0.55f
+        );
+
+        shapeRenderer.rect(
+            shockwave.x,
+            shockwave.y,
+            shockwave.width,
+            shockwave.height
+        );
+
+        shapeRenderer.end();
+    }
+    private void drawFalseKnightDebug() {
+        FalseKnight falseKnight =
+            controller.getFalseKnight();
+
+        if (falseKnight == null) {
+            return;
+        }
+
+        shapeRenderer.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        Gdx.gl.glLineWidth(2f);
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        /*
+         * Yellow: boss body.
+         */
+        shapeRenderer.setColor(
+            Color.YELLOW
+        );
+
+        Rectangle body =
+            falseKnight.getBounds();
+
+        shapeRenderer.rect(
+            body.x,
+            body.y,
+            body.width,
+            body.height
+        );
+
+        /*
+         * Red: mace hitbox.
+         */
+        if (falseKnight.isMaceHitActive()) {
+            shapeRenderer.setColor(
+                Color.RED
+            );
+
+            Rectangle mace =
+                falseKnight.getMaceHitbox();
+
+            shapeRenderer.rect(
+                mace.x,
+                mace.y,
+                mace.width,
+                mace.height
+            );
+        }
+
+        /*
+         * Cyan: vulnerable body during stun.
+         */
+        if (falseKnight.isStunned()) {
+            shapeRenderer.setColor(
+                Color.CYAN
+            );
+
+            Rectangle vulnerable =
+                falseKnight.getVulnerableHitbox();
+
+            shapeRenderer.rect(
+                vulnerable.x,
+                vulnerable.y,
+                vulnerable.width,
+                vulnerable.height
+            );
+        }
+
+        /*
+         * Blue: shockwave hitbox.
+         */
+        if (falseKnight.isShockwaveActive()) {
+            shapeRenderer.setColor(
+                Color.BLUE
+            );
+
+            Rectangle shockwave =
+                falseKnight.getShockwaveHitbox();
+
+            shapeRenderer.rect(
+                shockwave.x,
+                shockwave.y,
+                shockwave.width,
+                shockwave.height
+            );
+        }
+
+        shapeRenderer.end();
+
+        Gdx.gl.glLineWidth(1f);
+    }
 
     private void drawZote() {
         Zote zote =
@@ -1892,10 +2125,12 @@ public class GameScreen extends ScreenAdapter {
         ) {
             crystalLaserRenderer.dispose();
         }
-        if (
-            wingedAnimationManager != null
-        ) {
+        if (wingedAnimationManager != null) {
             wingedAnimationManager.dispose();
+        }
+
+        if (falseKnightAnimationManager != null) {
+            falseKnightAnimationManager.dispose();
         }
 
         if (

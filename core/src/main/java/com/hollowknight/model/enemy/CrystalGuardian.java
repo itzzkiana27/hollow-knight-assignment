@@ -4,6 +4,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.hollowknight.model.combat.Damageable;
 import com.hollowknight.model.combat.Pogoable;
 import com.hollowknight.model.world.PlatformWorld;
+import com.hollowknight.model.combat.Knockbackable;
 
 /**
  * Stationary ranged enemy.
@@ -13,7 +14,7 @@ import com.hollowknight.model.world.PlatformWorld;
  * charge, and then returns to its original position.
  */
 public final class CrystalGuardian
-    implements Damageable, Pogoable {
+    implements Damageable, Pogoable, Knockbackable {
 
     private static final float BODY_WIDTH = 92f;
     private static final float BODY_HEIGHT = 110f;
@@ -53,6 +54,8 @@ public final class CrystalGuardian
     private static final float GROUND_PROBE_DEPTH = 14f;
 
     private static final float RESPAWN_DISTANCE = 900f;
+    private static final float KNOCKBACK_SPEED = 420f;
+    private static final float KNOCKBACK_DURATION = 0.13f;
 
     private static final float
         RESPAWN_DISTANCE_SQUARED =
@@ -75,6 +78,8 @@ public final class CrystalGuardian
 
     private float stateTime;
     private float flashTimeRemaining;
+    private float knockbackTimeRemaining;
+    private int knockbackDirection;
 
 
     private boolean facingRight;
@@ -139,12 +144,22 @@ public final class CrystalGuardian
             updateVisionBounds();
             return;
         }
-
         stateTime += safeDelta;
+
+        if (knockbackTimeRemaining > 0f) {
+            updateKnockback(
+                safeDelta,
+                platformWorld
+            );
+
+            updateVisionBounds();
+            updateLaserBounds(platformWorld);
+            return;
+        }
 
         updateVisionBounds();
 
-        switch (state) {
+        switch (state)  {
             case IDLE_WATCHING ->
                 updateIdle(
                     playerBounds,
@@ -226,7 +241,57 @@ public final class CrystalGuardian
                 .ENRAGED_CHARGING
         );
     }
+    private void updateKnockback(
+        float delta,
+        PlatformWorld platformWorld
+    ) {
+        float moveAmount =
+            KNOCKBACK_SPEED * delta;
 
+        nextBounds.set(bounds);
+
+        nextBounds.x +=
+            knockbackDirection * moveAmount;
+
+        if (
+            nextBounds.x < 0f
+                || nextBounds.x
+                + nextBounds.width
+                > platformWorld.getWorldWidth()
+        ) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        if (
+            platformWorld.overlapsSolid(
+                nextBounds
+            )
+        ) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        if (
+            !platformWorld.hasGroundAhead(
+                nextBounds,
+                knockbackDirection,
+                GROUND_LOOK_AHEAD,
+                GROUND_PROBE_DEPTH
+            )
+        ) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        bounds.x = nextBounds.x;
+
+        knockbackTimeRemaining -= delta;
+
+        if (knockbackTimeRemaining < 0f) {
+            knockbackTimeRemaining = 0f;
+        }
+    }
     private void updateEnragedCharge(
         float delta,
         PlatformWorld platformWorld
@@ -598,11 +663,34 @@ public final class CrystalGuardian
 
         stateTime = 0f;
         flashTimeRemaining = 0f;
+        knockbackTimeRemaining = 0f;
+        knockbackDirection = 0;
 
         clearLaser();
         updateVisionBounds();
     }
+    @Override
+    public void applyKnockback(
+        int direction,
+        PlatformWorld platformWorld
+    ) {
+        if (!isAlive()) {
+            return;
+        }
 
+        if (direction == 0) {
+            return;
+        }
+
+        knockbackDirection =
+            direction < 0 ? -1 : 1;
+
+        knockbackTimeRemaining =
+            KNOCKBACK_DURATION;
+
+        flashTimeRemaining =
+            FLASH_DURATION;
+    }
     @Override
     public void takeDamage(int damage) {
         if (
@@ -621,6 +709,7 @@ public final class CrystalGuardian
             FLASH_DURATION;
 
         if (health == 0) {
+            knockbackTimeRemaining = 0f;
             clearLaser();
 
             state =

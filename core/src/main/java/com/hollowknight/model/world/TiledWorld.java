@@ -92,6 +92,62 @@ public final class TiledWorld implements Disposable {
         }
     }
 
+    public static final class BossSpawn {
+        private final String id;
+        private final String bossType;
+        private final String roomId;
+        private final float x;
+        private final float y;
+        private final float width;
+        private final float height;
+
+        private BossSpawn(
+            String id,
+            String bossType,
+            String roomId,
+            float x,
+            float y,
+            float width,
+            float height
+        ) {
+            this.id = id;
+            this.bossType = bossType;
+            this.roomId = roomId;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public String getBossType() {
+            return bossType;
+        }
+
+        public String getRoomId() {
+            return roomId;
+        }
+
+        public float getX() {
+            return x;
+        }
+
+        public float getY() {
+            return y;
+        }
+
+        public float getWidth() {
+            return width;
+        }
+
+        public float getHeight() {
+            return height;
+        }
+    }
+
     public static final class NpcSpawn {
         private final String id;
         private final String npcType;
@@ -239,6 +295,7 @@ public final class TiledWorld implements Disposable {
     private final Array<SpikeHazard> spikeHazards;
     private final Array<EnemySpawn> enemySpawns;
     private final Array<NpcSpawn> npcSpawns;
+    private final Array<BossSpawn> bossSpawns;
 
     private final CrackedWall crackedWall;
 
@@ -324,6 +381,7 @@ public final class TiledWorld implements Disposable {
         spikeHazards = loadHazards();
         enemySpawns = loadEnemySpawns();
         npcSpawns = loadNpcSpawns();
+        bossSpawns = loadBossSpawns();
 
         backgroundLayerIndices =
             collectTopLevelLayerIndices(
@@ -840,6 +898,67 @@ public final class TiledWorld implements Disposable {
         return result;
     }
 
+    private Array<BossSpawn> loadBossSpawns() {
+        Array<BossSpawn> result =
+            new Array<>();
+
+        MapLayer bossLayer =
+            tiledMap.getLayers().get("Bosses");
+
+        if (bossLayer == null) {
+            return result;
+        }
+
+        for (
+            MapObject object
+            : bossLayer.getObjects()
+        ) {
+            if (
+                !(object
+                    instanceof RectangleMapObject)
+            ) {
+                continue;
+            }
+
+            Rectangle rectangle =
+                ((RectangleMapObject) object)
+                    .getRectangle();
+
+            String bossType =
+                getString(
+                    object.getProperties(),
+                    "bossType",
+                    ""
+                );
+
+            if (
+                bossType == null
+                    || bossType.isBlank()
+            ) {
+                continue;
+            }
+
+            result.add(
+                new BossSpawn(
+                    object.getName(),
+                    bossType,
+                    getString(
+                        object.getProperties(),
+                        "roomId",
+                        ""
+                    ),
+                    rectangle.x,
+                    rectangle.y,
+                    rectangle.width,
+                    rectangle.height
+                )
+            );
+        }
+
+        return result;
+    }
+
+
     private static boolean touchesRoom(
         Rectangle objectBounds,
         Rectangle roomBounds
@@ -1052,6 +1171,26 @@ public final class TiledWorld implements Disposable {
         }
 
         return null;
+    }
+
+    public BossSpawn findBossSpawn(
+        String bossType,
+        String roomId
+    ) {
+        for (BossSpawn spawn : bossSpawns) {
+            if (
+                bossType.equals(spawn.getBossType())
+                    && roomId.equals(spawn.getRoomId())
+            ) {
+                return spawn;
+            }
+        }
+
+        return null;
+    }
+
+    public Array<BossSpawn> getBossSpawns() {
+        return bossSpawns;
     }
 
     public NpcSpawn findNpcSpawn(

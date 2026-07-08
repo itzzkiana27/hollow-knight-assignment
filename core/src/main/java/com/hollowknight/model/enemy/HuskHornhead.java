@@ -4,13 +4,14 @@ import com.badlogic.gdx.math.Rectangle;
 import com.hollowknight.model.combat.Damageable;
 import com.hollowknight.model.combat.Pogoable;
 import com.hollowknight.model.world.PlatformWorld;
+import com.hollowknight.model.combat.Knockbackable;
 
 /**
  * Ground enemy that patrols, rests, detects the player
  * in front, and performs a blind charge.
  */
 public final class HuskHornhead
-    implements Damageable, Pogoable {
+    implements Damageable, Pogoable, Knockbackable {
 
     private static final float BODY_WIDTH = 72f;
     private static final float BODY_HEIGHT = 88f;
@@ -23,13 +24,11 @@ public final class HuskHornhead
     private static final float REST_DURATION = 0.8f;
     private static final float TURN_DURATION = 0.20f;
 
-    private static final float
-        ANTICIPATION_DURATION = 0.45f;
+    private static final float ANTICIPATION_DURATION = 0.45f;
 
     private static final float CHARGE_SPEED = 330f;
 
-    private static final float
-        CHARGE_COOLDOWN_DURATION = 0.65f;
+    private static final float CHARGE_COOLDOWN_DURATION = 0.65f;
 
     private static final float DEATH_DURATION = 0.80f;
     private static final float FLASH_DURATION = 0.12f;
@@ -38,14 +37,17 @@ public final class HuskHornhead
     private static final float VISION_HEIGHT = 115f;
     private static final float VISION_Y_OFFSET = 4f;
 
-    private static final float
-        GROUND_LOOK_AHEAD = 10f;
+    private static final float GROUND_LOOK_AHEAD = 10f;
 
     private static final float
         GROUND_PROBE_DEPTH = 14f;
 
     private static final float
         RESPAWN_DISTANCE = 900f;
+    private static final float KNOCKBACK_DISTANCE = 60f;
+    private static final float KNOCKBACK_STEP = 4f;
+    private static final float KNOCKBACK_SPEED = 460f;
+    private static final float KNOCKBACK_DURATION = 0.14f;
 
     private static final float
         RESPAWN_DISTANCE_SQUARED =
@@ -67,6 +69,8 @@ public final class HuskHornhead
 
     private float stateTime;
     private float flashTimeRemaining;
+    private float knockbackTimeRemaining;
+    private int knockbackDirection;
 
     private boolean facingRight;
 
@@ -144,6 +148,16 @@ public final class HuskHornhead
         }
 
         stateTime += safeDelta;
+
+        if (knockbackTimeRemaining > 0f) {
+            updateKnockback(
+                safeDelta,
+                platformWorld
+            );
+
+            updateVisionBounds();
+            return;
+        }
 
         updateVisionBounds();
 
@@ -323,7 +337,57 @@ public final class HuskHornhead
                 * CHARGE_SPEED
                 * delta;
     }
+    private void updateKnockback(
+        float delta,
+        PlatformWorld platformWorld
+    ) {
+        float moveAmount =
+            KNOCKBACK_SPEED * delta;
 
+        nextBounds.set(bounds);
+
+        nextBounds.x +=
+            knockbackDirection * moveAmount;
+
+        if (
+            nextBounds.x < 0f
+                || nextBounds.x
+                + nextBounds.width
+                > platformWorld.getWorldWidth()
+        ) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        if (
+            platformWorld.overlapsSolid(
+                nextBounds
+            )
+        ) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        if (
+            !platformWorld.hasGroundAhead(
+                nextBounds,
+                knockbackDirection,
+                GROUND_LOOK_AHEAD,
+                GROUND_PROBE_DEPTH
+            )
+        ) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        bounds.x = nextBounds.x;
+
+        knockbackTimeRemaining -= delta;
+
+        if (knockbackTimeRemaining < 0f) {
+            knockbackTimeRemaining = 0f;
+        }
+    }
     private void updateAttackCooldown() {
         if (
             stateTime
@@ -500,6 +564,8 @@ public final class HuskHornhead
 
         stateTime = 0f;
         flashTimeRemaining = 0f;
+        knockbackTimeRemaining = 0f;
+        knockbackDirection = 0;
 
         updateVisionBounds();
     }
@@ -524,11 +590,35 @@ public final class HuskHornhead
             FLASH_DURATION;
 
         if (health == 0) {
+            knockbackTimeRemaining = 0f;
             state =
                 HuskHornheadState.DYING;
 
             stateTime = 0f;
         }
+    }
+
+    @Override
+    public void applyKnockback(
+        int direction,
+        PlatformWorld platformWorld
+    ) {
+        if (!isAlive()) {
+            return;
+        }
+
+        if (direction == 0) {
+            return;
+        }
+
+        knockbackDirection =
+            direction < 0 ? -1 : 1;
+
+        knockbackTimeRemaining =
+            KNOCKBACK_DURATION;
+
+        flashTimeRemaining =
+            FLASH_DURATION;
     }
 
     @Override

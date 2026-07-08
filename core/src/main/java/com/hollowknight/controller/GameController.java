@@ -31,6 +31,8 @@ import com.hollowknight.model.world.CrackedWall;
 import com.hollowknight.model.world.TiledWorld;
 import com.hollowknight.model.enemy.WingedSentry;
 import com.hollowknight.model.npc.Zote;
+import com.hollowknight.model.combat.Knockbackable;
+import com.hollowknight.model.boss.FalseKnight;
 
 import java.util.EnumSet;
 
@@ -106,6 +108,7 @@ public class GameController {
     private CrystalGuardian crystalGuardian;
     private WingedSentry wingedSentry;
     private Zote zote;
+    private FalseKnight falseKnight;
 
     private Array<SpikeHazard> spikeHazards;
 
@@ -117,10 +120,20 @@ public class GameController {
 
     private final Sound[] zoteVoiceSounds;
     private final Sound zoteBattleAttackSound;
+    private Sound falseKnightSwingSound;
+    private Sound falseKnightStrikeGroundSound;
+    private Sound falseKnightJumpSound;
+    private Sound falseKnightLandSound;
+    private Sound falseKnightDamageArmourSound;
+    private Sound falseKnightDamageArmourFinalSound;
+    private Sound falseKnightHeadDamageSound;
+    private Sound falseKnightRollSound;
 
     private boolean zoteDialogueActive;
     private boolean zoteMainDialogueFinished;
     private boolean zoteUsingMainDialogue;
+    private boolean falseKnightMaceHitConsumed;
+    private boolean falseKnightShockwaveHitConsumed;
 
     private String[] activeZoteDialogueLines;
     private int zoteDialogueLineIndex;
@@ -206,6 +219,7 @@ public class GameController {
 
         spawnEnemiesForCurrentRoom();
         spawnZoteForCurrentRoom();
+        spawnFalseKnightForCurrentRoom();
 
         spikeHazards =
             world.getSpikeHazardsForRoom(
@@ -265,6 +279,62 @@ public class GameController {
         zoteDialogueActive = false;
         zoteMainDialogueFinished = false;
         zoteUsingMainDialogue = false;
+
+        falseKnightSwingSound =
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/bosses/false_knight/swing.wav"
+                )
+            );
+
+        falseKnightStrikeGroundSound =
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/bosses/false_knight/strike_ground.wav"
+                )
+            );
+
+        falseKnightJumpSound =
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/bosses/false_knight/jump.wav"
+                )
+            );
+
+        falseKnightLandSound =
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/bosses/false_knight/land.wav"
+                )
+            );
+
+        falseKnightDamageArmourSound =
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/bosses/false_knight/damage_armour.wav"
+                )
+            );
+
+        falseKnightDamageArmourFinalSound =
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/bosses/false_knight/damage_armour_final.wav"
+                )
+            );
+
+        falseKnightHeadDamageSound =
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/bosses/false_knight/head_damage.wav"
+                )
+            );
+
+        falseKnightRollSound =
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/bosses/false_knight/roll.wav"
+                )
+            );
 
         currentInput =
             PlayerInput.empty();
@@ -555,6 +625,22 @@ public class GameController {
             );
         }
 
+        if (falseKnight != null) {
+            FalseKnight.State oldState =
+                falseKnight.getState();
+
+            falseKnight.update(
+                delta,
+                playerBody.getBounds(),
+                platformWorld
+            );
+
+            playFalseKnightStateSound(
+                oldState,
+                falseKnight.getState()
+            );
+        }
+
         if (zote != null) {
             zote.update(
                 delta,
@@ -568,6 +654,52 @@ public class GameController {
 
         if (crackedWall != null) {
             crackedWall.update(delta);
+        }
+    }
+
+    private void playFalseKnightStateSound(
+        FalseKnight.State oldState,
+        FalseKnight.State newState
+    ) {
+        if (oldState == newState) {
+            return;
+        }
+
+        switch (newState) {
+            case MACE_SLAM_ANTIC -> {
+                if (falseKnightSwingSound != null) {
+                    falseKnightSwingSound.play(0.65f);
+                }
+            }
+
+            case MACE_SLAM, POWER_SLAM -> {
+                if (falseKnightStrikeGroundSound != null) {
+                    falseKnightStrikeGroundSound.play(0.8f);
+                }
+            }
+
+            case OFFENSIVE_LEAP,
+                 DEFENSIVE_LEAP,
+                 POWER_JUMP -> {
+                if (falseKnightJumpSound != null) {
+                    falseKnightJumpSound.play(0.7f);
+                }
+            }
+
+            case STUNNED -> {
+                if (falseKnightDamageArmourFinalSound != null) {
+                    falseKnightDamageArmourFinalSound.play(0.8f);
+                }
+            }
+
+            case DEAD -> {
+                if (falseKnightRollSound != null) {
+                    falseKnightRollSound.play(0.75f);
+                }
+            }
+
+            default -> {
+            }
         }
     }
 
@@ -677,6 +809,11 @@ public class GameController {
         if (!touchedHazard) {
             touchedHazard =
                 handleWingedSentryContact();
+        }
+
+        if (!touchedHazard) {
+            touchedHazard =
+                handleFalseKnightContact();
         }
 
         if (!touchedHazard) {
@@ -791,6 +928,45 @@ public class GameController {
         );
     }
 
+    private void spawnFalseKnightForCurrentRoom() {
+        TiledWorld.BossSpawn bossSpawn =
+            world.findBossSpawn(
+                "FALSE_KNIGHT",
+                currentRoomId
+            );
+
+        if (bossSpawn == null) {
+            falseKnight = null;
+            return;
+        }
+
+        Rectangle arenaBounds =
+            world.getRoomBounds(
+                currentRoomId
+            );
+
+        float arenaMinX =
+            arenaBounds.x;
+
+        float arenaMaxX =
+            arenaBounds.x
+                + arenaBounds.width;
+
+        float groundY =
+            bossSpawn.getY();
+
+        falseKnight =
+            new FalseKnight(
+                bossSpawn.getX(),
+                bossSpawn.getY(),
+                bossSpawn.getWidth(),
+                bossSpawn.getHeight(),
+                arenaMinX,
+                arenaMaxX,
+                groundY
+            );
+    }
+
     private boolean handleRoomTransition(
         float knightDrawWidth,
         float knightDrawHeight
@@ -862,6 +1038,7 @@ public class GameController {
 
         spawnEnemiesForCurrentRoom();
         spawnZoteForCurrentRoom();
+        spawnFalseKnightForCurrentRoom();
         endZoteDialogue();
 
         combat.finishAttack();
@@ -1136,6 +1313,78 @@ public class GameController {
             wingedSentry.getBounds(),
             wingedSentry.getContactDamage()
         );
+    }
+
+    private boolean handleFalseKnightContact() {
+        if (
+            falseKnight == null
+                || !falseKnight.isAlive()
+        ) {
+            return false;
+        }
+
+        Rectangle playerBounds =
+            playerBody.getBounds();
+
+        if (!falseKnight.isMaceHitActive()) {
+            falseKnightMaceHitConsumed = false;
+        }
+
+        if (!falseKnight.isShockwaveActive()) {
+            falseKnightShockwaveHitConsumed = false;
+        }
+
+        /*
+         * Shockwave has priority because it deals more damage.
+         */
+        if (
+            falseKnight.isShockwaveActive()
+                && !falseKnightShockwaveHitConsumed
+                && playerBounds.overlaps(
+                falseKnight.getShockwaveHitbox()
+            )
+        ) {
+            falseKnightShockwaveHitConsumed = true;
+
+            return applyEnemyContact(
+                falseKnight.getShockwaveHitbox(),
+                falseKnight.getShockwaveDamage()
+            );
+        }
+
+        /*
+         * Mace damage.
+         */
+        if (
+            falseKnight.isMaceHitActive()
+                && !falseKnightMaceHitConsumed
+                && playerBounds.overlaps(
+                falseKnight.getMaceHitbox()
+            )
+        ) {
+            falseKnightMaceHitConsumed = true;
+
+            return applyEnemyContact(
+                falseKnight.getMaceHitbox(),
+                falseKnight.getMaceDamage()
+            );
+        }
+
+        /*
+         * Body contact damage.
+         */
+        if (
+            playerBounds.overlaps(
+                falseKnight.getBounds()
+            )
+        ) {
+            return applyEnemyContact(
+                falseKnight.getBounds(),
+                falseKnight.getBodyDamage()
+            );
+        }
+
+        return false;
     }
 
     private boolean applyEnemyContact(
@@ -1569,6 +1818,10 @@ public class GameController {
             return;
         }
 
+        if (tryHitFalseKnight()) {
+            return;
+        }
+
         if (tryHitCrackedWall()) {
             return;
         }
@@ -1667,6 +1920,66 @@ public class GameController {
         return true;
     }
 
+    private boolean tryHitFalseKnight() {
+        if (
+            falseKnight == null
+                || !falseKnight.isAlive()
+        ) {
+            return false;
+        }
+
+        Rectangle targetHitbox;
+
+        boolean hitVulnerableBody =
+            falseKnight.isStunned();
+
+        if (hitVulnerableBody) {
+            targetHitbox =
+                falseKnight.getVulnerableHitbox();
+        } else {
+            targetHitbox =
+                falseKnight.getBounds();
+        }
+
+        if (
+            !combat
+                .getAttackHitbox()
+                .overlaps(
+                    targetHitbox
+                )
+        ) {
+            return false;
+        }
+
+        combat.registerHit();
+
+        falseKnight.takeDamage(
+            combat.getDamage(),
+            hitVulnerableBody
+        );
+
+        soul.gainFromNailHit();
+
+        if (
+            combat.isDownwardAttack()
+                && !movement.isOnGround()
+        ) {
+            applySuccessfulPogo();
+        }
+
+        if (hitVulnerableBody) {
+            if (falseKnightHeadDamageSound != null) {
+                falseKnightHeadDamageSound.play(0.75f);
+            }
+        } else {
+            if (falseKnightDamageArmourSound != null) {
+                falseKnightDamageArmourSound.play(0.65f);
+            }
+        }
+
+        return true;
+    }
+
     private boolean tryHitCrackedWall() {
         if (
             crackedWall == null
@@ -1725,6 +2038,21 @@ public class GameController {
         soul.gainFromNailHit();
 
         if (
+            !combat.isDownwardAttack()
+                && damageable instanceof Knockbackable
+        ) {
+            Knockbackable knockbackable =
+                (Knockbackable) damageable;
+
+            knockbackable.applyKnockback(
+                getEnemyKnockbackDirection(
+                    enemyBounds
+                ),
+                platformWorld
+            );
+        }
+
+        if (
             combat.isDownwardAttack()
                 && !movement.isOnGround()
                 && canPogo
@@ -1734,6 +2062,25 @@ public class GameController {
         }
 
         return true;
+    }
+
+    private int getEnemyKnockbackDirection(
+        Rectangle enemyBounds
+    ) {
+        Rectangle playerBounds =
+            playerBody.getBounds();
+
+        float playerCenterX =
+            playerBounds.x
+                + playerBounds.width / 2f;
+
+        float enemyCenterX =
+            enemyBounds.x
+                + enemyBounds.width / 2f;
+
+        return enemyCenterX >= playerCenterX
+            ? 1
+            : -1;
     }
 
     private boolean tryPogoSpike() {
@@ -1885,6 +2232,10 @@ public class GameController {
         return zote;
     }
 
+    public FalseKnight getFalseKnight() {
+        return falseKnight;
+    }
+
     public boolean shouldShowZotePrompt() {
         return zote != null
             && !zoteDialogueActive
@@ -2007,6 +2358,38 @@ public class GameController {
 
         if (zoteBattleAttackSound != null) {
             zoteBattleAttackSound.dispose();
+        }
+
+        if (falseKnightSwingSound != null) {
+            falseKnightSwingSound.dispose();
+        }
+
+        if (falseKnightStrikeGroundSound != null) {
+            falseKnightStrikeGroundSound.dispose();
+        }
+
+        if (falseKnightJumpSound != null) {
+            falseKnightJumpSound.dispose();
+        }
+
+        if (falseKnightLandSound != null) {
+            falseKnightLandSound.dispose();
+        }
+
+        if (falseKnightDamageArmourSound != null) {
+            falseKnightDamageArmourSound.dispose();
+        }
+
+        if (falseKnightDamageArmourFinalSound != null) {
+            falseKnightDamageArmourFinalSound.dispose();
+        }
+
+        if (falseKnightHeadDamageSound != null) {
+            falseKnightHeadDamageSound.dispose();
+        }
+
+        if (falseKnightRollSound != null) {
+            falseKnightRollSound.dispose();
         }
 
         world.dispose();
