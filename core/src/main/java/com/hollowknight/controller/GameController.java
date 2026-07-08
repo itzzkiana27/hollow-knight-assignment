@@ -1,8 +1,11 @@
 package com.hollowknight.controller;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 import com.hollowknight.HollowKnightGame;
 import com.hollowknight.model.GameSettings;
@@ -27,6 +30,7 @@ import com.hollowknight.model.world.PlatformWorld;
 import com.hollowknight.model.world.CrackedWall;
 import com.hollowknight.model.world.TiledWorld;
 import com.hollowknight.model.enemy.WingedSentry;
+import com.hollowknight.model.npc.Zote;
 
 import java.util.EnumSet;
 
@@ -52,12 +56,38 @@ public class GameController {
             PlayerAnimationType.DEATH
         );
 
+    // ===== ZOTE MAIN DIALOGUE LINES - EDIT  =====.
+    private static final String[] ZOTE_MAIN_DIALOGUE = {
+        "Halt, noble knight, and mark my words well.",
+        "Beyond yonder pass rides a monarch with a heart of stone, cruel in judgment and colder than winter’s iron",
+        "Many brave souls have bent the knee before him, yet found no mercy beneath his crown.",
+        "Turn thy blade with wisdom, for valor alone shall not soften such a tyrant’s heart."
+    };
+
+    // ===== PRECEPTS OF ZOTE - DYNAMIC DIALOGUE =====
+    private static final String[] ZOTE_PRECEPTS = {
+        "Precept One: 'Always Win Your Battles'. Losing a battle earns you nothing and teaches you nothing. Win your battles, or don't engage in them at all!",
+
+        "Precept Two: 'Never Let Them Laugh at You'. Fools laugh at everything, even at their superiors. But beware, laughter isn't harmless! Laughter spreads like a disease, and soon everyone is laughing at you. You need to strike at the source of this perverse merriment quickly to stop it from spreading.",
+
+        "Precept Three: 'Always Be Rested'. Fighting and adventuring take their toll on your body. When you rest, your body strengthens and repairs itself. The longer you rest, the stronger you become.",
+
+        "Precept Four: 'Forget Your Past'. The past is painful, and thinking about your past can only bring you misery. Think about something else instead, such as the future, or some food.",
+
+        "Precept Five: 'Strength Beats Strength'. Is your opponent strong? No matter! Simply overcome their strength with even more strength, and they'll soon be defeated."
+    };
+
     private final HollowKnightGame game;
 
     private final TiledWorld world;
     private final float spawnX;
     private final float spawnY;
     private final Vector2 returnFromCitySpawn;
+
+    private String currentRoomId;
+    private Rectangle currentRoomBounds;
+    private float currentRoomSpawnX;
+    private float currentRoomSpawnY;
 
     private final Player player;
     private final PlayerBody playerBody;
@@ -71,18 +101,29 @@ public class GameController {
     private final PlayerCheckpoint checkpoint;
     private final PlatformWorld platformWorld;
 
-    private final HuskHornhead huskHornhead;
-    private final Crawlid crawlid;
-    private final CrystalGuardian crystalGuardian;
-    private final WingedSentry wingedSentry;
+    private HuskHornhead huskHornhead;
+    private Crawlid crawlid;
+    private CrystalGuardian crystalGuardian;
+    private WingedSentry wingedSentry;
+    private Zote zote;
 
-    private final Array<SpikeHazard> spikeHazards;
+    private Array<SpikeHazard> spikeHazards;
 
     private final CrackedWall crackedWall;
     private final Platform crackedWallPlatform;
 
     private final Rectangle checkpointDangerZone;
     private final KeyBindings keyBindings;
+
+    private final Sound[] zoteVoiceSounds;
+    private final Sound zoteBattleAttackSound;
+
+    private boolean zoteDialogueActive;
+    private boolean zoteMainDialogueFinished;
+    private boolean zoteUsingMainDialogue;
+
+    private String[] activeZoteDialogueLines;
+    private int zoteDialogueLineIndex;
 
     private PlayerInput currentInput;
 
@@ -115,10 +156,12 @@ public class GameController {
         platformWorld =
             new PlatformWorld();
 
-        platformWorld.configure(
-            world.getCrossroadsBounds(),
-            world.getCollisionPlatforms()
+        currentRoomId = "forgotten_crossroads";
+        currentRoomBounds = world.getRoomBounds(
+            currentRoomId
         );
+        currentRoomSpawnX = spawnX;
+        currentRoomSpawnY = spawnY;
 
         crackedWall = world.getCrackedWall();
 
@@ -133,13 +176,11 @@ public class GameController {
                     wallBounds.width,
                     wallBounds.height
                 );
-
-            platformWorld.addPlatform(
-                crackedWallPlatform
-            );
         } else {
             crackedWallPlatform = null;
         }
+
+        configureCurrentRoomPhysics();
 
         movement = new PlayerMovement(
             player,
@@ -163,58 +204,13 @@ public class GameController {
         checkpointDangerZone =
             new Rectangle();
 
-        TiledWorld.EnemySpawn huskSpawn =
-            world.findEnemySpawn(
-                "HUSK_HORNHEAD"
-            );
-
-        huskHornhead = huskSpawn == null
-            ? null
-            : new HuskHornhead(
-                huskSpawn.getX(),
-                huskSpawn.getY(),
-                huskSpawn.isFacingRight()
-            );
-
-        TiledWorld.EnemySpawn crawlidSpawn =
-            world.findEnemySpawn("CRAWLID");
-
-        crawlid = crawlidSpawn == null
-            ? null
-            : new Crawlid(
-                crawlidSpawn.getX(),
-                crawlidSpawn.getY(),
-                crawlidSpawn.isFacingRight()
-            );
-
-        TiledWorld.EnemySpawn crystalSpawn =
-            world.findEnemySpawn(
-                "CRYSTAL_GUARDIAN"
-            );
-
-        crystalGuardian = crystalSpawn == null
-            ? null
-            : new CrystalGuardian(
-                crystalSpawn.getX(),
-                crystalSpawn.getY(),
-                crystalSpawn.isFacingRight()
-            );
-
-        TiledWorld.EnemySpawn wingedSpawn =
-            world.findEnemySpawn(
-                "WINGED_SENTRY"
-            );
-
-        wingedSentry = wingedSpawn == null
-            ? null
-            : new WingedSentry(
-                wingedSpawn.getX(),
-                wingedSpawn.getY(),
-                wingedSpawn.isFacingRight()
-            );
+        spawnEnemiesForCurrentRoom();
+        spawnZoteForCurrentRoom();
 
         spikeHazards =
-            world.getSpikeHazards();
+            world.getSpikeHazardsForRoom(
+                currentRoomId
+            );
 
         GameSettings settings =
             game.getSettings();
@@ -226,6 +222,49 @@ public class GameController {
             settings.getDashKey(),
             settings.getAttackKey()
         );
+
+        zoteVoiceSounds = new Sound[] {
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/npc/zote/voice/Zote_01.wav"
+                )
+            ),
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/npc/zote/voice/Zote_02.wav"
+                )
+            ),
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/npc/zote/voice/Zote_03.wav"
+                )
+            ),
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/npc/zote/voice/Zote_04.wav"
+                )
+            ),
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/npc/zote/voice/Zote_05.wav"
+                )
+            )
+        };
+
+        zoteBattleAttackSound =
+            Gdx.audio.newSound(
+                Gdx.files.internal(
+                    "audio/npc/zote/battle/Zote_battle_attack_loop.wav"
+                )
+            );
+
+        activeZoteDialogueLines =
+            new String[0];
+
+        zoteDialogueLineIndex = 0;
+        zoteDialogueActive = false;
+        zoteMainDialogueFinished = false;
+        zoteUsingMainDialogue = false;
 
         currentInput =
             PlayerInput.empty();
@@ -264,6 +303,13 @@ public class GameController {
 
         if (player.isDead()) {
             updateDeadPlayer(delta);
+            return;
+        }
+
+        handleZoteDialogueInput();
+
+        if (zoteDialogueActive) {
+            player.updateAnimationTime(delta);
             return;
         }
 
@@ -509,6 +555,13 @@ public class GameController {
             );
         }
 
+        if (zote != null) {
+            zote.update(
+                delta,
+                playerBody.getBounds()
+            );
+        }
+
         for (SpikeHazard hazard : spikeHazards) {
             hazard.update(delta);
         }
@@ -586,7 +639,7 @@ public class GameController {
         );
 
         if (
-            handleUnbuiltCityTransition(
+            handleRoomTransition(
                 knightDrawWidth,
                 knightDrawHeight
             )
@@ -633,37 +686,195 @@ public class GameController {
         player.updateAnimationTime(delta);
     }
 
-    /**
-     * City of Tears has not been built yet. Until it is, reaching the
-     * transition returns the player to the safe Crossroads-side spawn.
-     */
-    private boolean handleUnbuiltCityTransition(
+    private void configureCurrentRoomPhysics() {
+        currentRoomBounds = world.getRoomBounds(
+            currentRoomId
+        );
+
+        platformWorld.configure(
+            currentRoomBounds,
+            world.getCollisionPlatformsForRoom(
+                currentRoomId
+            )
+        );
+
+        if (
+            crackedWallPlatform != null
+                && crackedWall != null
+                && !crackedWall.isDestroyed()
+                && "forgotten_crossroads"
+                .equals(currentRoomId)
+        ) {
+            platformWorld.addPlatform(
+                crackedWallPlatform
+            );
+        }
+    }
+
+    private void spawnEnemiesForCurrentRoom() {
+        TiledWorld.EnemySpawn huskSpawn =
+            world.findEnemySpawn(
+                "HUSK_HORNHEAD",
+                currentRoomId
+            );
+
+        huskHornhead = huskSpawn == null
+            ? null
+            : new HuskHornhead(
+                huskSpawn.getX(),
+                huskSpawn.getY(),
+                huskSpawn.isFacingRight()
+            );
+
+        TiledWorld.EnemySpawn crawlidSpawn =
+            world.findEnemySpawn(
+                "CRAWLID",
+                currentRoomId
+            );
+
+        crawlid = crawlidSpawn == null
+            ? null
+            : new Crawlid(
+                crawlidSpawn.getX(),
+                crawlidSpawn.getY(),
+                crawlidSpawn.isFacingRight()
+            );
+
+        TiledWorld.EnemySpawn crystalSpawn =
+            world.findEnemySpawn(
+                "CRYSTAL_GUARDIAN",
+                currentRoomId
+            );
+
+        crystalGuardian = crystalSpawn == null
+            ? null
+            : new CrystalGuardian(
+                crystalSpawn.getX(),
+                crystalSpawn.getY(),
+                crystalSpawn.isFacingRight()
+            );
+
+        TiledWorld.EnemySpawn wingedSpawn =
+            world.findEnemySpawn(
+                "WINGED_SENTRY",
+                currentRoomId
+            );
+
+        wingedSentry = wingedSpawn == null
+            ? null
+            : new WingedSentry(
+                wingedSpawn.getX(),
+                wingedSpawn.getY(),
+                wingedSpawn.isFacingRight()
+            );
+    }
+
+    private void spawnZoteForCurrentRoom() {
+        TiledWorld.NpcSpawn zoteSpawn =
+            world.findNpcSpawn(
+                "ZOTE",
+                currentRoomId
+            );
+
+        zote = zoteSpawn == null
+            ? null
+            : new Zote(
+            zoteSpawn.getX(),
+            zoteSpawn.getY(),
+            zoteSpawn.getWidth(),
+            zoteSpawn.getHeight(),
+            zoteSpawn.getRoomId(),
+            zoteSpawn.isFacingRight(),
+            zoteSpawn.getInteractionRadius(),
+            zoteSpawn.getMoveMinX(),
+            zoteSpawn.getMoveMaxX()
+        );
+    }
+
+    private boolean handleRoomTransition(
         float knightDrawWidth,
         float knightDrawHeight
     ) {
-        Rectangle transition =
-            world.getCityTransitionBounds();
-
-        if (
-            transition == null
-                || !playerBody
-                .getBounds()
-                .overlaps(transition)
+        for (
+            TiledWorld.RoomTransition transition
+            : world.getRoomTransitions()
         ) {
-            return false;
+            if (
+                !currentRoomId.equals(
+                    transition.getFromRoom()
+                )
+            ) {
+                continue;
+            }
+
+            if (
+                !playerBody
+                    .getBounds()
+                    .overlaps(
+                        transition.getBounds()
+                    )
+            ) {
+                continue;
+            }
+
+            enterRoom(
+                transition.getTargetRoom(),
+                transition.getTargetSpawn(),
+                knightDrawWidth,
+                knightDrawHeight
+            );
+
+            return true;
         }
+
+        return false;
+    }
+
+    private void enterRoom(
+        String roomId,
+        String spawnId,
+        float knightDrawWidth,
+        float knightDrawHeight
+    ) {
+        Vector2 spawn = world.getPlayerSpawn(
+            spawnId
+        );
+
+        if (spawn == null) {
+            throw new IllegalStateException(
+                "Missing target spawn for room "
+                    + roomId
+                    + ": "
+                    + spawnId
+            );
+        }
+
+        currentRoomId = roomId;
+        currentRoomSpawnX = spawn.x;
+        currentRoomSpawnY = spawn.y;
+
+        configureCurrentRoomPhysics();
+
+        spikeHazards =
+            world.getSpikeHazardsForRoom(
+                currentRoomId
+            );
+
+        spawnEnemiesForCurrentRoom();
+        spawnZoteForCurrentRoom();
+        endZoteDialogue();
 
         combat.finishAttack();
         focus.cancel();
 
         movement.respawnAt(
-            returnFromCitySpawn.x,
-            returnFromCitySpawn.y
+            spawn.x,
+            spawn.y
         );
 
         checkpoint.save(
-            returnFromCitySpawn.x,
-            returnFromCitySpawn.y
+            spawn.x,
+            spawn.y
         );
 
         playerBody.update(
@@ -671,8 +882,6 @@ public class GameController {
             knightDrawWidth,
             knightDrawHeight
         );
-
-        return true;
     }
 
     private boolean handleSpikeContact(
@@ -734,13 +943,13 @@ public class GameController {
 
         if (overlapsAnySpike()) {
             checkpoint.save(
-                spawnX,
-                spawnY
+                currentRoomSpawnX,
+                currentRoomSpawnY
             );
 
             movement.respawnAt(
-                spawnX,
-                spawnY
+                currentRoomSpawnX,
+                currentRoomSpawnY
             );
 
             playerBody.update(
@@ -981,13 +1190,13 @@ public class GameController {
         health.restoreFullHealth();
 
         checkpoint.save(
-            spawnX,
-            spawnY
+            currentRoomSpawnX,
+            currentRoomSpawnY
         );
 
         movement.respawnAt(
-            spawnX,
-            spawnY
+            currentRoomSpawnX,
+            currentRoomSpawnY
         );
 
         player.setAnimation(
@@ -1121,6 +1330,116 @@ public class GameController {
         player.updateAnimationTime(delta);
     }
 
+    private void handleZoteDialogueInput() {
+        if (zote == null) {
+            return;
+        }
+
+        if (zoteDialogueActive) {
+            if (
+                Gdx.input.isKeyJustPressed(
+                    Input.Keys.ENTER
+                )
+            ) {
+                advanceZoteDialogue();
+            }
+
+            return;
+        }
+
+        boolean interactPressed =
+            Gdx.input.isKeyJustPressed(
+                Input.Keys.E
+            )
+                || Gdx.input.isKeyJustPressed(
+                Input.Keys.UP
+            );
+
+        if (
+            interactPressed
+                && shouldShowZotePrompt()
+        ) {
+            startZoteDialogue();
+        }
+    }
+
+    private void startZoteDialogue() {
+        if (zote == null || zote.isAngry()) {
+            return;
+        }
+
+        zoteDialogueActive = true;
+        zoteDialogueLineIndex = 0;
+
+        if (!zoteMainDialogueFinished) {
+            activeZoteDialogueLines =
+                ZOTE_MAIN_DIALOGUE;
+
+            zoteUsingMainDialogue = true;
+        } else {
+            activeZoteDialogueLines =
+                new String[] {
+                    ZOTE_PRECEPTS[
+                        MathUtils.random(
+                            ZOTE_PRECEPTS.length - 1
+                        )
+                    ]
+                };
+
+            zoteUsingMainDialogue = false;
+        }
+
+        zote.startTalking();
+        playRandomZoteVoice();
+    }
+
+    private void advanceZoteDialogue() {
+        zoteDialogueLineIndex++;
+
+        if (
+            zoteDialogueLineIndex
+                >= activeZoteDialogueLines.length
+        ) {
+            endZoteDialogue();
+            return;
+        }
+
+        playRandomZoteVoice();
+    }
+
+    private void endZoteDialogue() {
+        zoteDialogueActive = false;
+        zoteDialogueLineIndex = 0;
+
+        if (zoteUsingMainDialogue) {
+            zoteMainDialogueFinished = true;
+        }
+
+        zoteUsingMainDialogue = false;
+        activeZoteDialogueLines =
+            new String[0];
+
+        if (zote != null) {
+            zote.stopTalking();
+        }
+    }
+
+    private void playRandomZoteVoice() {
+        if (
+            zoteVoiceSounds == null
+                || zoteVoiceSounds.length == 0
+        ) {
+            return;
+        }
+
+        int index =
+            MathUtils.random(
+                zoteVoiceSounds.length - 1
+            );
+
+        zoteVoiceSounds[index].play(0.65f);
+    }
+
     private void handleActionInput() {
         if (currentInput.isDeathPressed()) {
             combat.finishAttack();
@@ -1246,6 +1565,10 @@ public class GameController {
             return;
         }
 
+        if (tryHitZote()) {
+            return;
+        }
+
         if (tryHitCrackedWall()) {
             return;
         }
@@ -1312,6 +1635,36 @@ public class GameController {
             wingedSentry,
             wingedSentry
         );
+    }
+
+    private boolean tryHitZote() {
+        if (zote == null) {
+            return false;
+        }
+
+        if (
+            !combat
+                .getAttackHitbox()
+                .overlaps(
+                    zote.getBounds()
+                )
+        ) {
+            return false;
+        }
+
+        combat.registerHit();
+
+        if (zoteDialogueActive) {
+            endZoteDialogue();
+        }
+
+        zote.hitByPlayer();
+
+        if (zoteBattleAttackSound != null) {
+            zoteBattleAttackSound.play(0.55f);
+        }
+
+        return true;
     }
 
     private boolean tryHitCrackedWall() {
@@ -1414,7 +1767,8 @@ public class GameController {
     }
 
     private boolean isMovementLocked() {
-        return focus.isActive()
+        return zoteDialogueActive
+            || focus.isActive()
             || combat.isAttacking()
             || LOCKING_NON_COMBAT_ANIMATIONS
             .contains(
@@ -1527,22 +1881,43 @@ public class GameController {
         return wingedSentry;
     }
 
+    public Zote getZote() {
+        return zote;
+    }
+
+    public boolean shouldShowZotePrompt() {
+        return zote != null
+            && !zoteDialogueActive
+            && !zote.isAngry()
+            && currentRoomId.equals(
+                zote.getRoomId()
+            )
+            && zote.isPlayerInInteractionRange(
+                playerBody.getBounds()
+            );
+    }
+
+    public boolean isZoteDialogueActive() {
+        return zoteDialogueActive;
+    }
+
+    public String getCurrentZoteDialogueLine() {
+        if (
+            !zoteDialogueActive
+                || activeZoteDialogueLines == null
+                || activeZoteDialogueLines.length == 0
+        ) {
+            return "";
+        }
+
+        return activeZoteDialogueLines[
+            zoteDialogueLineIndex
+        ];
+    }
+
     public void respawnEnemiesForRoomEntry() {
-        if (huskHornhead != null) {
-            huskHornhead.respawnForRoomEntry();
-        }
-
-        if (crawlid != null) {
-            crawlid.respawnForRoomEntry();
-        }
-
-        if (crystalGuardian != null) {
-            crystalGuardian.respawnForRoomEntry();
-        }
-
-        if (wingedSentry != null) {
-            wingedSentry.respawnForRoomEntry();
-        }
+        spawnEnemiesForCurrentRoom();
+        spawnZoteForCurrentRoom();
     }
 
     public boolean shouldDrawPlayer() {
@@ -1594,7 +1969,23 @@ public class GameController {
     }
 
     public Rectangle getCurrentRoomBounds() {
-        return world.getCrossroadsBounds();
+        return new Rectangle(currentRoomBounds);
+    }
+
+    public Rectangle getCurrentCameraBounds() {
+        return world.getCameraBoundsForRoom(
+            currentRoomId
+        );
+    }
+
+    public String getCurrentRoomId() {
+        return currentRoomId;
+    }
+
+    public boolean isCurrentRoom(
+        String roomId
+    ) {
+        return currentRoomId.equals(roomId);
     }
 
     public CrackedWall getCrackedWall() {
@@ -1608,6 +1999,16 @@ public class GameController {
     }
 
     public void dispose() {
+        if (zoteVoiceSounds != null) {
+            for (Sound sound : zoteVoiceSounds) {
+                sound.dispose();
+            }
+        }
+
+        if (zoteBattleAttackSound != null) {
+            zoteBattleAttackSound.dispose();
+        }
+
         world.dispose();
     }
 

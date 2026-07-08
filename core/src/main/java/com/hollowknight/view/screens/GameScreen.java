@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -22,10 +23,12 @@ import com.hollowknight.controller.GameController;
 import com.hollowknight.model.enemy.Crawlid;
 import com.hollowknight.model.enemy.HuskHornhead;
 import com.hollowknight.model.player.Player;
+import com.hollowknight.model.npc.Zote;
 import com.hollowknight.model.player.PlayerAnimationType;
 import com.hollowknight.view.animation.CrawlidAnimationManager;
 import com.hollowknight.view.animation.HuskHornheadAnimationManager;
 import com.hollowknight.view.animation.KnightAnimationManager;
+import com.hollowknight.view.animation.ZoteAnimationManager;
 import com.hollowknight.view.camera.GameCamera;
 import com.hollowknight.model.enemy.CrystalGuardian;
 import com.hollowknight.view.animation.CrystalGuardianAnimationManager;
@@ -155,6 +158,27 @@ public class GameScreen extends ScreenAdapter {
 
     private static final boolean DRAW_WINGED_DEBUG = false;
 
+    /*
+     * Zote frames use the same source canvas size
+     * as the Knight frames: 349 x 186.
+     */
+    private static final float ZOTE_SOURCE_FRAME_WIDTH = 349f;
+
+    private static final float ZOTE_SOURCE_FRAME_HEIGHT = 186f;
+
+    private static final float ZOTE_DRAW_HEIGHT = 130f;
+
+    private static final float
+        ZOTE_DRAW_WIDTH =
+        ZOTE_DRAW_HEIGHT
+            * ZOTE_SOURCE_FRAME_WIDTH
+            / ZOTE_SOURCE_FRAME_HEIGHT;
+
+    /*
+     * The supplied Zote frames face left.
+     */
+    private static final boolean ZOTE_SOURCE_FACES_RIGHT = false;
+
     private final GameController controller;
 
     private Stage stage;
@@ -172,6 +196,7 @@ public class GameScreen extends ScreenAdapter {
     private CrystalGuardianAnimationManager crystalAnimationManager;
     private CrystalGuardianLaserRenderer crystalLaserRenderer;
     private WingedSentryAnimationManager wingedAnimationManager;
+    private ZoteAnimationManager zoteAnimationManager;
 
     private GameCamera worldCamera;
 
@@ -222,6 +247,7 @@ public class GameScreen extends ScreenAdapter {
         crystalAnimationManager = new CrystalGuardianAnimationManager();
         crystalLaserRenderer = new CrystalGuardianLaserRenderer();
         wingedAnimationManager = new WingedSentryAnimationManager();
+        zoteAnimationManager = new ZoteAnimationManager();
 
         worldCamera = new GameCamera(
             CAMERA_VIEW_WIDTH,
@@ -244,11 +270,22 @@ public class GameScreen extends ScreenAdapter {
     private void resetWorldCamera() {
         Player player =
             controller.getPlayer();
+//for debug
+        System.out.println("RESET CAMERA");
+        System.out.println("Player X: " + player.getPosition().x);
+        System.out.println("Player Y: " + player.getPosition().y);
+        System.out.println("Camera bounds: " + controller.getCurrentCameraBounds());
+
 
         worldCamera.reset(
             getPlayerCameraTargetX(player),
             getPlayerCameraTargetY(player)
         );
+
+        //for debug
+        System.out.println("Camera X: " + worldCamera.getCamera().position.x);
+        System.out.println("Camera Y: " + worldCamera.getCamera().position.y);
+
     }
 
     private void createInterface() {
@@ -324,7 +361,9 @@ public class GameScreen extends ScreenAdapter {
         drawHiddenRoomCover();
         drawCrackedWall();
 
-        drawRain();
+        if (controller.isCurrentRoom("city_of_tears")) {
+            drawRain();
+        }
 
         drawHuskHornhead();
 
@@ -350,9 +389,11 @@ public class GameScreen extends ScreenAdapter {
             drawWingedSentryDebug();
         }
 
+        drawZote();
         drawKnight();
         drawActiveAttackHitbox();
         drawMapForeground();
+        drawZotePrompt();
 
         stage.act(
             Math.min(
@@ -368,6 +409,7 @@ public class GameScreen extends ScreenAdapter {
         stage.getViewport().apply();
 
         drawPlayerHud();
+        drawZoteDialogueBox();
 
         stage.draw();
 
@@ -379,6 +421,10 @@ public class GameScreen extends ScreenAdapter {
     ) {
         Player player =
             controller.getPlayer();
+
+        worldCamera.setWorldBounds(
+            controller.getCurrentCameraBounds()
+        );
 
         worldCamera.update(
             Math.min(
@@ -1078,6 +1124,312 @@ public class GameScreen extends ScreenAdapter {
     }
 
 
+    private void drawZote() {
+        Zote zote =
+            controller.getZote();
+
+        if (zote == null) {
+            return;
+        }
+
+        TextureRegion frame =
+            zoteAnimationManager.getFrame(
+                zote
+            );
+
+        Rectangle body =
+            zote.getBounds();
+
+        float drawX =
+            body.x
+                + body.width / 2f
+                - ZOTE_DRAW_WIDTH / 2f;
+
+        float drawY =
+            body.y - 18f;
+
+        boolean shouldFlip =
+            zote.isFacingRight()
+                != ZOTE_SOURCE_FACES_RIGHT;
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.begin();
+
+        if (shouldFlip) {
+            batch.draw(
+                frame,
+                drawX + ZOTE_DRAW_WIDTH,
+                drawY,
+                -ZOTE_DRAW_WIDTH,
+                ZOTE_DRAW_HEIGHT
+            );
+        } else {
+            batch.draw(
+                frame,
+                drawX,
+                drawY,
+                ZOTE_DRAW_WIDTH,
+                ZOTE_DRAW_HEIGHT
+            );
+        }
+
+        batch.end();
+    }
+
+    private void drawZotePrompt() {
+        if (!controller.shouldShowZotePrompt()) {
+            return;
+        }
+
+        Zote zote =
+            controller.getZote();
+
+        if (zote == null) {
+            return;
+        }
+
+        Rectangle body =
+            zote.getBounds();
+
+        float promptWidth = 86f;
+        float promptHeight = 42f;
+
+        float promptX =
+            body.x
+                + body.width / 2f
+                - promptWidth / 2f;
+
+        float promptY =
+            body.y
+                + body.height
+                + 48f;
+
+        Gdx.gl.glEnable(
+            GL20.GL_BLEND
+        );
+
+        Gdx.gl.glBlendFunc(
+            GL20.GL_SRC_ALPHA,
+            GL20.GL_ONE_MINUS_SRC_ALPHA
+        );
+
+        shapeRenderer.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        shapeRenderer.setColor(
+            0f,
+            0f,
+            0f,
+            0.72f
+        );
+
+        shapeRenderer.rect(
+            promptX,
+            promptY,
+            promptWidth,
+            promptHeight
+        );
+
+        shapeRenderer.end();
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        shapeRenderer.setColor(
+            0.85f,
+            0.88f,
+            1f,
+            1f
+        );
+
+        shapeRenderer.rect(
+            promptX,
+            promptY,
+            promptWidth,
+            promptHeight
+        );
+
+        shapeRenderer.end();
+
+        Gdx.gl.glDisable(
+            GL20.GL_BLEND
+        );
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.begin();
+
+        BitmapFont font =
+            skin.getFont(
+                "font"
+            );
+
+        font.setColor(
+            Color.WHITE
+        );
+
+        font.draw(
+            batch,
+            "E / UP",
+            promptX + 13f,
+            promptY + 28f
+        );
+
+        batch.end();
+    }
+
+    private void drawZoteDialogueBox() {
+        if (!controller.isZoteDialogueActive()) {
+            return;
+        }
+
+        String dialogueLine =
+            controller.getCurrentZoteDialogueLine();
+
+        float screenWidth =
+            stage
+                .getViewport()
+                .getWorldWidth();
+
+        float screenHeight =
+            stage
+                .getViewport()
+                .getWorldHeight();
+
+        float boxX = 80f;
+        float boxHeight = 166f;
+        float boxY = screenHeight - boxHeight - 42f;
+        float boxWidth = screenWidth - 160f;
+
+        Gdx.gl.glEnable(
+            GL20.GL_BLEND
+        );
+
+        Gdx.gl.glBlendFunc(
+            GL20.GL_SRC_ALPHA,
+            GL20.GL_ONE_MINUS_SRC_ALPHA
+        );
+
+        shapeRenderer.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        shapeRenderer.setColor(
+            0f,
+            0f,
+            0f,
+            0.82f
+        );
+
+        shapeRenderer.rect(
+            boxX,
+            boxY,
+            boxWidth,
+            boxHeight
+        );
+
+        shapeRenderer.end();
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        shapeRenderer.setColor(
+            0.78f,
+            0.80f,
+            0.92f,
+            1f
+        );
+
+        shapeRenderer.rect(
+            boxX,
+            boxY,
+            boxWidth,
+            boxHeight
+        );
+
+        shapeRenderer.end();
+
+        Gdx.gl.glDisable(
+            GL20.GL_BLEND
+        );
+
+        batch.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        batch.begin();
+
+        BitmapFont titleFont =
+            skin.getFont(
+                "window"
+            );
+
+        BitmapFont textFont =
+            skin.getFont(
+                "font"
+            );
+
+        titleFont.setColor(
+            0.90f,
+            0.90f,
+            1f,
+            1f
+        );
+
+        titleFont.draw(
+            batch,
+            "Zote the Mighty",
+            boxX + 24f,
+            boxY + boxHeight - 24f
+        );
+
+        textFont.setColor(
+            Color.WHITE
+        );
+
+        textFont.draw(
+            batch,
+            dialogueLine,
+            boxX + 24f,
+            boxY + boxHeight - 62f,
+            boxWidth - 48f,
+            Align.left,
+            true
+        );
+
+        textFont.setColor(
+            0.78f,
+            0.80f,
+            0.92f,
+            1f
+        );
+
+        textFont.draw(
+            batch,
+            "ENTER",
+            boxX + boxWidth - 94f,
+            boxY + 26f
+        );
+
+        batch.end();
+    }
+
 
     private void drawKnight() {
         if (
@@ -1544,6 +1896,16 @@ public class GameScreen extends ScreenAdapter {
             wingedAnimationManager != null
         ) {
             wingedAnimationManager.dispose();
+        }
+
+        if (
+            zoteAnimationManager != null
+        ) {
+            zoteAnimationManager.dispose();
+        }
+
+        if (rainEffect != null) {
+            rainEffect.dispose();
         }
 
         controller.dispose();

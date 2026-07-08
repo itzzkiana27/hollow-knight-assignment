@@ -1,6 +1,8 @@
 package com.hollowknight.model.world;
 
+import com.badlogic.gdx.maps.MapGroupLayer;
 import com.badlogic.gdx.maps.MapLayer;
+import com.badlogic.gdx.maps.MapLayers;
 import com.badlogic.gdx.maps.MapObject;
 import com.badlogic.gdx.maps.MapProperties;
 import com.badlogic.gdx.maps.objects.RectangleMapObject;
@@ -11,6 +13,9 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.hollowknight.model.combat.SpikeHazard;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Loads world.tmx and converts its object layers into runtime data.
@@ -87,10 +92,141 @@ public final class TiledWorld implements Disposable {
         }
     }
 
+    public static final class NpcSpawn {
+        private final String id;
+        private final String npcType;
+        private final String roomId;
+        private final float x;
+        private final float y;
+        private final float width;
+        private final float height;
+        private final boolean facingRight;
+        private final float interactionRadius;
+        private final float moveMinX;
+        private final float moveMaxX;
+
+        private NpcSpawn(
+            String id,
+            String npcType,
+            String roomId,
+            float x,
+            float y,
+            float width,
+            float height,
+            boolean facingRight,
+            float interactionRadius,
+            float moveMinX,
+            float moveMaxX
+        ) {
+            this.id = id;
+            this.npcType = npcType;
+            this.roomId = roomId;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.facingRight = facingRight;
+            this.interactionRadius = interactionRadius;
+            this.moveMinX = moveMinX;
+            this.moveMaxX = moveMaxX;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public String getNpcType() {
+            return npcType;
+        }
+
+        public String getRoomId() {
+            return roomId;
+        }
+
+        public float getX() {
+            return x;
+        }
+
+        public float getY() {
+            return y;
+        }
+
+        public float getWidth() {
+            return width;
+        }
+
+        public float getHeight() {
+            return height;
+        }
+
+        public boolean isFacingRight() {
+            return facingRight;
+        }
+
+        public float getInteractionRadius() {
+            return interactionRadius;
+        }
+        public float getMoveMinX() {
+            return moveMinX;
+        }
+
+        public float getMoveMaxX() {
+            return moveMaxX;
+        }
+    }
+
+    public static final class RoomTransition {
+        private final String id;
+        private final String fromRoom;
+        private final String targetRoom;
+        private final String targetSpawn;
+        private final Rectangle bounds;
+
+        private RoomTransition(
+            String id,
+            String fromRoom,
+            String targetRoom,
+            String targetSpawn,
+            Rectangle bounds
+        ) {
+            this.id = id;
+            this.fromRoom = fromRoom;
+            this.targetRoom = targetRoom;
+            this.targetSpawn = targetSpawn;
+            this.bounds = new Rectangle(bounds);
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public String getFromRoom() {
+            return fromRoom;
+        }
+
+        public String getTargetRoom() {
+            return targetRoom;
+        }
+
+        public String getTargetSpawn() {
+            return targetSpawn;
+        }
+
+        public Rectangle getBounds() {
+            return bounds;
+        }
+    }
+
     private final TiledMap tiledMap;
 
     private final float mapWidth;
     private final float mapHeight;
+
+    private final Map<String, Rectangle> roomBoundsById;
+    private final Map<String, Vector2> playerSpawnsById;
+    private final Map<String, String> playerSpawnRoomsById;
+    private final Map<String, Rectangle> cameraBoundsByRoomId;
+    private final Array<RoomTransition> roomTransitions;
 
     private final Rectangle crossroadsBounds;
     private final Rectangle hiddenRoomBounds;
@@ -102,6 +238,7 @@ public final class TiledWorld implements Disposable {
     private final Array<Platform> collisionPlatforms;
     private final Array<SpikeHazard> spikeHazards;
     private final Array<EnemySpawn> enemySpawns;
+    private final Array<NpcSpawn> npcSpawns;
 
     private final CrackedWall crackedWall;
 
@@ -145,6 +282,13 @@ public final class TiledWorld implements Disposable {
         mapWidth = mapTileWidth * tileWidth;
         mapHeight = mapTileHeight * tileHeight;
 
+        roomBoundsById = loadRoomBounds();
+        playerSpawnsById = new HashMap<>();
+        playerSpawnRoomsById = new HashMap<>();
+        loadPlayerSpawns();
+        cameraBoundsByRoomId = loadCameraBounds();
+        roomTransitions = loadRoomTransitions();
+
         crossroadsBounds = requireRectangle(
             "Room",
             "forgotten_crossroads"
@@ -160,24 +304,18 @@ public final class TiledWorld implements Disposable {
             "crossroads_to_city"
         );
 
-        Rectangle startObject = requireRectangle(
-            "Spawns",
+        Vector2 startObject = requirePlayerSpawn(
             "crossroads_start"
         );
 
-        Rectangle returnObject = requireRectangle(
-            "Spawns",
+        Vector2 returnObject = requirePlayerSpawn(
             "crossroads_return_from_city"
         );
 
-        crossroadsStart = new Vector2(
-            startObject.x,
-            startObject.y
-        );
+        crossroadsStart = new Vector2(startObject);
 
         crossroadsReturnFromCity = new Vector2(
-            returnObject.x,
-            returnObject.y
+            returnObject
         );
 
         collisionPlatforms = new Array<>();
@@ -185,11 +323,14 @@ public final class TiledWorld implements Disposable {
 
         spikeHazards = loadHazards();
         enemySpawns = loadEnemySpawns();
+        npcSpawns = loadNpcSpawns();
 
         backgroundLayerIndices =
             collectTopLevelLayerIndices(
                 "Crossroads_Background",
                 "Background",
+                "City_Skyline",
+                "Arena",
                 "Terrain_Back",
                 "Terrain"
             );
@@ -198,6 +339,200 @@ public final class TiledWorld implements Disposable {
             collectTopLevelLayerIndices(
                 "Foreground"
             );
+    }
+
+    private Map<String, Rectangle> loadRoomBounds() {
+        Map<String, Rectangle> result = new HashMap<>();
+
+        MapLayer roomLayer = requireLayer("Room");
+
+        for (MapObject object : roomLayer.getObjects()) {
+            if (
+                !(object
+                    instanceof RectangleMapObject)
+            ) {
+                continue;
+            }
+
+            Rectangle rectangle = new Rectangle(
+                ((RectangleMapObject) object)
+                    .getRectangle()
+            );
+
+            /*
+             * Room bounds must be keyed by the Room object name, not by
+             * the roomId property. The hidden room object uses
+             * roomId = forgotten_crossroads to say it belongs to that room;
+             * if we use that property here, it overwrites the real
+             * forgotten_crossroads bounds and the camera clamps to the
+             * hidden room instead.
+             */
+            String roomId = object.getName();
+
+            if (roomId == null || roomId.isBlank()) {
+                roomId = getString(
+                    object.getProperties(),
+                    "roomId",
+                    ""
+                );
+            }
+
+            if (roomId == null || roomId.isBlank()) {
+                continue;
+            }
+
+            result.put(roomId, rectangle);
+        }
+
+        return result;
+    }
+
+    private void loadPlayerSpawns() {
+        MapLayer spawnLayer = requireLayer("Spawns");
+
+        for (MapObject object : spawnLayer.getObjects()) {
+            if (
+                !(object
+                    instanceof RectangleMapObject)
+            ) {
+                continue;
+            }
+
+            String objectType = getString(
+                object.getProperties(),
+                "type",
+                ""
+            );
+
+            if (!"PlayerSpawn".equals(objectType)) {
+                continue;
+            }
+
+            Rectangle rectangle = new Rectangle(
+                ((RectangleMapObject) object)
+                    .getRectangle()
+            );
+
+            String spawnId = getString(
+                object.getProperties(),
+                "spawnId",
+                object.getName()
+            );
+
+            if (spawnId == null || spawnId.isBlank()) {
+                continue;
+            }
+
+            playerSpawnsById.put(
+                spawnId,
+                new Vector2(
+                    rectangle.x,
+                    rectangle.y
+                )
+            );
+
+            playerSpawnRoomsById.put(
+                spawnId,
+                getString(
+                    object.getProperties(),
+                    "roomId",
+                    ""
+                )
+            );
+        }
+    }
+
+    private Map<String, Rectangle> loadCameraBounds() {
+        Map<String, Rectangle> result = new HashMap<>();
+
+        MapLayer cameraLayer =
+            tiledMap.getLayers().get("CameraBounds");
+
+        if (cameraLayer == null) {
+            return result;
+        }
+
+        for (MapObject object : cameraLayer.getObjects()) {
+            if (
+                !(object
+                    instanceof RectangleMapObject)
+            ) {
+                continue;
+            }
+
+            String roomId = getString(
+                object.getProperties(),
+                "roomId",
+                ""
+            );
+
+            if (roomId == null || roomId.isBlank()) {
+                continue;
+            }
+
+            result.put(
+                roomId,
+                new Rectangle(
+                    ((RectangleMapObject) object)
+                        .getRectangle()
+                )
+            );
+        }
+
+        return result;
+    }
+
+    private Array<RoomTransition> loadRoomTransitions() {
+        Array<RoomTransition> result = new Array<>();
+
+        MapLayer transitionsLayer =
+            requireLayer("Transitions");
+
+        for (MapObject object : transitionsLayer.getObjects()) {
+            if (
+                !(object
+                    instanceof RectangleMapObject)
+            ) {
+                continue;
+            }
+
+            String objectType = getString(
+                object.getProperties(),
+                "type",
+                ""
+            );
+
+            if (!"RoomTransition".equals(objectType)) {
+                continue;
+            }
+
+            result.add(
+                new RoomTransition(
+                    object.getName(),
+                    getString(
+                        object.getProperties(),
+                        "fromRoom",
+                        ""
+                    ),
+                    getString(
+                        object.getProperties(),
+                        "targetRoom",
+                        ""
+                    ),
+                    getString(
+                        object.getProperties(),
+                        "targetSpawn",
+                        ""
+                    ),
+                    new Rectangle(
+                        ((RectangleMapObject) object)
+                            .getRectangle()
+                    )
+                )
+            );
+        }
+
+        return result;
     }
 
     private CrackedWall loadCollisionObjects() {
@@ -221,10 +556,6 @@ public final class TiledWorld implements Disposable {
                 ((RectangleMapObject) object)
                     .getRectangle()
             );
-
-            if (!touchesRoom(rectangle, crossroadsBounds)) {
-                continue;
-            }
 
             String objectType = getString(
                 object.getProperties(),
@@ -341,10 +672,6 @@ public final class TiledWorld implements Disposable {
                     .getRectangle()
             );
 
-            if (!touchesRoom(bounds, crossroadsBounds)) {
-                continue;
-            }
-
             result.add(
                 new SpikeHazard(
                     object.getName(),
@@ -394,16 +721,6 @@ public final class TiledWorld implements Disposable {
                 ""
             );
 
-            if (
-                !"forgotten_crossroads".equals(roomId)
-                    && !touchesRoom(
-                    rectangle,
-                    crossroadsBounds
-                )
-            ) {
-                continue;
-            }
-
             result.add(
                 new EnemySpawn(
                     object.getName(),
@@ -429,6 +746,92 @@ public final class TiledWorld implements Disposable {
                         object.getProperties(),
                         "respawnOnRoomEntry",
                         true
+                    )
+                )
+            );
+        }
+
+        return result;
+    }
+
+    private Array<NpcSpawn> loadNpcSpawns() {
+        Array<NpcSpawn> result =
+            new Array<>();
+
+        MapLayer npcLayer =
+            tiledMap.getLayers().get("NPCs");
+
+        if (npcLayer == null) {
+            return result;
+        }
+
+        for (
+            MapObject object
+            : npcLayer.getObjects()
+        ) {
+            if (
+                !(object
+                    instanceof RectangleMapObject)
+            ) {
+                continue;
+            }
+
+            Rectangle rectangle =
+                ((RectangleMapObject) object)
+                    .getRectangle();
+
+            String objectType = getString(
+                object.getProperties(),
+                "type",
+                ""
+            );
+
+            if (!"NPC".equals(objectType)) {
+                continue;
+            }
+
+            String npcType = getString(
+                object.getProperties(),
+                "npcType",
+                ""
+            );
+
+            if (npcType == null || npcType.isBlank()) {
+                continue;
+            }
+
+            result.add(
+                new NpcSpawn(
+                    object.getName(),
+                    npcType,
+                    getString(
+                        object.getProperties(),
+                        "roomId",
+                        ""
+                    ),
+                    rectangle.x,
+                    rectangle.y,
+                    rectangle.width,
+                    rectangle.height,
+                    getBoolean(
+                        object.getProperties(),
+                        "facingRight",
+                        false
+                    ),
+                    getFloat(
+                        object.getProperties(),
+                        "interactionRadius",
+                        140f
+                    ),
+                    getFloat(
+                        object.getProperties(),
+                        "moveMinX",
+                        rectangle.x - 220f
+                    ),
+                    getFloat(
+                        object.getProperties(),
+                        "moveMaxX",
+                        rectangle.x + 520f
                     )
                 )
             );
@@ -511,44 +914,108 @@ public final class TiledWorld implements Disposable {
     private int[] collectTopLevelLayerIndices(
         String... names
     ) {
-        int[] indices = new int[names.length];
+        /*
+         * OrthogonalTiledMapRenderer.render(int[]) accepts only
+         * top-level layer indices. Some of our important visual
+         * layers, such as City_Skyline and Arena, are image layers
+         * inside the Crossroads_Background group.
+         *
+         * So this method searches recursively through group layers.
+         * When a requested layer is found inside a group, it returns
+         * the top-level parent index for that group. Rendering the
+         * group lets LibGDX draw the nested image layers correctly.
+         */
+        MapLayers topLevelLayers = tiledMap.getLayers();
+        int[] foundIndices = new int[
+            topLevelLayers.getCount()
+        ];
+        int foundCount = 0;
 
         for (
-            int nameIndex = 0;
-            nameIndex < names.length;
-            nameIndex++
+            int layerIndex = 0;
+            layerIndex < topLevelLayers.getCount();
+            layerIndex++
         ) {
-            indices[nameIndex] = -1;
-
-            for (
-                int layerIndex = 0;
+            MapLayer layer = topLevelLayers.get(
                 layerIndex
-                    < tiledMap.getLayers().getCount();
-                layerIndex++
-            ) {
-                MapLayer layer =
-                    tiledMap.getLayers().get(
-                        layerIndex
-                    );
+            );
 
-                if (
-                    names[nameIndex]
-                        .equals(layer.getName())
-                ) {
-                    indices[nameIndex] = layerIndex;
-                    break;
+            if (layerOrChildMatches(layer, names)) {
+                boolean alreadyAdded = false;
+
+                for (int i = 0; i < foundCount; i++) {
+                    if (foundIndices[i] == layerIndex) {
+                        alreadyAdded = true;
+                        break;
+                    }
                 }
-            }
 
-            if (indices[nameIndex] < 0) {
-                throw new IllegalStateException(
-                    "Missing top-level Tiled layer: "
-                        + names[nameIndex]
-                );
+                if (!alreadyAdded) {
+                    foundIndices[foundCount] =
+                        layerIndex;
+                    foundCount++;
+                }
             }
         }
 
+        int[] indices = new int[foundCount];
+        System.arraycopy(
+            foundIndices,
+            0,
+            indices,
+            0,
+            foundCount
+        );
+
         return indices;
+    }
+
+    private boolean layerOrChildMatches(
+        MapLayer layer,
+        String... names
+    ) {
+        if (matchesAnyName(layer.getName(), names)) {
+            return true;
+        }
+
+        if (layer instanceof MapGroupLayer) {
+            MapLayers childLayers =
+                ((MapGroupLayer) layer).getLayers();
+
+            for (
+                int childIndex = 0;
+                childIndex < childLayers.getCount();
+                childIndex++
+            ) {
+                if (
+                    layerOrChildMatches(
+                        childLayers.get(childIndex),
+                        names
+                    )
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private boolean matchesAnyName(
+        String layerName,
+        String... names
+    ) {
+        if (layerName == null) {
+            return false;
+        }
+
+        for (String name : names) {
+            if (layerName.equals(name)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public EnemySpawn findEnemySpawn(
@@ -565,6 +1032,140 @@ public final class TiledWorld implements Disposable {
         }
 
         return null;
+    }
+
+    public EnemySpawn findEnemySpawn(
+        String enemyType,
+        String roomId
+    ) {
+        for (EnemySpawn spawn : enemySpawns) {
+            if (
+                enemyType.equals(
+                    spawn.getEnemyType()
+                )
+                    && roomId.equals(
+                    spawn.getRoomId()
+                )
+            ) {
+                return spawn;
+            }
+        }
+
+        return null;
+    }
+
+    public NpcSpawn findNpcSpawn(
+        String npcType,
+        String roomId
+    ) {
+        for (NpcSpawn spawn : npcSpawns) {
+            if (
+                npcType.equals(spawn.getNpcType())
+                    && roomId.equals(spawn.getRoomId())
+            ) {
+                return spawn;
+            }
+        }
+
+        return null;
+    }
+
+    public Array<NpcSpawn> getNpcSpawns() {
+        return npcSpawns;
+    }
+
+    public Rectangle getRoomBounds(
+        String roomId
+    ) {
+        Rectangle bounds =
+            roomBoundsById.get(roomId);
+
+        if (bounds == null) {
+            throw new IllegalArgumentException(
+                "Unknown roomId: " + roomId
+            );
+        }
+
+        return new Rectangle(bounds);
+    }
+
+    public Rectangle getCameraBoundsForRoom(
+        String roomId
+    ) {
+        Rectangle bounds =
+            cameraBoundsByRoomId.get(roomId);
+
+        if (bounds == null) {
+            return getRoomBounds(roomId);
+        }
+
+        return new Rectangle(bounds);
+    }
+
+    public Vector2 getPlayerSpawn(
+        String spawnId
+    ) {
+        Vector2 spawn =
+            playerSpawnsById.get(spawnId);
+
+        return spawn == null
+            ? null
+            : new Vector2(spawn);
+    }
+
+    private Vector2 requirePlayerSpawn(
+        String spawnId
+    ) {
+        Vector2 spawn = getPlayerSpawn(spawnId);
+
+        if (spawn == null) {
+            throw new IllegalStateException(
+                "Missing player spawn: "
+                    + spawnId
+            );
+        }
+
+        return spawn;
+    }
+
+    public Array<Platform> getCollisionPlatformsForRoom(
+        String roomId
+    ) {
+        Rectangle roomBounds = getRoomBounds(roomId);
+        Array<Platform> result = new Array<>();
+
+        for (Platform platform : collisionPlatforms) {
+            if (
+                touchesRoom(
+                    platform.getBounds(),
+                    roomBounds
+                )
+            ) {
+                result.add(platform);
+            }
+        }
+
+        return result;
+    }
+
+    public Array<SpikeHazard> getSpikeHazardsForRoom(
+        String roomId
+    ) {
+        Rectangle roomBounds = getRoomBounds(roomId);
+        Array<SpikeHazard> result = new Array<>();
+
+        for (SpikeHazard hazard : spikeHazards) {
+            if (
+                touchesRoom(
+                    hazard.getBounds(),
+                    roomBounds
+                )
+            ) {
+                result.add(hazard);
+            }
+        }
+
+        return result;
     }
 
     private static Object getRaw(
@@ -695,6 +1296,10 @@ public final class TiledWorld implements Disposable {
 
     public Array<EnemySpawn> getEnemySpawns() {
         return enemySpawns;
+    }
+
+    public Array<RoomTransition> getRoomTransitions() {
+        return roomTransitions;
     }
 
     public CrackedWall getCrackedWall() {

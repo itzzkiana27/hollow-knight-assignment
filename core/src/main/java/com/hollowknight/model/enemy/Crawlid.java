@@ -45,11 +45,9 @@ public final class Crawlid
     private static final float FLASH_DURATION =
         0.12f;
 
-    private static final float
-        GROUND_LOOK_AHEAD = 8f;
+    private static final float GROUND_LOOK_AHEAD = 8f;
 
-    private static final float
-        GROUND_PROBE_DEPTH = 14f;
+    private static final float GROUND_PROBE_DEPTH = 14f;
 
     private static final float
         RESPAWN_DISTANCE = 900f;
@@ -60,7 +58,6 @@ public final class Crawlid
 
     private final Rectangle bounds;
     private final Rectangle nextBounds;
-
     private final float spawnX;
     private final float spawnY;
 
