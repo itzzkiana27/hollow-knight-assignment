@@ -77,6 +77,28 @@ public class GameController {
     private static final int
         ABYSS_SHRIEK_BASE_DAMAGE = 3;
 
+
+    private static final int
+        ABILITY_SOUL_COST = PlayerSoul.FOCUS_COST;
+
+    private static final float
+        SHADE_SOUL_CAST_DURATION = 0.10f;
+
+    private static final float
+        SHADE_SOUL_CAST_WIDTH = 118f;
+
+    private static final float
+        SHADE_SOUL_CAST_HEIGHT = 88f;
+
+    private static final float
+        SHADE_SOUL_END_DURATION = 0.12f;
+
+    private static final float
+        SHADE_SOUL_END_WIDTH = 118f;
+
+    private static final float
+        SHADE_SOUL_END_HEIGHT = 88f;
+
     private static final EnumSet<PlayerAnimationType>
         LOCKING_NON_COMBAT_ANIMATIONS =
         EnumSet.of(
@@ -153,7 +175,9 @@ public class GameController {
 
     private final Rectangle checkpointDangerZone;
     private final Rectangle sharpShadowDashVisualBounds;
+    private final Rectangle shadeSoulCastBounds;
     private final Rectangle voidShadeSoulBounds;
+    private final Rectangle shadeSoulEndBounds;
     private final Rectangle voidAbyssShriekBounds;
     private final KeyBindings keyBindings;
 
@@ -183,9 +207,16 @@ public class GameController {
     private boolean sharpShadowHitWingedSentry;
     private boolean sharpShadowHitFalseKnight;
 
+    private boolean shadeSoulCastActive;
+    private float shadeSoulCastTimeRemaining;
+    private boolean shadeSoulVoidVariant;
+
     private boolean voidShadeSoulActive;
     private boolean voidShadeSoulFacingRight;
     private float voidShadeSoulTimeRemaining;
+    private boolean shadeSoulEndActive;
+    private float shadeSoulEndTimeRemaining;
+    private boolean shadeSoulEndVoidVariant;
     private boolean shadeSoulHitHuskHornhead;
     private boolean shadeSoulHitCrawlid;
     private boolean shadeSoulHitCrystalGuardian;
@@ -194,6 +225,7 @@ public class GameController {
 
     private boolean voidAbyssShriekActive;
     private float voidAbyssShriekTimeRemaining;
+    private boolean abyssShriekVoidVariant;
     private boolean abyssShriekHitHuskHornhead;
     private boolean abyssShriekHitCrawlid;
     private boolean abyssShriekHitCrystalGuardian;
@@ -296,12 +328,21 @@ public class GameController {
         resetVoidShadeSoulHits();
         resetVoidAbyssShriekHits();
 
+        shadeSoulCastActive = false;
+        shadeSoulCastTimeRemaining = 0f;
+        shadeSoulVoidVariant = false;
+
         voidShadeSoulActive = false;
         voidShadeSoulFacingRight = true;
         voidShadeSoulTimeRemaining = 0f;
 
+        shadeSoulEndActive = false;
+        shadeSoulEndTimeRemaining = 0f;
+        shadeSoulEndVoidVariant = false;
+
         voidAbyssShriekActive = false;
         voidAbyssShriekTimeRemaining = 0f;
+        abyssShriekVoidVariant = false;
 
         checkpoint =
             new PlayerCheckpoint(
@@ -315,7 +356,13 @@ public class GameController {
         sharpShadowDashVisualBounds =
             new Rectangle();
 
+        shadeSoulCastBounds =
+            new Rectangle();
+
         voidShadeSoulBounds =
+            new Rectangle();
+
+        shadeSoulEndBounds =
             new Rectangle();
 
         voidAbyssShriekBounds =
@@ -1116,6 +1163,64 @@ public class GameController {
         );
     }
 
+    public boolean isShadeSoulCastActive() {
+        return shadeSoulCastActive;
+    }
+
+    public Rectangle getShadeSoulCastBounds() {
+        return new Rectangle(
+            shadeSoulCastBounds
+        );
+    }
+
+    public float getShadeSoulCastProgress() {
+        if (!shadeSoulCastActive) {
+            return 0f;
+        }
+
+        return Math.max(
+            0f,
+            Math.min(
+                1f,
+                shadeSoulCastTimeRemaining
+                    / SHADE_SOUL_CAST_DURATION
+            )
+        );
+    }
+
+    public boolean isCurrentShadeSoulVoidVariant() {
+        return shadeSoulVoidVariant;
+    }
+
+    public boolean isShadeSoulEndActive() {
+        return shadeSoulEndActive;
+    }
+
+    public Rectangle getShadeSoulEndBounds() {
+        return new Rectangle(
+            shadeSoulEndBounds
+        );
+    }
+
+    public float getShadeSoulEndProgress() {
+        if (!shadeSoulEndActive) {
+            return 0f;
+        }
+
+        return Math.max(
+            0f,
+            Math.min(
+                1f,
+                shadeSoulEndTimeRemaining
+                    / SHADE_SOUL_END_DURATION
+            )
+        );
+    }
+
+    public boolean isCurrentShadeSoulEndVoidVariant() {
+        return shadeSoulEndVoidVariant;
+    }
+
     public boolean isVoidAbyssShriekActive() {
         return voidAbyssShriekActive;
     }
@@ -1141,20 +1246,49 @@ public class GameController {
         );
     }
 
+    public boolean isCurrentAbyssShriekVoidVariant() {
+        return abyssShriekVoidVariant;
+    }
+
     private void startShadeSoulAbility() {
+        if (!soul.spend(ABILITY_SOUL_COST)) {
+            charmInventoryMessage =
+                "Not enough Soul.";
+            return;
+        }
+
         player.setAnimation(
             PlayerAnimationType.FIREBALL_CAST
         );
 
-        if (!shouldUseVoidAbilityAnimations()) {
-            return;
-        }
-
         Rectangle playerBounds =
             playerBody.getBounds();
 
+        shadeSoulVoidVariant =
+            shouldUseVoidAbilityAnimations();
+
         voidShadeSoulFacingRight =
             player.isFacingRight();
+
+        float castX = voidShadeSoulFacingRight
+            ? playerBounds.x + playerBounds.width - 12f
+            : playerBounds.x - SHADE_SOUL_CAST_WIDTH + 12f;
+
+        float castY =
+            playerBounds.y
+                + playerBounds.height * 0.5f
+                - SHADE_SOUL_CAST_HEIGHT / 2f;
+
+        shadeSoulCastBounds.set(
+            castX,
+            castY,
+            SHADE_SOUL_CAST_WIDTH,
+            SHADE_SOUL_CAST_HEIGHT
+        );
+
+        shadeSoulCastActive = true;
+        shadeSoulCastTimeRemaining =
+            SHADE_SOUL_CAST_DURATION;
 
         float startX = voidShadeSoulFacingRight
             ? playerBounds.x + playerBounds.width - 10f
@@ -1176,18 +1310,26 @@ public class GameController {
         voidShadeSoulTimeRemaining =
             VOID_SHADE_SOUL_DURATION;
 
+        shadeSoulEndActive = false;
+        shadeSoulEndTimeRemaining = 0f;
+
         resetVoidShadeSoulHits();
         applyVoidShadeSoulDamage();
     }
 
     private void startAbyssShriekAbility() {
+        if (!soul.spend(ABILITY_SOUL_COST)) {
+            charmInventoryMessage =
+                "Not enough Soul.";
+            return;
+        }
+
         player.setAnimation(
             PlayerAnimationType.SCREAM
         );
 
-        if (!shouldUseVoidAbilityAnimations()) {
-            return;
-        }
+        abyssShriekVoidVariant =
+            shouldUseVoidAbilityAnimations();
 
         positionVoidAbyssShriekBounds();
 
@@ -1202,13 +1344,51 @@ public class GameController {
     private void updateAbilityEffects(
         float delta
     ) {
+        updateShadeSoulCastEffect(
+            delta
+        );
+
         updateVoidShadeSoul(
+            delta
+        );
+
+        updateShadeSoulEndEffect(
             delta
         );
 
         updateVoidAbyssShriek(
             delta
         );
+    }
+
+    private void updateShadeSoulCastEffect(
+        float delta
+    ) {
+        if (!shadeSoulCastActive) {
+            return;
+        }
+
+        shadeSoulCastTimeRemaining -= delta;
+
+        if (shadeSoulCastTimeRemaining <= 0f) {
+            shadeSoulCastActive = false;
+            shadeSoulCastTimeRemaining = 0f;
+        }
+    }
+
+    private void updateShadeSoulEndEffect(
+        float delta
+    ) {
+        if (!shadeSoulEndActive) {
+            return;
+        }
+
+        shadeSoulEndTimeRemaining -= delta;
+
+        if (shadeSoulEndTimeRemaining <= 0f) {
+            shadeSoulEndActive = false;
+            shadeSoulEndTimeRemaining = 0f;
+        }
     }
 
     private void updateVoidShadeSoul(
@@ -1231,19 +1411,22 @@ public class GameController {
 
         applyVoidShadeSoulDamage();
 
-        if (
-            voidShadeSoulTimeRemaining <= 0f
-                || voidShadeSoulBounds.x
+        boolean outOfRoom =
+            voidShadeSoulBounds.x
                 > currentRoomBounds.x
                 + currentRoomBounds.width
                 + VOID_SHADE_SOUL_WIDTH
                 || voidShadeSoulBounds.x
                 + voidShadeSoulBounds.width
                 < currentRoomBounds.x
-                - VOID_SHADE_SOUL_WIDTH
+                - VOID_SHADE_SOUL_WIDTH;
+
+        if (
+            voidShadeSoulTimeRemaining <= 0f
+                || outOfRoom
+                || isShadeSoulBlockedByEnvironment()
         ) {
-            voidShadeSoulActive = false;
-            voidShadeSoulTimeRemaining = 0f;
+            finishShadeSoulProjectile();
         }
     }
 
@@ -1263,6 +1446,47 @@ public class GameController {
             voidAbyssShriekActive = false;
             voidAbyssShriekTimeRemaining = 0f;
         }
+    }
+
+    private boolean isShadeSoulBlockedByEnvironment() {
+        for (Platform platform : platformWorld.getPlatforms()) {
+            if (
+                platform != null
+                    && voidShadeSoulBounds.overlaps(
+                    platform.getBounds()
+                )
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void finishShadeSoulProjectile() {
+        if (!voidShadeSoulActive) {
+            return;
+        }
+
+        shadeSoulEndBounds.set(
+            voidShadeSoulBounds.x
+                + voidShadeSoulBounds.width / 2f
+                - SHADE_SOUL_END_WIDTH / 2f,
+            voidShadeSoulBounds.y
+                + voidShadeSoulBounds.height / 2f
+                - SHADE_SOUL_END_HEIGHT / 2f,
+            SHADE_SOUL_END_WIDTH,
+            SHADE_SOUL_END_HEIGHT
+        );
+
+        shadeSoulEndActive = true;
+        shadeSoulEndTimeRemaining =
+            SHADE_SOUL_END_DURATION;
+        shadeSoulEndVoidVariant =
+            shadeSoulVoidVariant;
+
+        voidShadeSoulActive = false;
+        voidShadeSoulTimeRemaining = 0f;
     }
 
     private void positionVoidAbyssShriekBounds() {

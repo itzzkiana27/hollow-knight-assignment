@@ -255,11 +255,15 @@ public class GameScreen extends ScreenAdapter {
      */
     private static final boolean SHARP_SHADOW_SOURCE_FACES_RIGHT = false;
 
-    private static final float VOID_SHADE_SOUL_EFFECT_HEIGHT = 115f;
+    private static final float SHADE_SOUL_CAST_EFFECT_HEIGHT = 112f;
 
-    private static final float VOID_ABYSS_SHRIEK_EFFECT_HEIGHT = 310f;
+    private static final float SHADE_SOUL_PROJECTILE_EFFECT_HEIGHT = 115f;
 
-    private static final boolean VOID_SHADE_SOUL_SOURCE_FACES_RIGHT = true;
+    private static final float SHADE_SOUL_END_EFFECT_HEIGHT = 112f;
+
+    private static final float ABYSS_SHRIEK_EFFECT_HEIGHT = 310f;
+
+    private static final boolean SHADE_SOUL_SOURCE_FACES_RIGHT = true;
 
     private static final float VOID_HEART_REWARD_DRAW_SIZE = 54f;
 
@@ -291,8 +295,13 @@ public class GameScreen extends ScreenAdapter {
     private TextureRegion[] sharpShadowDashFrames;
     private Texture whiteDashEffectTexture;
     private TextureRegion whiteDashEffectFrame;
-    private Texture voidShadeSoulTexture;
-    private Texture voidAbyssShriekTexture;
+    private Texture blastSoulTexture;
+    private Texture soulBallTexture;
+    private Texture soulBallEndTexture;
+    private Texture shadowBallTexture;
+    private Texture shadowBallEndTexture;
+    private Texture soulScreamTexture;
+    private Texture shadowScreamTexture;
     private final Rectangle charmMenuPanelBounds = new Rectangle();
     private final Rectangle charmCardBounds = new Rectangle();
     private final Vector2 charmTouchPosition = new Vector2();
@@ -353,8 +362,7 @@ public class GameScreen extends ScreenAdapter {
 
         loadSharpShadowDashFrames();
         loadWhiteDashEffect();
-
-       //add assets
+        loadAbilityEffectTextures();
 
         worldCamera = new GameCamera(
             CAMERA_VIEW_WIDTH,
@@ -504,10 +512,10 @@ public class GameScreen extends ScreenAdapter {
             drawFalseKnightDebug();
         }
 
-       // drawVoidShadeSoulEffect(); should change
-      //  drawVoidAbyssShriekEffect(); should change
-// * Draw the delayed shadow trail behind the Knight.
-// * The Knight itself is drawn black inside drawKnight().
+        drawShadeSoulCastEffect();
+        drawShadeSoulProjectileEffect();
+        drawShadeSoulEndEffect();
+        drawAbyssShriekEffect();
         drawZote();
         drawWhiteDashEffect();
         drawKnight();
@@ -1951,28 +1959,106 @@ public class GameScreen extends ScreenAdapter {
     }
 
 
-    private void drawVoidShadeSoulEffect() {
-        if (
-            voidShadeSoulTexture == null
-                || !controller.isVoidShadeSoulActive()
-        ) {
+    private void drawShadeSoulCastEffect() {
+        if (!controller.isShadeSoulCastActive()) {
             return;
         }
 
-        Rectangle bounds =
-            controller.getVoidShadeSoulBounds();
+        drawCenteredAbilityTexture(
+            blastSoulTexture,
+            controller.getShadeSoulCastBounds(),
+            SHADE_SOUL_CAST_EFFECT_HEIGHT,
+            controller.isVoidShadeSoulFacingRight(),
+            SHADE_SOUL_SOURCE_FACES_RIGHT,
+            0.95f,
+            controller.getShadeSoulCastProgress()
+        );
+    }
+
+    private void drawShadeSoulProjectileEffect() {
+        if (!controller.isVoidShadeSoulActive()) {
+            return;
+        }
+
+        Texture projectileTexture =
+            controller.isCurrentShadeSoulVoidVariant()
+                ? shadowBallTexture
+                : soulBallTexture;
+
+        drawCenteredAbilityTexture(
+            projectileTexture,
+            controller.getVoidShadeSoulBounds(),
+            SHADE_SOUL_PROJECTILE_EFFECT_HEIGHT,
+            controller.isVoidShadeSoulFacingRight(),
+            SHADE_SOUL_SOURCE_FACES_RIGHT,
+            0.92f,
+            1f
+        );
+    }
+
+    private void drawShadeSoulEndEffect() {
+        if (!controller.isShadeSoulEndActive()) {
+            return;
+        }
+
+        Texture endTexture =
+            controller.isCurrentShadeSoulEndVoidVariant()
+                ? shadowBallEndTexture
+                : soulBallEndTexture;
+
+        drawCenteredAbilityTexture(
+            endTexture,
+            controller.getShadeSoulEndBounds(),
+            SHADE_SOUL_END_EFFECT_HEIGHT,
+            controller.isVoidShadeSoulFacingRight(),
+            SHADE_SOUL_SOURCE_FACES_RIGHT,
+            0.95f,
+            controller.getShadeSoulEndProgress()
+        );
+    }
+
+    private void drawAbyssShriekEffect() {
+        if (!controller.isVoidAbyssShriekActive()) {
+            return;
+        }
+
+        Texture screamTexture =
+            controller.isCurrentAbyssShriekVoidVariant()
+                ? shadowScreamTexture
+                : soulScreamTexture;
+
+        drawCenteredAbilityTexture(
+            screamTexture,
+            controller.getVoidAbyssShriekBounds(),
+            ABYSS_SHRIEK_EFFECT_HEIGHT,
+            true,
+            true,
+            0.94f,
+            controller.getVoidAbyssShriekProgress()
+        );
+    }
+
+    private void drawCenteredAbilityTexture(
+        Texture texture,
+        Rectangle bounds,
+        float targetHeight,
+        boolean facingRight,
+        boolean sourceFacesRight,
+        float maxAlpha,
+        float progress
+    ) {
+        if (texture == null || bounds == null) {
+            return;
+        }
 
         float scale =
-            VOID_SHADE_SOUL_EFFECT_HEIGHT
-                / voidShadeSoulTexture.getHeight();
+            targetHeight / texture.getHeight();
 
         float drawWidth =
-            voidShadeSoulTexture.getWidth()
-                * scale;
+            texture.getWidth() * scale;
 
         float drawHeight =
-            voidShadeSoulTexture.getHeight()
-                * scale;
+            texture.getHeight() * scale;
 
         float drawX =
             bounds.x
@@ -1985,8 +2071,11 @@ public class GameScreen extends ScreenAdapter {
                 - drawHeight / 2f;
 
         boolean shouldFlip =
-            controller.isVoidShadeSoulFacingRight()
-                != VOID_SHADE_SOUL_SOURCE_FACES_RIGHT;
+            facingRight != sourceFacesRight;
+
+        float alpha =
+            Math.max(0.2f, Math.min(1f, progress))
+                * maxAlpha;
 
         batch.setProjectionMatrix(
             worldCamera.getCombined()
@@ -1998,12 +2087,12 @@ public class GameScreen extends ScreenAdapter {
             1f,
             1f,
             1f,
-            0.92f
+            alpha
         );
 
         if (shouldFlip) {
             batch.draw(
-                voidShadeSoulTexture,
+                texture,
                 drawX + drawWidth,
                 drawY,
                 -drawWidth,
@@ -2011,7 +2100,7 @@ public class GameScreen extends ScreenAdapter {
             );
         } else {
             batch.draw(
-                voidShadeSoulTexture,
+                texture,
                 drawX,
                 drawY,
                 drawWidth,
@@ -2024,65 +2113,6 @@ public class GameScreen extends ScreenAdapter {
         batch.end();
     }
 
-    private void drawVoidAbyssShriekEffect() {
-        if (
-            voidAbyssShriekTexture == null
-                || !controller
-                .isVoidAbyssShriekActive()
-        ) {
-            return;
-        }
-
-        Rectangle bounds =
-            controller.getVoidAbyssShriekBounds();
-
-        float scale =
-            VOID_ABYSS_SHRIEK_EFFECT_HEIGHT
-                / voidAbyssShriekTexture.getHeight();
-
-        float drawWidth =
-            voidAbyssShriekTexture.getWidth()
-                * scale;
-
-        float drawHeight =
-            voidAbyssShriekTexture.getHeight()
-                * scale;
-
-        float drawX =
-            bounds.x
-                + bounds.width / 2f
-                - drawWidth / 2f;
-
-        float drawY =
-            bounds.y
-                + bounds.height / 2f
-                - drawHeight / 2f;
-
-        batch.setProjectionMatrix(
-            worldCamera.getCombined()
-        );
-
-        batch.begin();
-
-        batch.setColor(
-            1f,
-            1f,
-            1f,
-            0.94f
-        );
-
-        batch.draw(
-            voidAbyssShriekTexture,
-            drawX,
-            drawY,
-            drawWidth,
-            drawHeight
-        );
-
-        batch.setColor(Color.WHITE);
-
-        batch.end();
-    }
     private boolean isDashVisualActive() {
         Player player =
             controller.getPlayer();
@@ -2275,6 +2305,36 @@ public class GameScreen extends ScreenAdapter {
         );
 
         return texture;
+    }
+
+    private void loadAbilityEffectTextures() {
+        blastSoulTexture = loadEffectTexture(
+            "sprites/effects/abilities/blast_soul.png"
+        );
+
+        soulBallTexture = loadEffectTexture(
+            "sprites/effects/abilities/soul_ball.png"
+        );
+
+        soulBallEndTexture = loadEffectTexture(
+            "sprites/effects/abilities/soul_ball_end.png"
+        );
+
+        shadowBallTexture = loadEffectTexture(
+            "sprites/effects/abilities/shadow_ball.png"
+        );
+
+        shadowBallEndTexture = loadEffectTexture(
+            "sprites/effects/abilities/shadow_ball_end.png"
+        );
+
+        soulScreamTexture = loadEffectTexture(
+            "sprites/effects/abilities/soul_scream.png"
+        );
+
+        shadowScreamTexture = loadEffectTexture(
+            "sprites/effects/abilities/shadow_scream.png"
+        );
     }
 
     private void loadSharpShadowDashFrames() {
@@ -3575,12 +3635,32 @@ public class GameScreen extends ScreenAdapter {
             sharpShadowDashFrames = null;
         }
 
-        if (voidShadeSoulTexture != null) {
-            voidShadeSoulTexture.dispose();
+        if (blastSoulTexture != null) {
+            blastSoulTexture.dispose();
         }
 
-        if (voidAbyssShriekTexture != null) {
-            voidAbyssShriekTexture.dispose();
+        if (soulBallTexture != null) {
+            soulBallTexture.dispose();
+        }
+
+        if (soulBallEndTexture != null) {
+            soulBallEndTexture.dispose();
+        }
+
+        if (shadowBallTexture != null) {
+            shadowBallTexture.dispose();
+        }
+
+        if (shadowBallEndTexture != null) {
+            shadowBallEndTexture.dispose();
+        }
+
+        if (soulScreamTexture != null) {
+            soulScreamTexture.dispose();
+        }
+
+        if (shadowScreamTexture != null) {
+            shadowScreamTexture.dispose();
         }
 
         controller.dispose();
