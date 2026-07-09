@@ -207,6 +207,8 @@ public class GameScreen extends ScreenAdapter {
     /*
      * Charm inventory menu values.
      */
+
+
     private static final int CHARM_MENU_COLUMNS = 4;
 
     private static final float CHARM_MENU_PANEL_WIDTH = 940f;
@@ -225,7 +227,21 @@ public class GameScreen extends ScreenAdapter {
 
     private static final int SHARP_SHADOW_DASH_FRAME_COUNT = 11;
 
-    private static final float SHARP_SHADOW_DASH_FRAME_DURATION = 0.049f;
+    private static final float SHARP_SHADOW_DASH_FRAME_DURATION = 0.025f;
+
+    private static final String WHITE_DASH_EFFECT_PATH =
+        "sprites/effects/charms/sharp_shadow_dash.png";
+
+    private static final float WHITE_DASH_EFFECT_DRAW_HEIGHT = 100f;
+
+    private static final float WHITE_DASH_EFFECT_ALPHA = 0.85f;
+    private static final float WHITE_DASH_EFFECT_DURATION = 0.11f;
+
+    /*
+     * If the white dash effect faces the wrong way,
+     * change this to false.
+     */
+    private static final boolean WHITE_DASH_EFFECT_SOURCE_FACES_RIGHT = true;
 
     /*
      * Distance between the delayed shadow copies.
@@ -268,11 +284,14 @@ public class GameScreen extends ScreenAdapter {
     private EnumMap<CharmType, Texture> charmIconTextures;
     private Texture[] sharpShadowDashTextures;
     private TextureRegion[] sharpShadowDashFrames;
+    private Texture whiteDashEffectTexture;
+    private TextureRegion whiteDashEffectFrame;
     private Texture voidShadeSoulTexture;
     private Texture voidAbyssShriekTexture;
     private final Rectangle charmMenuPanelBounds = new Rectangle();
     private final Rectangle charmCardBounds = new Rectangle();
     private final Vector2 charmTouchPosition = new Vector2();
+    private CharmType selectedCharm;
 
     private GameCamera worldCamera;
 
@@ -328,6 +347,7 @@ public class GameScreen extends ScreenAdapter {
         charmIconTextures = loadCharmIconTextures();
 
         loadSharpShadowDashFrames();
+        loadWhiteDashEffect();
 
         voidShadeSoulTexture = loadEffectTexture(
             "sprites/effects/abilities/void_shade_soul.png"
@@ -489,7 +509,7 @@ public class GameScreen extends ScreenAdapter {
 // * Draw the delayed shadow trail behind the Knight.
 // * The Knight itself is drawn black inside drawKnight().
         drawZote();
-        drawSharpShadowDashEffect();
+        drawWhiteDashEffect();
         drawKnight();
         drawActiveAttackHitbox();
         drawMapForeground();
@@ -1790,12 +1810,10 @@ public class GameScreen extends ScreenAdapter {
 
         batch.end();
     }
-
-
-    private void drawSharpShadowDashEffect() {
+    private void drawWhiteDashEffect() {
         if (
-            !controller.isSharpShadowDashVisualActive()
-                || sharpShadowDashFrames == null
+            !isDashVisualActive()
+                || whiteDashEffectFrame == null
         ) {
             return;
         }
@@ -1803,19 +1821,42 @@ public class GameScreen extends ScreenAdapter {
         Player player =
             controller.getPlayer();
 
-        float animationTime =
+        float dashVisualTime =
             player.getAnimationTime();
 
-        float x =
-            player.getPosition().x;
+        if (dashVisualTime > WHITE_DASH_EFFECT_DURATION) {
+            return;
+        }
 
-        float y =
-            player.getPosition().y;
+        float dashAlpha =
+            WHITE_DASH_EFFECT_ALPHA
+                * (1f - dashVisualTime / WHITE_DASH_EFFECT_DURATION);
 
-        int direction =
+        float scale =
+            WHITE_DASH_EFFECT_DRAW_HEIGHT
+                / whiteDashEffectFrame.getRegionHeight();
+
+        float drawWidth =
+            whiteDashEffectFrame.getRegionWidth()
+                * scale;
+
+        float drawHeight =
+            whiteDashEffectFrame.getRegionHeight()
+                * scale;
+
+        float drawX =
+            player.getPosition().x
+                + KNIGHT_DRAW_WIDTH / 2f
+                - drawWidth / 2f;
+
+        float drawY =
+            player.getPosition().y
+                + KNIGHT_DRAW_HEIGHT / 2f
+                - drawHeight / 2f;
+
+        boolean shouldFlip =
             player.isFacingRight()
-                ? 1
-                : -1;
+                != WHITE_DASH_EFFECT_SOURCE_FACES_RIGHT;
 
         batch.setProjectionMatrix(
             worldCamera.getCombined()
@@ -1823,68 +1864,38 @@ public class GameScreen extends ScreenAdapter {
 
         batch.begin();
 
-        /*
-         * Two delayed copies behind the Knight.
-         * This makes the shadow feel paced instead of
-         * one static sprite glued on top of the dash.
-         */
-        drawSharpShadowTrailCopy(
-            animationTime
-                - SHARP_SHADOW_DASH_FRAME_DURATION,
-            x
-                - direction
-                * SHARP_SHADOW_TRAIL_SPACING,
-            y,
-            player.isFacingRight(),
-            0.32f
-        );
-
-        drawSharpShadowTrailCopy(
-            animationTime
-                - SHARP_SHADOW_DASH_FRAME_DURATION * 2f,
-            x
-                - direction
-                * SHARP_SHADOW_TRAIL_SPACING * 2f,
-            y,
-            player.isFacingRight(),
-            0.18f
-        );
-
-        batch.setColor(Color.WHITE);
-
-        batch.end();
-    }
-    private void drawSharpShadowTrailCopy(
-        float animationTime,
-        float x,
-        float y,
-        boolean facingRight,
-        float alpha
-    ) {
-        TextureRegion frame =
-            getSharpShadowDashFrame(
-                animationTime
-            );
-
-        if (frame == null) {
-            return;
-        }
-
         batch.setColor(
             1f,
             1f,
             1f,
-            alpha
+            dashAlpha
         );
 
-        drawPlayerSizedFrame(
-            frame,
-            x,
-            y,
-            facingRight,
-            SHARP_SHADOW_SOURCE_FACES_RIGHT
+        if (shouldFlip) {
+            batch.draw(
+                whiteDashEffectFrame,
+                drawX + drawWidth,
+                drawY,
+                -drawWidth,
+                drawHeight
+            );
+        } else {
+            batch.draw(
+                whiteDashEffectFrame,
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight
+            );
+        }
+
+        batch.setColor(
+            Color.WHITE
         );
+
+        batch.end();
     }
+
 
     private void drawVoidShadeSoulEffect() {
         if (
@@ -2017,6 +2028,13 @@ public class GameScreen extends ScreenAdapter {
         batch.setColor(Color.WHITE);
 
         batch.end();
+    }
+    private boolean isDashVisualActive() {
+        Player player =
+            controller.getPlayer();
+
+        return player.getAnimationType()
+            == PlayerAnimationType.DASH;
     }
 
     private void drawKnight() {
@@ -2245,6 +2263,25 @@ public class GameScreen extends ScreenAdapter {
         }
     }
 
+    private void loadWhiteDashEffect() {
+        whiteDashEffectTexture =
+            new Texture(
+                Gdx.files.internal(
+                    WHITE_DASH_EFFECT_PATH
+                )
+            );
+
+        whiteDashEffectTexture.setFilter(
+            Texture.TextureFilter.Linear,
+            Texture.TextureFilter.Linear
+        );
+
+        whiteDashEffectFrame =
+            new TextureRegion(
+                whiteDashEffectTexture
+            );
+    }
+
     private TextureRegion getSharpShadowDashFrame(
         float animationTime
     ) {
@@ -2321,7 +2358,7 @@ public class GameScreen extends ScreenAdapter {
                     charmTouchPosition.y
                 )
             ) {
-                controller.toggleCharmFromInventory(
+                handleCharmClick(
                     charms[index]
                 );
 
@@ -2330,9 +2367,39 @@ public class GameScreen extends ScreenAdapter {
         }
     }
 
+    private void handleCharmClick(
+        CharmType clickedCharm
+    ) {
+        if (clickedCharm == null) {
+            return;
+        }
+
+        /*
+         * First click only selects the charm and shows
+         * its name and description.
+         */
+        if (selectedCharm != clickedCharm) {
+            selectedCharm = clickedCharm;
+            return;
+        }
+
+        /*
+         * Second click on the same charm equips or
+         * unequips it.
+         */
+        controller.toggleCharmFromInventory(
+            clickedCharm
+        );
+    }
+
     private void drawCharmInventoryMenu() {
         if (!controller.isCharmInventoryOpen()) {
             return;
+        }
+
+        if (selectedCharm == null) {
+            selectedCharm =
+                CharmType.values()[0];
         }
 
         calculateCharmMenuPanelBounds(
@@ -2486,11 +2553,18 @@ public class GameScreen extends ScreenAdapter {
                 charmCardBounds
             );
 
-            if (controller.isCharmEquipped(charm)) {
+            if (selectedCharm == charm) {
                 shapeRenderer.setColor(
                     0.95f,
                     0.76f,
                     0.34f,
+                    1f
+                );
+            } else if (controller.isCharmEquipped(charm)) {
+                shapeRenderer.setColor(
+                    0.74f,
+                    0.86f,
+                    1f,
                     1f
                 );
             } else {
@@ -2547,7 +2621,7 @@ public class GameScreen extends ScreenAdapter {
 
         textFont.draw(
             batch,
-            "Press I to close. Click a charm to equip or unequip it.",
+            "Press I to close. Click a charm to inspect it. Click it again to equip or unequip it.",
             charmMenuPanelBounds.x + 34f,
             charmMenuPanelBounds.y
                 + charmMenuPanelBounds.height
@@ -2562,41 +2636,9 @@ public class GameScreen extends ScreenAdapter {
             textFont
         );
 
-        String message =
-            controller.getCharmInventoryMessage();
-
-        if (
-            message == null
-                || message.isBlank()
-        ) {
-            message =
-                "Each charm uses one notch. Maximum equipped charms: 3.";
-        }
-
-        if (controller.didCharmEquipFail()) {
-            textFont.setColor(
-                1f,
-                0.42f,
-                0.42f,
-                1f
-            );
-        } else {
-            textFont.setColor(
-                0.88f,
-                0.90f,
-                1f,
-                1f
-            );
-        }
-
-        textFont.draw(
-            batch,
-            message,
-            charmMenuPanelBounds.x + 34f,
-            charmMenuPanelBounds.y + 36f,
-            charmMenuPanelBounds.width - 68f,
-            Align.center,
-            true
+        drawSelectedCharmDescription(
+            titleFont,
+            textFont
         );
     }
 
@@ -2702,6 +2744,139 @@ public class GameScreen extends ScreenAdapter {
         shapeRenderer.end();
 
         batch.begin();
+
+        drawEquippedCharmIcons(
+            startX,
+            centerY
+        );
+    }
+
+    private void drawEquippedCharmIcons(
+        float startX,
+        float centerY
+    ) {
+        if (charmIconTextures == null) {
+            return;
+        }
+
+        float iconSize = 24f;
+
+        int equippedIndex = 0;
+
+        for (CharmType charm : CharmType.values()) {
+            if (!controller.isCharmEquipped(charm)) {
+                continue;
+            }
+
+            Texture texture =
+                charmIconTextures.get(charm);
+
+            if (texture != null) {
+                float centerX =
+                    startX
+                        + 98f
+                        + equippedIndex
+                        * 28f;
+
+                batch.draw(
+                    texture,
+                    centerX - iconSize / 2f,
+                    centerY - iconSize / 2f,
+                    iconSize,
+                    iconSize
+                );
+            }
+
+            equippedIndex++;
+
+            if (
+                equippedIndex
+                    >= controller.getCharmNotchCapacity()
+            ) {
+                break;
+            }
+        }
+    }
+
+    private void drawSelectedCharmDescription(
+        BitmapFont titleFont,
+        BitmapFont textFont
+    ) {
+        CharmType charm =
+            selectedCharm;
+
+        if (charm == null) {
+            charm =
+                CharmType.values()[0];
+        }
+
+        titleFont.setColor(
+            0.95f,
+            0.76f,
+            0.34f,
+            1f
+        );
+
+        titleFont.draw(
+            batch,
+            charm.getDisplayName(),
+            charmMenuPanelBounds.x + 34f,
+            charmMenuPanelBounds.y + 116f,
+            charmMenuPanelBounds.width - 68f,
+            Align.center,
+            false
+        );
+
+        textFont.setColor(
+            0.88f,
+            0.90f,
+            1f,
+            1f
+        );
+
+        textFont.draw(
+            batch,
+            charm.getDescription(),
+            charmMenuPanelBounds.x + 80f,
+            charmMenuPanelBounds.y + 84f,
+            charmMenuPanelBounds.width - 160f,
+            Align.center,
+            true
+        );
+
+        String message =
+            controller.getCharmInventoryMessage();
+
+        if (
+            message != null
+                && !message.isBlank()
+        ) {
+            if (controller.didCharmEquipFail()) {
+                textFont.setColor(
+                    1f,
+                    0.42f,
+                    0.42f,
+                    1f
+                );
+            } else {
+                textFont.setColor(
+                    0.70f,
+                    0.74f,
+                    0.86f,
+                    1f
+                );
+            }
+
+            textFont.draw(
+                batch,
+                message,
+                charmMenuPanelBounds.x + 80f,
+                charmMenuPanelBounds.y + 34f,
+                charmMenuPanelBounds.width - 160f,
+                Align.center,
+                true
+            );
+        }
     }
 
     private void drawCharmCardsTextAndIcons(
@@ -3272,6 +3447,10 @@ public class GameScreen extends ScreenAdapter {
             }
 
             charmIconTextures.clear();
+        }
+
+        if (whiteDashEffectTexture != null) {
+            whiteDashEffectTexture.dispose();
         }
 
         if (sharpShadowDashTextures != null) {
