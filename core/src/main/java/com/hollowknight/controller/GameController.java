@@ -33,6 +33,9 @@ import com.hollowknight.model.enemy.WingedSentry;
 import com.hollowknight.model.npc.Zote;
 import com.hollowknight.model.combat.Knockbackable;
 import com.hollowknight.model.boss.FalseKnight;
+import com.hollowknight.model.charm.CharmEffects;
+import com.hollowknight.model.charm.CharmInventory;
+import com.hollowknight.model.charm.CharmType;
 
 import java.util.EnumSet;
 
@@ -43,6 +46,33 @@ public class GameController {
 
     private static final float
         CHECKPOINT_HAZARD_MARGIN = 110f;
+
+    private static final float
+        VOID_SHADE_SOUL_DURATION = 0.72f;
+
+    private static final float
+        VOID_SHADE_SOUL_SPEED = 720f;
+
+    private static final float
+        VOID_SHADE_SOUL_WIDTH = 190f;
+
+    private static final float
+        VOID_SHADE_SOUL_HEIGHT = 82f;
+
+    private static final int
+        SHADE_SOUL_BASE_DAMAGE = 2;
+
+    private static final float
+        VOID_ABYSS_SHRIEK_DURATION = 0.48f;
+
+    private static final float
+        VOID_ABYSS_SHRIEK_WIDTH = 250f;
+
+    private static final float
+        VOID_ABYSS_SHRIEK_HEIGHT = 285f;
+
+    private static final int
+        ABYSS_SHRIEK_BASE_DAMAGE = 3;
 
     private static final EnumSet<PlayerAnimationType>
         LOCKING_NON_COMBAT_ANIMATIONS =
@@ -100,6 +130,9 @@ public class GameController {
     private final PlayerSoul soul;
     private final PlayerFocus focus;
 
+    private final CharmInventory charmInventory;
+    private final CharmEffects charmEffects;
+
     private final PlayerCheckpoint checkpoint;
     private final PlatformWorld platformWorld;
 
@@ -116,6 +149,9 @@ public class GameController {
     private final Platform crackedWallPlatform;
 
     private final Rectangle checkpointDangerZone;
+    private final Rectangle sharpShadowDashVisualBounds;
+    private final Rectangle voidShadeSoulBounds;
+    private final Rectangle voidAbyssShriekBounds;
     private final KeyBindings keyBindings;
 
     private final Sound[] zoteVoiceSounds;
@@ -134,6 +170,34 @@ public class GameController {
     private boolean zoteUsingMainDialogue;
     private boolean falseKnightMaceHitConsumed;
     private boolean falseKnightShockwaveHitConsumed;
+
+    private boolean charmInventoryOpen;
+    private boolean charmEquipFailed;
+
+    private boolean sharpShadowHitHuskHornhead;
+    private boolean sharpShadowHitCrawlid;
+    private boolean sharpShadowHitCrystalGuardian;
+    private boolean sharpShadowHitWingedSentry;
+    private boolean sharpShadowHitFalseKnight;
+
+    private boolean voidShadeSoulActive;
+    private boolean voidShadeSoulFacingRight;
+    private float voidShadeSoulTimeRemaining;
+    private boolean shadeSoulHitHuskHornhead;
+    private boolean shadeSoulHitCrawlid;
+    private boolean shadeSoulHitCrystalGuardian;
+    private boolean shadeSoulHitWingedSentry;
+    private boolean shadeSoulHitFalseKnight;
+
+    private boolean voidAbyssShriekActive;
+    private float voidAbyssShriekTimeRemaining;
+    private boolean abyssShriekHitHuskHornhead;
+    private boolean abyssShriekHitCrawlid;
+    private boolean abyssShriekHitCrystalGuardian;
+    private boolean abyssShriekHitWingedSentry;
+    private boolean abyssShriekHitFalseKnight;
+
+    private String charmInventoryMessage;
 
     private String[] activeZoteDialogueLines;
     private int zoteDialogueLineIndex;
@@ -208,6 +272,29 @@ public class GameController {
         soul = new PlayerSoul();
         focus = new PlayerFocus();
 
+        charmInventory =
+            new CharmInventory();
+
+        charmEffects =
+            new CharmEffects(
+                charmInventory
+            );
+
+        charmInventoryOpen = false;
+        charmEquipFailed = false;
+        charmInventoryMessage = "";
+
+        resetSharpShadowDashHits();
+        resetVoidShadeSoulHits();
+        resetVoidAbyssShriekHits();
+
+        voidShadeSoulActive = false;
+        voidShadeSoulFacingRight = true;
+        voidShadeSoulTimeRemaining = 0f;
+
+        voidAbyssShriekActive = false;
+        voidAbyssShriekTimeRemaining = 0f;
+
         checkpoint =
             new PlayerCheckpoint(
                 spawnX,
@@ -215,6 +302,15 @@ public class GameController {
             );
 
         checkpointDangerZone =
+            new Rectangle();
+
+        sharpShadowDashVisualBounds =
+            new Rectangle();
+
+        voidShadeSoulBounds =
+            new Rectangle();
+
+        voidAbyssShriekBounds =
             new Rectangle();
 
         spawnEnemiesForCurrentRoom();
@@ -355,10 +451,19 @@ public class GameController {
             1f / 30f
         );
 
+        handleCharmInventoryInput();
+
+        if (charmInventoryOpen) {
+            player.updateAnimationTime(delta);
+            return;
+        }
+
         updateTimers(safeDelta);
 
         movement.updateDashCooldown(
-            safeDelta
+            getDashCooldownUpdateDelta(
+                safeDelta
+            )
         );
 
         playerBody.update(
@@ -641,6 +746,8 @@ public class GameController {
             );
         }
 
+        updateAbilityEffects(delta);
+
         if (zote != null) {
             zote.update(
                 delta,
@@ -703,6 +810,621 @@ public class GameController {
         }
     }
 
+
+    private void handleCharmInventoryInput() {
+        if (
+            !Gdx.input.isKeyJustPressed(
+                Input.Keys.I
+            )
+        ) {
+            return;
+        }
+
+        if (charmInventoryOpen) {
+            closeCharmInventory();
+            return;
+        }
+
+        if (!canOpenCharmInventory()) {
+            return;
+        }
+
+        openCharmInventory();
+    }
+
+    private boolean canOpenCharmInventory() {
+        return !player.isDead()
+            && !zoteDialogueActive
+            && !movement.isKnockbackActive()
+            && !movement.isDashing()
+            && !movement.isWallJumpPushActive()
+            && !isMovementLocked();
+    }
+
+    private void openCharmInventory() {
+        charmInventoryOpen = true;
+        charmEquipFailed = false;
+        charmInventoryMessage =
+            "Choose charms. Notches: "
+                + charmInventory.getUsedNotches()
+                + "/"
+                + charmInventory.getNotchCapacity();
+
+        combat.finishAttack();
+        focus.cancel();
+    }
+
+    private void closeCharmInventory() {
+        charmInventoryOpen = false;
+        charmEquipFailed = false;
+        charmInventoryMessage = "";
+    }
+
+    public boolean toggleCharmFromInventory(
+        CharmType charm
+    ) {
+        if (charm == null) {
+            return false;
+        }
+
+        if (!charmInventoryOpen) {
+            return false;
+        }
+
+        boolean wasEquipped =
+            charmInventory.isEquipped(charm);
+
+        boolean changed =
+            charmInventory.toggleCharm(charm);
+
+        if (!changed) {
+            charmEquipFailed = true;
+            charmInventoryMessage =
+                "Not enough charm notches.";
+            return false;
+        }
+
+        charmEquipFailed = false;
+
+        if (wasEquipped) {
+            charmInventoryMessage =
+                "Unequipped "
+                    + charm.getDisplayName()
+                    + ". Notches: "
+                    + charmInventory.getUsedNotches()
+                    + "/"
+                    + charmInventory.getNotchCapacity();
+        } else {
+            charmInventoryMessage =
+                "Equipped "
+                    + charm.getDisplayName()
+                    + ". Notches: "
+                    + charmInventory.getUsedNotches()
+                    + "/"
+                    + charmInventory.getNotchCapacity();
+        }
+
+        return true;
+    }
+
+    public boolean isCharmInventoryOpen() {
+        return charmInventoryOpen;
+    }
+
+    public CharmInventory getCharmInventory() {
+        return charmInventory;
+    }
+
+    public CharmEffects getCharmEffects() {
+        return charmEffects;
+    }
+
+    public String getCharmInventoryMessage() {
+        return charmInventoryMessage;
+    }
+
+    public boolean didCharmEquipFail() {
+        return charmEquipFailed;
+    }
+
+    public boolean isCharmEquipped(
+        CharmType charm
+    ) {
+        return charmInventory.isEquipped(
+            charm
+        );
+    }
+
+    public int getUsedCharmNotches() {
+        return charmInventory.getUsedNotches();
+    }
+
+    public int getCharmNotchCapacity() {
+        return charmInventory.getNotchCapacity();
+    }
+
+    private int getNailDamage() {
+        return charmEffects.getNailDamage(
+            combat.getDamage()
+        );
+    }
+
+    private void gainSoulFromNailHit() {
+        soul.gain(
+            charmEffects.getSoulGain(
+                PlayerSoul.NAIL_HIT_GAIN
+            )
+        );
+    }
+
+    private float getDashCooldownUpdateDelta(
+        float delta
+    ) {
+        float baseCooldown = 1f;
+        float modifiedCooldown =
+            charmEffects.getDashCooldown(
+                baseCooldown
+            );
+
+        if (modifiedCooldown <= 0f) {
+            return delta;
+        }
+
+        return delta
+            * baseCooldown
+            / modifiedCooldown;
+    }
+
+    private float getFocusUpdateDelta(
+        float delta
+    ) {
+        float baseDuration = 1f;
+        float modifiedDuration =
+            charmEffects.getFocusDuration(
+                baseDuration
+            );
+
+        if (modifiedDuration <= 0f) {
+            return delta;
+        }
+
+        return delta
+            * baseDuration
+            / modifiedDuration;
+    }
+
+    public float getAttackCooldownMultiplier() {
+        return charmEffects.getAttackCooldown(
+            1f
+        );
+    }
+
+    public float getEnemyKnockbackMultiplier() {
+        return charmEffects
+            .getKnockbackMultiplier();
+    }
+
+    public boolean hasSharpShadow() {
+        return charmEffects.hasSharpShadow();
+    }
+
+    public boolean shouldUseSharpShadowAnimation() {
+        return charmEffects
+            .shouldUseSharpShadowAnimation();
+    }
+
+    public float getDashLengthMultiplier() {
+        return charmEffects
+            .getDashLengthMultiplier();
+    }
+
+    public boolean hasVoidHeart() {
+        return charmEffects.hasVoidHeart();
+    }
+
+    public boolean shouldUseVoidAbilityAnimations() {
+        return charmEffects
+            .shouldUseVoidAbilityAnimations();
+    }
+
+    public int getAbilityDamage(
+        int baseAbilityDamage
+    ) {
+        return charmEffects.getAbilityDamage(
+            baseAbilityDamage
+        );
+    }
+
+    public boolean isSharpShadowDashVisualActive() {
+        return shouldUseSharpShadowAnimation()
+            && movement.isDashing();
+    }
+
+    public Rectangle getSharpShadowDashVisualBounds() {
+        Rectangle playerBounds =
+            playerBody.getBounds();
+
+        sharpShadowDashVisualBounds.set(
+            playerBounds.x - 54f,
+            playerBounds.y - 28f,
+            playerBounds.width + 108f,
+            playerBounds.height + 56f
+        );
+
+        return new Rectangle(
+            sharpShadowDashVisualBounds
+        );
+    }
+
+    public boolean isVoidShadeSoulActive() {
+        return voidShadeSoulActive;
+    }
+
+    public Rectangle getVoidShadeSoulBounds() {
+        return new Rectangle(
+            voidShadeSoulBounds
+        );
+    }
+
+    public boolean isVoidShadeSoulFacingRight() {
+        return voidShadeSoulFacingRight;
+    }
+
+    public float getVoidShadeSoulProgress() {
+        if (!voidShadeSoulActive) {
+            return 0f;
+        }
+
+        return Math.max(
+            0f,
+            Math.min(
+                1f,
+                voidShadeSoulTimeRemaining
+                    / VOID_SHADE_SOUL_DURATION
+            )
+        );
+    }
+
+    public boolean isVoidAbyssShriekActive() {
+        return voidAbyssShriekActive;
+    }
+
+    public Rectangle getVoidAbyssShriekBounds() {
+        return new Rectangle(
+            voidAbyssShriekBounds
+        );
+    }
+
+    public float getVoidAbyssShriekProgress() {
+        if (!voidAbyssShriekActive) {
+            return 0f;
+        }
+
+        return Math.max(
+            0f,
+            Math.min(
+                1f,
+                voidAbyssShriekTimeRemaining
+                    / VOID_ABYSS_SHRIEK_DURATION
+            )
+        );
+    }
+
+    private void startShadeSoulAbility() {
+        player.setAnimation(
+            PlayerAnimationType.FIREBALL_CAST
+        );
+
+        if (!shouldUseVoidAbilityAnimations()) {
+            return;
+        }
+
+        Rectangle playerBounds =
+            playerBody.getBounds();
+
+        voidShadeSoulFacingRight =
+            player.isFacingRight();
+
+        float startX = voidShadeSoulFacingRight
+            ? playerBounds.x + playerBounds.width - 10f
+            : playerBounds.x - VOID_SHADE_SOUL_WIDTH + 10f;
+
+        float startY =
+            playerBounds.y
+                + playerBounds.height * 0.52f
+                - VOID_SHADE_SOUL_HEIGHT / 2f;
+
+        voidShadeSoulBounds.set(
+            startX,
+            startY,
+            VOID_SHADE_SOUL_WIDTH,
+            VOID_SHADE_SOUL_HEIGHT
+        );
+
+        voidShadeSoulActive = true;
+        voidShadeSoulTimeRemaining =
+            VOID_SHADE_SOUL_DURATION;
+
+        resetVoidShadeSoulHits();
+        applyVoidShadeSoulDamage();
+    }
+
+    private void startAbyssShriekAbility() {
+        player.setAnimation(
+            PlayerAnimationType.SCREAM
+        );
+
+        if (!shouldUseVoidAbilityAnimations()) {
+            return;
+        }
+
+        positionVoidAbyssShriekBounds();
+
+        voidAbyssShriekActive = true;
+        voidAbyssShriekTimeRemaining =
+            VOID_ABYSS_SHRIEK_DURATION;
+
+        resetVoidAbyssShriekHits();
+        applyVoidAbyssShriekDamage();
+    }
+
+    private void updateAbilityEffects(
+        float delta
+    ) {
+        updateVoidShadeSoul(
+            delta
+        );
+
+        updateVoidAbyssShriek(
+            delta
+        );
+    }
+
+    private void updateVoidShadeSoul(
+        float delta
+    ) {
+        if (!voidShadeSoulActive) {
+            return;
+        }
+
+        voidShadeSoulTimeRemaining -= delta;
+
+        float direction = voidShadeSoulFacingRight
+            ? 1f
+            : -1f;
+
+        voidShadeSoulBounds.x +=
+            direction
+                * VOID_SHADE_SOUL_SPEED
+                * delta;
+
+        applyVoidShadeSoulDamage();
+
+        if (
+            voidShadeSoulTimeRemaining <= 0f
+                || voidShadeSoulBounds.x
+                > currentRoomBounds.x
+                + currentRoomBounds.width
+                + VOID_SHADE_SOUL_WIDTH
+                || voidShadeSoulBounds.x
+                + voidShadeSoulBounds.width
+                < currentRoomBounds.x
+                - VOID_SHADE_SOUL_WIDTH
+        ) {
+            voidShadeSoulActive = false;
+            voidShadeSoulTimeRemaining = 0f;
+        }
+    }
+
+    private void updateVoidAbyssShriek(
+        float delta
+    ) {
+        if (!voidAbyssShriekActive) {
+            return;
+        }
+
+        voidAbyssShriekTimeRemaining -= delta;
+
+        positionVoidAbyssShriekBounds();
+        applyVoidAbyssShriekDamage();
+
+        if (voidAbyssShriekTimeRemaining <= 0f) {
+            voidAbyssShriekActive = false;
+            voidAbyssShriekTimeRemaining = 0f;
+        }
+    }
+
+    private void positionVoidAbyssShriekBounds() {
+        Rectangle playerBounds =
+            playerBody.getBounds();
+
+        float centerX =
+            playerBounds.x
+                + playerBounds.width / 2f;
+
+        voidAbyssShriekBounds.set(
+            centerX - VOID_ABYSS_SHRIEK_WIDTH / 2f,
+            playerBounds.y + 12f,
+            VOID_ABYSS_SHRIEK_WIDTH,
+            VOID_ABYSS_SHRIEK_HEIGHT
+        );
+    }
+
+    private void resetVoidShadeSoulHits() {
+        shadeSoulHitHuskHornhead = false;
+        shadeSoulHitCrawlid = false;
+        shadeSoulHitCrystalGuardian = false;
+        shadeSoulHitWingedSentry = false;
+        shadeSoulHitFalseKnight = false;
+    }
+
+    private void resetVoidAbyssShriekHits() {
+        abyssShriekHitHuskHornhead = false;
+        abyssShriekHitCrawlid = false;
+        abyssShriekHitCrystalGuardian = false;
+        abyssShriekHitWingedSentry = false;
+        abyssShriekHitFalseKnight = false;
+    }
+
+    private void applyVoidShadeSoulDamage() {
+        int damage = getAbilityDamage(
+            SHADE_SOUL_BASE_DAMAGE
+        );
+
+        if (
+            !shadeSoulHitHuskHornhead
+                && huskHornhead != null
+                && huskHornhead.isAlive()
+                && voidShadeSoulBounds.overlaps(
+                huskHornhead.getBounds()
+            )
+        ) {
+            shadeSoulHitHuskHornhead = true;
+            huskHornhead.takeDamage(damage);
+        }
+
+        if (
+            !shadeSoulHitCrawlid
+                && crawlid != null
+                && crawlid.isAlive()
+                && voidShadeSoulBounds.overlaps(
+                crawlid.getBounds()
+            )
+        ) {
+            shadeSoulHitCrawlid = true;
+            crawlid.takeDamage(damage);
+        }
+
+        if (
+            !shadeSoulHitCrystalGuardian
+                && crystalGuardian != null
+                && crystalGuardian.isAlive()
+                && voidShadeSoulBounds.overlaps(
+                crystalGuardian.getBounds()
+            )
+        ) {
+            shadeSoulHitCrystalGuardian = true;
+            crystalGuardian.takeDamage(damage);
+        }
+
+        if (
+            !shadeSoulHitWingedSentry
+                && wingedSentry != null
+                && wingedSentry.isAlive()
+                && voidShadeSoulBounds.overlaps(
+                wingedSentry.getBounds()
+            )
+        ) {
+            shadeSoulHitWingedSentry = true;
+            wingedSentry.takeDamage(damage);
+        }
+
+        if (!shadeSoulHitFalseKnight) {
+            shadeSoulHitFalseKnight =
+                applyAbilityDamageToFalseKnight(
+                    voidShadeSoulBounds,
+                    damage
+                );
+        }
+    }
+
+    private void applyVoidAbyssShriekDamage() {
+        int damage = getAbilityDamage(
+            ABYSS_SHRIEK_BASE_DAMAGE
+        );
+
+        if (
+            !abyssShriekHitHuskHornhead
+                && huskHornhead != null
+                && huskHornhead.isAlive()
+                && voidAbyssShriekBounds.overlaps(
+                huskHornhead.getBounds()
+            )
+        ) {
+            abyssShriekHitHuskHornhead = true;
+            huskHornhead.takeDamage(damage);
+        }
+
+        if (
+            !abyssShriekHitCrawlid
+                && crawlid != null
+                && crawlid.isAlive()
+                && voidAbyssShriekBounds.overlaps(
+                crawlid.getBounds()
+            )
+        ) {
+            abyssShriekHitCrawlid = true;
+            crawlid.takeDamage(damage);
+        }
+
+        if (
+            !abyssShriekHitCrystalGuardian
+                && crystalGuardian != null
+                && crystalGuardian.isAlive()
+                && voidAbyssShriekBounds.overlaps(
+                crystalGuardian.getBounds()
+            )
+        ) {
+            abyssShriekHitCrystalGuardian = true;
+            crystalGuardian.takeDamage(damage);
+        }
+
+        if (
+            !abyssShriekHitWingedSentry
+                && wingedSentry != null
+                && wingedSentry.isAlive()
+                && voidAbyssShriekBounds.overlaps(
+                wingedSentry.getBounds()
+            )
+        ) {
+            abyssShriekHitWingedSentry = true;
+            wingedSentry.takeDamage(damage);
+        }
+
+        if (!abyssShriekHitFalseKnight) {
+            abyssShriekHitFalseKnight =
+                applyAbilityDamageToFalseKnight(
+                    voidAbyssShriekBounds,
+                    damage
+                );
+        }
+    }
+
+    private boolean applyAbilityDamageToFalseKnight(
+        Rectangle abilityBounds,
+        int damage
+    ) {
+        if (
+            falseKnight == null
+                || !falseKnight.isAlive()
+        ) {
+            return false;
+        }
+
+        boolean hitVulnerableBody =
+            falseKnight.isStunned()
+                && abilityBounds.overlaps(
+                falseKnight.getVulnerableHitbox()
+            );
+
+        boolean hitArmour =
+            !falseKnight.isStunned()
+                && abilityBounds.overlaps(
+                falseKnight.getBounds()
+            );
+
+        if (!hitVulnerableBody && !hitArmour) {
+            return false;
+        }
+
+        falseKnight.takeDamage(
+            damage,
+            hitVulnerableBody
+        );
+
+        return true;
+    }
+
     private void updateActiveFocus(
         float delta
     ) {
@@ -721,7 +1443,9 @@ public class GameController {
 
         PlayerFocus.UpdateResult result =
             focus.update(
-                delta,
+                getFocusUpdateDelta(
+                    delta
+                ),
                 currentInput.isFocusHeld(),
                 cancelRequested,
                 health,
@@ -1163,6 +1887,116 @@ public class GameController {
         return false;
     }
 
+    private boolean isSharpShadowDashActive() {
+        return movement.isDashing()
+            && charmEffects
+            .shouldDashIgnoreEnemyContactDamage();
+    }
+
+    private void resetSharpShadowDashHits() {
+        sharpShadowHitHuskHornhead = false;
+        sharpShadowHitCrawlid = false;
+        sharpShadowHitCrystalGuardian = false;
+        sharpShadowHitWingedSentry = false;
+        sharpShadowHitFalseKnight = false;
+    }
+
+    private void applySharpShadowDamageToHuskHornhead() {
+        if (
+            sharpShadowHitHuskHornhead
+                || huskHornhead == null
+                || !huskHornhead.isAlive()
+        ) {
+            return;
+        }
+
+        sharpShadowHitHuskHornhead = true;
+
+        huskHornhead.takeDamage(
+            charmEffects.getSharpShadowDamage(
+                combat.getDamage()
+            )
+        );
+    }
+
+    private void applySharpShadowDamageToCrawlid() {
+        if (
+            sharpShadowHitCrawlid
+                || crawlid == null
+                || !crawlid.isAlive()
+        ) {
+            return;
+        }
+
+        sharpShadowHitCrawlid = true;
+
+        crawlid.takeDamage(
+            charmEffects.getSharpShadowDamage(
+                combat.getDamage()
+            )
+        );
+    }
+
+    private void applySharpShadowDamageToCrystalGuardian() {
+        if (
+            sharpShadowHitCrystalGuardian
+                || crystalGuardian == null
+                || !crystalGuardian.isAlive()
+        ) {
+            return;
+        }
+
+        sharpShadowHitCrystalGuardian = true;
+
+        crystalGuardian.takeDamage(
+            charmEffects.getSharpShadowDamage(
+                combat.getDamage()
+            )
+        );
+    }
+
+    private void applySharpShadowDamageToWingedSentry() {
+        if (
+            sharpShadowHitWingedSentry
+                || wingedSentry == null
+                || !wingedSentry.isAlive()
+        ) {
+            return;
+        }
+
+        sharpShadowHitWingedSentry = true;
+
+        wingedSentry.takeDamage(
+            charmEffects.getSharpShadowDamage(
+                combat.getDamage()
+            )
+        );
+    }
+
+    private void applySharpShadowDamageToFalseKnight(
+        Rectangle playerBounds
+    ) {
+        if (
+            sharpShadowHitFalseKnight
+                || falseKnight == null
+                || !falseKnight.isAlive()
+                || !playerBounds.overlaps(
+                falseKnight.getBounds()
+            )
+        ) {
+            return;
+        }
+
+        sharpShadowHitFalseKnight = true;
+
+        falseKnight.takeDamage(
+            charmEffects.getSharpShadowDamage(
+                combat.getDamage()
+            ),
+            falseKnight.isStunned()
+        );
+    }
+
     private boolean handleCrystalLaserContact() {
         if (
             crystalGuardian == null
@@ -1235,6 +2069,11 @@ public class GameController {
             return false;
         }
 
+        if (isSharpShadowDashActive()) {
+            applySharpShadowDamageToHuskHornhead();
+            return false;
+        }
+
         return applyEnemyContact(
             huskHornhead.getBounds(),
             huskHornhead.getContactDamage()
@@ -1256,6 +2095,11 @@ public class GameController {
                     crawlid.getBounds()
                 )
         ) {
+            return false;
+        }
+
+        if (isSharpShadowDashActive()) {
+            applySharpShadowDamageToCrawlid();
             return false;
         }
 
@@ -1284,6 +2128,11 @@ public class GameController {
             return false;
         }
 
+        if (isSharpShadowDashActive()) {
+            applySharpShadowDamageToCrystalGuardian();
+            return false;
+        }
+
         return applyEnemyContact(
             crystalGuardian.getBounds(),
             crystalGuardian.getContactDamage()
@@ -1309,6 +2158,11 @@ public class GameController {
             return false;
         }
 
+        if (isSharpShadowDashActive()) {
+            applySharpShadowDamageToWingedSentry();
+            return false;
+        }
+
         return applyEnemyContact(
             wingedSentry.getBounds(),
             wingedSentry.getContactDamage()
@@ -1325,6 +2179,14 @@ public class GameController {
 
         Rectangle playerBounds =
             playerBody.getBounds();
+
+        if (isSharpShadowDashActive()) {
+            applySharpShadowDamageToFalseKnight(
+                playerBounds
+            );
+
+            return false;
+        }
 
         if (!falseKnight.isMaceHitActive()) {
             falseKnightMaceHitConsumed = false;
@@ -1723,6 +2585,8 @@ public class GameController {
                 currentInput
             );
 
+            resetSharpShadowDashHits();
+
             return;
         }
 
@@ -1749,20 +2613,14 @@ public class GameController {
         if (
             currentInput.isFireballPressed()
         ) {
-            player.setAnimation(
-                PlayerAnimationType.FIREBALL_CAST
-            );
-
+            startShadeSoulAbility();
             return;
         }
 
         if (
             currentInput.isScreamPressed()
         ) {
-            player.setAnimation(
-                PlayerAnimationType.SCREAM
-            );
-
+            startAbyssShriekAbility();
             return;
         }
 
@@ -1957,11 +2815,11 @@ public class GameController {
         combat.registerHit();
 
         falseKnight.takeDamage(
-            combat.getDamage(),
+            getNailDamage(),
             hitVulnerableBody
         );
 
-        soul.gainFromNailHit();
+        gainSoulFromNailHit();
 
         if (
             combat.isDownwardAttack()
@@ -2035,10 +2893,10 @@ public class GameController {
         combat.registerHit();
 
         damageable.takeDamage(
-            combat.getDamage()
+            getNailDamage()
         );
 
-        soul.gainFromNailHit();
+        gainSoulFromNailHit();
 
         if (
             !combat.isDownwardAttack()

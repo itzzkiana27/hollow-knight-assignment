@@ -21,6 +21,8 @@ public final class FalseKnightAnimationManager
         Animation<TextureRegion>
         > animations;
 
+    private final Animation<TextureRegion> shockwaveAnimation;
+
     private final Array<Texture> textures;
 
     public FalseKnightAnimationManager() {
@@ -161,9 +163,39 @@ public final class FalseKnightAnimationManager
                 Animation.PlayMode.NORMAL
             )
         );
+
+        /*
+         * Power Mace Slam shockwave. These frames live outside the boss
+         * folder, so they are loaded from an explicit base path. The clip
+         * loops because the shockwave keeps travelling after the boss has
+         * already returned to its normal behaviour.
+         */
+        shockwaveAnimation = loadAnimation(
+            "sprites/effects/wave/",
+            "shock_wave",
+            8,
+            0.06f,
+            Animation.PlayMode.LOOP
+        );
     }
 
     private Animation<TextureRegion> loadAnimation(
+        String actionName,
+        int frameCount,
+        float frameDuration,
+        Animation.PlayMode playMode
+    ) {
+        return loadAnimation(
+            BASE_PATH,
+            actionName,
+            frameCount,
+            frameDuration,
+            playMode
+        );
+    }
+
+    private Animation<TextureRegion> loadAnimation(
+        String basePath,
         String actionName,
         int frameCount,
         float frameDuration,
@@ -186,7 +218,7 @@ public final class FalseKnightAnimationManager
                 );
 
             String path =
-                BASE_PATH
+                basePath
                     + actionName
                     + "_"
                     + frameNumber
@@ -258,6 +290,17 @@ public final class FalseKnightAnimationManager
             Math.max(
                 0f,
                 animationTime
+            )
+        );
+    }
+
+    public TextureRegion getShockwaveFrame(
+        float shockwaveTime
+    ) {
+        return shockwaveAnimation.getKeyFrame(
+            Math.max(
+                0f,
+                shockwaveTime
             )
         );
     }

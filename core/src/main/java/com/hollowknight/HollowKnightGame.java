@@ -10,13 +10,8 @@ import com.hollowknight.controller.StartGameController;
 import com.hollowknight.localization.LocalizationManager;
 import com.hollowknight.model.GameSettings;
 import com.hollowknight.model.achievement.AchievementManager;
-import com.hollowknight.view.screens.AchievementsScreen;
-import com.hollowknight.view.screens.GuideScreen;
-import com.hollowknight.view.screens.MainMenuScreen;
-import com.hollowknight.view.screens.SettingsScreen;
-import com.hollowknight.view.screens.StartGameScreen;
+import com.hollowknight.view.screens.*;
 import com.hollowknight.controller.GameController;
-import com.hollowknight.view.screens.GameScreen;
 
 public class HollowKnightGame extends Game {
 

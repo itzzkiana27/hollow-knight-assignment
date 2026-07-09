@@ -3,6 +3,7 @@ package com.hollowknight.view.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -10,9 +11,9 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -40,7 +41,10 @@ import com.hollowknight.model.enemy.WingedSentry;
 import com.hollowknight.view.animation.WingedSentryAnimationManager;
 import com.hollowknight.view.effects.RainEffect;
 import com.hollowknight.model.boss.FalseKnight;
+import com.hollowknight.model.charm.CharmType;
 import com.hollowknight.view.animation.FalseKnightAnimationManager;
+
+import java.util.EnumMap;
 
 public class GameScreen extends ScreenAdapter {
 
@@ -188,11 +192,58 @@ public class GameScreen extends ScreenAdapter {
     private static final float FALSE_KNIGHT_DRAW_HEIGHT = 400f;
 
     /*
+     * On-screen height of the Power Mace Slam shockwave sprite. Change this if
+     * the wave looks too large or too small relative to the boss.
+     */
+    private static final float SHOCKWAVE_DRAW_HEIGHT = 150f;
+
+    /*
      * If False Knight faces the wrong direction, flip this value.
      */
     private static final boolean FALSE_KNIGHT_SOURCE_FACES_RIGHT = false;
 
     private static final boolean DRAW_FALSE_KNIGHT_DEBUG = false;
+
+    /*
+     * Charm inventory menu values.
+     */
+    private static final int CHARM_MENU_COLUMNS = 4;
+
+    private static final float CHARM_MENU_PANEL_WIDTH = 940f;
+
+    private static final float CHARM_MENU_PANEL_HEIGHT = 590f;
+
+    private static final float CHARM_CARD_WIDTH = 190f;
+
+    private static final float CHARM_CARD_HEIGHT = 145f;
+
+    private static final float CHARM_CARD_GAP_X = 22f;
+
+    private static final float CHARM_CARD_GAP_Y = 24f;
+
+    private static final float CHARM_ICON_SIZE = 70f;
+
+    private static final int SHARP_SHADOW_DASH_FRAME_COUNT = 11;
+
+    private static final float SHARP_SHADOW_DASH_FRAME_DURATION = 0.049f;
+
+    /*
+     * Distance between the delayed shadow copies.
+     * Higher = more spaced/paced trail.
+     */
+    private static final float SHARP_SHADOW_TRAIL_SPACING = 34f;
+
+    /*
+     * These uploaded Shadow Dash frames face left,
+     * same as your normal Knight source frames.
+     */
+    private static final boolean SHARP_SHADOW_SOURCE_FACES_RIGHT = false;
+
+    private static final float VOID_SHADE_SOUL_EFFECT_HEIGHT = 115f;
+
+    private static final float VOID_ABYSS_SHRIEK_EFFECT_HEIGHT = 310f;
+
+    private static final boolean VOID_SHADE_SOUL_SOURCE_FACES_RIGHT = true;
 
     private final GameController controller;
 
@@ -213,6 +264,15 @@ public class GameScreen extends ScreenAdapter {
     private WingedSentryAnimationManager wingedAnimationManager;
     private FalseKnightAnimationManager falseKnightAnimationManager;
     private ZoteAnimationManager zoteAnimationManager;
+
+    private EnumMap<CharmType, Texture> charmIconTextures;
+    private Texture[] sharpShadowDashTextures;
+    private TextureRegion[] sharpShadowDashFrames;
+    private Texture voidShadeSoulTexture;
+    private Texture voidAbyssShriekTexture;
+    private final Rectangle charmMenuPanelBounds = new Rectangle();
+    private final Rectangle charmCardBounds = new Rectangle();
+    private final Vector2 charmTouchPosition = new Vector2();
 
     private GameCamera worldCamera;
 
@@ -265,6 +325,17 @@ public class GameScreen extends ScreenAdapter {
         wingedAnimationManager = new WingedSentryAnimationManager();
         falseKnightAnimationManager = new FalseKnightAnimationManager();
         zoteAnimationManager = new ZoteAnimationManager();
+        charmIconTextures = loadCharmIconTextures();
+
+        loadSharpShadowDashFrames();
+
+        voidShadeSoulTexture = loadEffectTexture(
+            "sprites/effects/abilities/void_shade_soul.png"
+        );
+
+        voidAbyssShriekTexture = loadEffectTexture(
+            "sprites/effects/abilities/void_abyss_shriek.png"
+        );
 
         worldCamera = new GameCamera(
             CAMERA_VIEW_WIDTH,
@@ -413,7 +484,12 @@ public class GameScreen extends ScreenAdapter {
             drawFalseKnightDebug();
         }
 
+        drawVoidShadeSoulEffect();
+        drawVoidAbyssShriekEffect();
+// * Draw the delayed shadow trail behind the Knight.
+// * The Knight itself is drawn black inside drawKnight().
         drawZote();
+        drawSharpShadowDashEffect();
         drawKnight();
         drawActiveAttackHitbox();
         drawMapForeground();
@@ -432,8 +508,10 @@ public class GameScreen extends ScreenAdapter {
          */
         stage.getViewport().apply();
 
+        handleCharmInventoryClick();
         drawPlayerHud();
         drawZoteDialogueBox();
+        drawCharmInventoryMenu();
 
         stage.draw();
 
@@ -1249,33 +1327,66 @@ public class GameScreen extends ScreenAdapter {
         Rectangle shockwave =
             falseKnight.getShockwaveHitbox();
 
-        shapeRenderer.setProjectionMatrix(
+        TextureRegion frame =
+            falseKnightAnimationManager.getShockwaveFrame(
+                falseKnight.getShockwaveAnimationTime()
+            );
+
+        float scale =
+            SHOCKWAVE_DRAW_HEIGHT
+                / frame.getRegionHeight();
+
+        float drawWidth =
+            frame.getRegionWidth() * scale;
+
+        float drawHeight =
+            frame.getRegionHeight() * scale;
+
+        /*
+         * Anchor the wave on the ground and centre it on the moving hitbox so
+         * the visual travels with the collision box.
+         */
+        float centerX =
+            shockwave.x + shockwave.width / 2f;
+
+        float drawX =
+            centerX - drawWidth / 2f;
+
+        float drawY =
+            shockwave.y - 6f;
+
+        batch.setProjectionMatrix(
             worldCamera.getCombined()
         );
 
-        shapeRenderer.begin(
-            ShapeRenderer.ShapeType.Filled
-        );
+        batch.begin();
 
         /*
-         * Temporary visual shockwave.
-         * Later we can replace this with a sprite effect.
+         * Source frames face right; flip horizontally when the wave travels
+         * to the left so it always leads with its crest.
          */
-        shapeRenderer.setColor(
-            0.8f,
-            0.85f,
-            1f,
-            0.55f
-        );
+        boolean shouldFlip =
+            !falseKnight.isShockwaveMovingRight();
 
-        shapeRenderer.rect(
-            shockwave.x,
-            shockwave.y,
-            shockwave.width,
-            shockwave.height
-        );
+        if (shouldFlip) {
+            batch.draw(
+                frame,
+                drawX + drawWidth,
+                drawY,
+                -drawWidth,
+                drawHeight
+            );
+        } else {
+            batch.draw(
+                frame,
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight
+            );
+        }
 
-        shapeRenderer.end();
+        batch.end();
     }
     private void drawFalseKnightDebug() {
         FalseKnight falseKnight =
@@ -1681,6 +1792,233 @@ public class GameScreen extends ScreenAdapter {
     }
 
 
+    private void drawSharpShadowDashEffect() {
+        if (
+            !controller.isSharpShadowDashVisualActive()
+                || sharpShadowDashFrames == null
+        ) {
+            return;
+        }
+
+        Player player =
+            controller.getPlayer();
+
+        float animationTime =
+            player.getAnimationTime();
+
+        float x =
+            player.getPosition().x;
+
+        float y =
+            player.getPosition().y;
+
+        int direction =
+            player.isFacingRight()
+                ? 1
+                : -1;
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.begin();
+
+        /*
+         * Two delayed copies behind the Knight.
+         * This makes the shadow feel paced instead of
+         * one static sprite glued on top of the dash.
+         */
+        drawSharpShadowTrailCopy(
+            animationTime
+                - SHARP_SHADOW_DASH_FRAME_DURATION,
+            x
+                - direction
+                * SHARP_SHADOW_TRAIL_SPACING,
+            y,
+            player.isFacingRight(),
+            0.32f
+        );
+
+        drawSharpShadowTrailCopy(
+            animationTime
+                - SHARP_SHADOW_DASH_FRAME_DURATION * 2f,
+            x
+                - direction
+                * SHARP_SHADOW_TRAIL_SPACING * 2f,
+            y,
+            player.isFacingRight(),
+            0.18f
+        );
+
+        batch.setColor(Color.WHITE);
+
+        batch.end();
+    }
+    private void drawSharpShadowTrailCopy(
+        float animationTime,
+        float x,
+        float y,
+        boolean facingRight,
+        float alpha
+    ) {
+        TextureRegion frame =
+            getSharpShadowDashFrame(
+                animationTime
+            );
+
+        if (frame == null) {
+            return;
+        }
+
+        batch.setColor(
+            1f,
+            1f,
+            1f,
+            alpha
+        );
+
+        drawPlayerSizedFrame(
+            frame,
+            x,
+            y,
+            facingRight,
+            SHARP_SHADOW_SOURCE_FACES_RIGHT
+        );
+    }
+
+    private void drawVoidShadeSoulEffect() {
+        if (
+            voidShadeSoulTexture == null
+                || !controller.isVoidShadeSoulActive()
+        ) {
+            return;
+        }
+
+        Rectangle bounds =
+            controller.getVoidShadeSoulBounds();
+
+        float scale =
+            VOID_SHADE_SOUL_EFFECT_HEIGHT
+                / voidShadeSoulTexture.getHeight();
+
+        float drawWidth =
+            voidShadeSoulTexture.getWidth()
+                * scale;
+
+        float drawHeight =
+            voidShadeSoulTexture.getHeight()
+                * scale;
+
+        float drawX =
+            bounds.x
+                + bounds.width / 2f
+                - drawWidth / 2f;
+
+        float drawY =
+            bounds.y
+                + bounds.height / 2f
+                - drawHeight / 2f;
+
+        boolean shouldFlip =
+            controller.isVoidShadeSoulFacingRight()
+                != VOID_SHADE_SOUL_SOURCE_FACES_RIGHT;
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.begin();
+
+        batch.setColor(
+            1f,
+            1f,
+            1f,
+            0.92f
+        );
+
+        if (shouldFlip) {
+            batch.draw(
+                voidShadeSoulTexture,
+                drawX + drawWidth,
+                drawY,
+                -drawWidth,
+                drawHeight
+            );
+        } else {
+            batch.draw(
+                voidShadeSoulTexture,
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight
+            );
+        }
+
+        batch.setColor(Color.WHITE);
+
+        batch.end();
+    }
+
+    private void drawVoidAbyssShriekEffect() {
+        if (
+            voidAbyssShriekTexture == null
+                || !controller
+                .isVoidAbyssShriekActive()
+        ) {
+            return;
+        }
+
+        Rectangle bounds =
+            controller.getVoidAbyssShriekBounds();
+
+        float scale =
+            VOID_ABYSS_SHRIEK_EFFECT_HEIGHT
+                / voidAbyssShriekTexture.getHeight();
+
+        float drawWidth =
+            voidAbyssShriekTexture.getWidth()
+                * scale;
+
+        float drawHeight =
+            voidAbyssShriekTexture.getHeight()
+                * scale;
+
+        float drawX =
+            bounds.x
+                + bounds.width / 2f
+                - drawWidth / 2f;
+
+        float drawY =
+            bounds.y
+                + bounds.height / 2f
+                - drawHeight / 2f;
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.begin();
+
+        batch.setColor(
+            1f,
+            1f,
+            1f,
+            0.94f
+        );
+
+        batch.draw(
+            voidAbyssShriekTexture,
+            drawX,
+            drawY,
+            drawWidth,
+            drawHeight
+        );
+
+        batch.setColor(Color.WHITE);
+
+        batch.end();
+    }
+
     private void drawKnight() {
         if (
             !controller.shouldDrawPlayer()
@@ -1691,11 +2029,42 @@ public class GameScreen extends ScreenAdapter {
         Player player =
             controller.getPlayer();
 
-        TextureRegion frame =
-            knightAnimationManager.getFrame(
-                player.getAnimationType(),
-                player.getAnimationTime()
-            );
+        boolean usingSharpShadow =
+            controller.isSharpShadowDashVisualActive();
+
+        TextureRegion frame;
+
+        boolean sourceFacesRight;
+
+        if (usingSharpShadow) {
+            frame =
+                getSharpShadowDashFrame(
+                    player.getAnimationTime()
+                );
+
+            sourceFacesRight =
+                SHARP_SHADOW_SOURCE_FACES_RIGHT;
+
+            if (frame == null) {
+                frame =
+                    knightAnimationManager.getFrame(
+                        player.getAnimationType(),
+                        player.getAnimationTime()
+                    );
+
+                sourceFacesRight =
+                    KNIGHT_SOURCE_FACES_RIGHT;
+            }
+        } else {
+            frame =
+                knightAnimationManager.getFrame(
+                    player.getAnimationType(),
+                    player.getAnimationTime()
+                );
+
+            sourceFacesRight =
+                KNIGHT_SOURCE_FACES_RIGHT;
+        }
 
         batch.setProjectionMatrix(
             worldCamera.getCombined()
@@ -1703,15 +2072,28 @@ public class GameScreen extends ScreenAdapter {
 
         batch.begin();
 
-        float x =
-            player.getPosition().x;
+        drawPlayerSizedFrame(
+            frame,
+            player.getPosition().x,
+            player.getPosition().y,
+            player.isFacingRight(),
+            sourceFacesRight
+        );
 
-        float y =
-            player.getPosition().y;
+        batch.setColor(Color.WHITE);
 
+        batch.end();
+    }
+
+    private void drawPlayerSizedFrame(
+        TextureRegion frame,
+        float x,
+        float y,
+        boolean facingRight,
+        boolean sourceFacesRight
+    ) {
         boolean shouldFlip =
-            player.isFacingRight()
-                != KNIGHT_SOURCE_FACES_RIGHT;
+            facingRight != sourceFacesRight;
 
         if (shouldFlip) {
             batch.draw(
@@ -1730,8 +2112,6 @@ public class GameScreen extends ScreenAdapter {
                 KNIGHT_DRAW_HEIGHT
             );
         }
-
-        batch.end();
     }
 
     private void drawActiveAttackHitbox() {
@@ -1769,6 +2149,732 @@ public class GameScreen extends ScreenAdapter {
         shapeRenderer.end();
 
         Gdx.gl.glLineWidth(1f);
+    }
+
+    private EnumMap<CharmType, Texture> loadCharmIconTextures() {
+        EnumMap<CharmType, Texture> result =
+            new EnumMap<>(
+                CharmType.class
+            );
+
+        for (CharmType charm : CharmType.values()) {
+            if (
+                !Gdx.files
+                    .internal(
+                        charm.getIconPath()
+                    )
+                    .exists()
+            ) {
+                continue;
+            }
+
+            Texture texture =
+                new Texture(
+                    Gdx.files.internal(
+                        charm.getIconPath()
+                    )
+                );
+
+            texture.setFilter(
+                Texture.TextureFilter.Linear,
+                Texture.TextureFilter.Linear
+            );
+
+            result.put(
+                charm,
+                texture
+            );
+        }
+
+        return result;
+    }
+
+    private Texture loadEffectTexture(
+        String path
+    ) {
+        Texture texture =
+            new Texture(
+                Gdx.files.internal(path)
+            );
+
+        texture.setFilter(
+            Texture.TextureFilter.Linear,
+            Texture.TextureFilter.Linear
+        );
+
+        return texture;
+    }
+
+    private void loadSharpShadowDashFrames() {
+        sharpShadowDashTextures =
+            new Texture[
+                SHARP_SHADOW_DASH_FRAME_COUNT
+                ];
+
+        sharpShadowDashFrames =
+            new TextureRegion[
+                SHARP_SHADOW_DASH_FRAME_COUNT
+                ];
+
+        for (
+            int index = 0;
+            index < SHARP_SHADOW_DASH_FRAME_COUNT;
+            index++
+        ) {
+            String path =
+                String.format(
+                    "sprites/effects/charms/sharp_shadow_dash/sharp_shadow_dash_%03d.png",
+                    index
+                );
+
+            Texture texture =
+                new Texture(
+                    Gdx.files.internal(path)
+                );
+
+            texture.setFilter(
+                Texture.TextureFilter.Linear,
+                Texture.TextureFilter.Linear
+            );
+
+            sharpShadowDashTextures[index] =
+                texture;
+
+            sharpShadowDashFrames[index] =
+                new TextureRegion(texture);
+        }
+    }
+
+    private TextureRegion getSharpShadowDashFrame(
+        float animationTime
+    ) {
+        if (
+            sharpShadowDashFrames == null
+                || sharpShadowDashFrames.length == 0
+        ) {
+            return null;
+        }
+
+        if (animationTime < 0f) {
+            animationTime = 0f;
+        }
+
+        int frameIndex =
+            (int) (
+                animationTime
+                    / SHARP_SHADOW_DASH_FRAME_DURATION
+            );
+
+        if (
+            frameIndex
+                >= sharpShadowDashFrames.length
+        ) {
+            frameIndex =
+                sharpShadowDashFrames.length - 1;
+        }
+
+        return sharpShadowDashFrames[
+            frameIndex
+            ];
+    }
+
+
+    private void handleCharmInventoryClick() {
+        if (!controller.isCharmInventoryOpen()) {
+            return;
+        }
+
+        if (!Gdx.input.justTouched()) {
+            return;
+        }
+
+        charmTouchPosition.set(
+            Gdx.input.getX(),
+            Gdx.input.getY()
+        );
+
+        stage.screenToStageCoordinates(
+            charmTouchPosition
+        );
+
+        calculateCharmMenuPanelBounds(
+            charmMenuPanelBounds
+        );
+
+        CharmType[] charms =
+            CharmType.values();
+
+        for (
+            int index = 0;
+            index < charms.length;
+            index++
+        ) {
+            calculateCharmCardBounds(
+                index,
+                charmMenuPanelBounds,
+                charmCardBounds
+            );
+
+            if (
+                charmCardBounds.contains(
+                    charmTouchPosition.x,
+                    charmTouchPosition.y
+                )
+            ) {
+                controller.toggleCharmFromInventory(
+                    charms[index]
+                );
+
+                return;
+            }
+        }
+    }
+
+    private void drawCharmInventoryMenu() {
+        if (!controller.isCharmInventoryOpen()) {
+            return;
+        }
+
+        calculateCharmMenuPanelBounds(
+            charmMenuPanelBounds
+        );
+
+        Gdx.gl.glEnable(
+            GL20.GL_BLEND
+        );
+
+        Gdx.gl.glBlendFunc(
+            GL20.GL_SRC_ALPHA,
+            GL20.GL_ONE_MINUS_SRC_ALPHA
+        );
+
+        shapeRenderer.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        shapeRenderer.setColor(
+            0f,
+            0f,
+            0f,
+            0.72f
+        );
+
+        shapeRenderer.rect(
+            0f,
+            0f,
+            stage.getViewport().getWorldWidth(),
+            stage.getViewport().getWorldHeight()
+        );
+
+        shapeRenderer.setColor(
+            0.055f,
+            0.058f,
+            0.075f,
+            0.96f
+        );
+
+        shapeRenderer.rect(
+            charmMenuPanelBounds.x,
+            charmMenuPanelBounds.y,
+            charmMenuPanelBounds.width,
+            charmMenuPanelBounds.height
+        );
+
+        drawCharmCardsBackground();
+
+        shapeRenderer.end();
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        shapeRenderer.setColor(
+            0.70f,
+            0.72f,
+            0.84f,
+            1f
+        );
+
+        shapeRenderer.rect(
+            charmMenuPanelBounds.x,
+            charmMenuPanelBounds.y,
+            charmMenuPanelBounds.width,
+            charmMenuPanelBounds.height
+        );
+
+        drawCharmCardsOutlines();
+
+        shapeRenderer.end();
+
+        Gdx.gl.glDisable(
+            GL20.GL_BLEND
+        );
+
+        batch.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        batch.begin();
+
+        drawCharmInventoryTextAndIcons();
+
+        batch.end();
+    }
+
+    private void drawCharmCardsBackground() {
+        CharmType[] charms =
+            CharmType.values();
+
+        for (
+            int index = 0;
+            index < charms.length;
+            index++
+        ) {
+            CharmType charm =
+                charms[index];
+
+            calculateCharmCardBounds(
+                index,
+                charmMenuPanelBounds,
+                charmCardBounds
+            );
+
+            if (controller.isCharmEquipped(charm)) {
+                shapeRenderer.setColor(
+                    0.18f,
+                    0.17f,
+                    0.095f,
+                    0.96f
+                );
+            } else {
+                shapeRenderer.setColor(
+                    0.09f,
+                    0.095f,
+                    0.125f,
+                    0.92f
+                );
+            }
+
+            shapeRenderer.rect(
+                charmCardBounds.x,
+                charmCardBounds.y,
+                charmCardBounds.width,
+                charmCardBounds.height
+            );
+        }
+    }
+
+    private void drawCharmCardsOutlines() {
+        CharmType[] charms =
+            CharmType.values();
+
+        for (
+            int index = 0;
+            index < charms.length;
+            index++
+        ) {
+            CharmType charm =
+                charms[index];
+
+            calculateCharmCardBounds(
+                index,
+                charmMenuPanelBounds,
+                charmCardBounds
+            );
+
+            if (controller.isCharmEquipped(charm)) {
+                shapeRenderer.setColor(
+                    0.95f,
+                    0.76f,
+                    0.34f,
+                    1f
+                );
+            } else {
+                shapeRenderer.setColor(
+                    0.36f,
+                    0.38f,
+                    0.48f,
+                    1f
+                );
+            }
+
+            shapeRenderer.rect(
+                charmCardBounds.x,
+                charmCardBounds.y,
+                charmCardBounds.width,
+                charmCardBounds.height
+            );
+        }
+    }
+
+    private void drawCharmInventoryTextAndIcons() {
+        BitmapFont titleFont =
+            skin.getFont(
+                "window"
+            );
+
+        BitmapFont textFont =
+            skin.getFont(
+                "font"
+            );
+
+        titleFont.setColor(
+            0.92f,
+            0.93f,
+            1f,
+            1f
+        );
+
+        titleFont.draw(
+            batch,
+            "CHARMS",
+            charmMenuPanelBounds.x + 34f,
+            charmMenuPanelBounds.y
+                + charmMenuPanelBounds.height
+                - 28f
+        );
+
+        textFont.setColor(
+            0.72f,
+            0.75f,
+            0.86f,
+            1f
+        );
+
+        textFont.draw(
+            batch,
+            "Press I to close. Click a charm to equip or unequip it.",
+            charmMenuPanelBounds.x + 34f,
+            charmMenuPanelBounds.y
+                + charmMenuPanelBounds.height
+                - 62f
+        );
+
+        drawCharmNotches(
+            textFont
+        );
+
+        drawCharmCardsTextAndIcons(
+            textFont
+        );
+
+        String message =
+            controller.getCharmInventoryMessage();
+
+        if (
+            message == null
+                || message.isBlank()
+        ) {
+            message =
+                "Each charm uses one notch. Maximum equipped charms: 3.";
+        }
+
+        if (controller.didCharmEquipFail()) {
+            textFont.setColor(
+                1f,
+                0.42f,
+                0.42f,
+                1f
+            );
+        } else {
+            textFont.setColor(
+                0.88f,
+                0.90f,
+                1f,
+                1f
+            );
+        }
+
+        textFont.draw(
+            batch,
+            message,
+            charmMenuPanelBounds.x + 34f,
+            charmMenuPanelBounds.y + 36f,
+            charmMenuPanelBounds.width - 68f,
+            Align.center,
+            true
+        );
+    }
+
+    private void drawCharmNotches(
+        BitmapFont textFont
+    ) {
+        int usedNotches =
+            controller.getUsedCharmNotches();
+
+        int notchCapacity =
+            controller.getCharmNotchCapacity();
+
+        float startX =
+            charmMenuPanelBounds.x
+                + charmMenuPanelBounds.width
+                - 230f;
+
+        float centerY =
+            charmMenuPanelBounds.y
+                + charmMenuPanelBounds.height
+                - 44f;
+
+        textFont.setColor(
+            0.86f,
+            0.88f,
+            0.96f,
+            1f
+        );
+
+        textFont.draw(
+            batch,
+            "Notches "
+                + usedNotches
+                + "/"
+                + notchCapacity,
+            startX,
+            centerY + 7f
+        );
+
+        batch.end();
+
+        shapeRenderer.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        for (
+            int index = 0;
+            index < notchCapacity;
+            index++
+        ) {
+            if (index < usedNotches) {
+                shapeRenderer.setColor(
+                    0.95f,
+                    0.76f,
+                    0.34f,
+                    1f
+                );
+            } else {
+                shapeRenderer.setColor(
+                    0.18f,
+                    0.19f,
+                    0.25f,
+                    1f
+                );
+            }
+
+            shapeRenderer.circle(
+                startX + 98f + index * 28f,
+                centerY,
+                8f
+            );
+        }
+
+        shapeRenderer.end();
+
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Line
+        );
+
+        shapeRenderer.setColor(
+            0.70f,
+            0.72f,
+            0.84f,
+            1f
+        );
+
+        for (
+            int index = 0;
+            index < notchCapacity;
+            index++
+        ) {
+            shapeRenderer.circle(
+                startX + 98f + index * 28f,
+                centerY,
+                8f
+            );
+        }
+
+        shapeRenderer.end();
+
+        batch.begin();
+    }
+
+    private void drawCharmCardsTextAndIcons(
+        BitmapFont textFont
+    ) {
+        CharmType[] charms =
+            CharmType.values();
+
+        for (
+            int index = 0;
+            index < charms.length;
+            index++
+        ) {
+            CharmType charm =
+                charms[index];
+
+            calculateCharmCardBounds(
+                index,
+                charmMenuPanelBounds,
+                charmCardBounds
+            );
+
+            Texture texture =
+                charmIconTextures == null
+                    ? null
+                    : charmIconTextures.get(charm);
+
+            float iconX =
+                charmCardBounds.x
+                    + charmCardBounds.width / 2f
+                    - CHARM_ICON_SIZE / 2f;
+
+            float iconY =
+                charmCardBounds.y
+                    + charmCardBounds.height
+                    - CHARM_ICON_SIZE
+                    - 16f;
+
+            if (texture != null) {
+                batch.draw(
+                    texture,
+                    iconX,
+                    iconY,
+                    CHARM_ICON_SIZE,
+                    CHARM_ICON_SIZE
+                );
+            }
+
+            textFont.setColor(
+                Color.WHITE
+            );
+
+            textFont.draw(
+                batch,
+                charm.getDisplayName(),
+                charmCardBounds.x + 10f,
+                charmCardBounds.y + 47f,
+                charmCardBounds.width - 20f,
+                Align.center,
+                true
+            );
+
+            if (controller.isCharmEquipped(charm)) {
+                textFont.setColor(
+                    0.95f,
+                    0.76f,
+                    0.34f,
+                    1f
+                );
+
+                textFont.draw(
+                    batch,
+                    "EQUIPPED",
+                    charmCardBounds.x + 10f,
+                    charmCardBounds.y + 20f,
+                    charmCardBounds.width - 20f,
+                    Align.center,
+                    false
+                );
+            } else {
+                textFont.setColor(
+                    0.60f,
+                    0.64f,
+                    0.74f,
+                    1f
+                );
+
+                textFont.draw(
+                    batch,
+                    "click to equip",
+                    charmCardBounds.x + 10f,
+                    charmCardBounds.y + 20f,
+                    charmCardBounds.width - 20f,
+                    Align.center,
+                    false
+                );
+            }
+        }
+    }
+
+    private void calculateCharmMenuPanelBounds(
+        Rectangle out
+    ) {
+        float screenWidth =
+            stage.getViewport().getWorldWidth();
+
+        float screenHeight =
+            stage.getViewport().getWorldHeight();
+
+        float panelWidth =
+            Math.min(
+                CHARM_MENU_PANEL_WIDTH,
+                screenWidth - 80f
+            );
+
+        float panelHeight =
+            Math.min(
+                CHARM_MENU_PANEL_HEIGHT,
+                screenHeight - 60f
+            );
+
+        out.set(
+            screenWidth / 2f - panelWidth / 2f,
+            screenHeight / 2f - panelHeight / 2f,
+            panelWidth,
+            panelHeight
+        );
+    }
+
+    private void calculateCharmCardBounds(
+        int index,
+        Rectangle panelBounds,
+        Rectangle out
+    ) {
+        int column =
+            index % CHARM_MENU_COLUMNS;
+
+        int row =
+            index / CHARM_MENU_COLUMNS;
+
+        float totalCardsWidth =
+            CHARM_MENU_COLUMNS
+                * CHARM_CARD_WIDTH
+                + (CHARM_MENU_COLUMNS - 1)
+                * CHARM_CARD_GAP_X;
+
+        float startX =
+            panelBounds.x
+                + panelBounds.width / 2f
+                - totalCardsWidth / 2f;
+
+        float firstRowTopY =
+            panelBounds.y
+                + panelBounds.height
+                - 116f;
+
+        float x =
+            startX
+                + column
+                * (CHARM_CARD_WIDTH + CHARM_CARD_GAP_X);
+
+        float y =
+            firstRowTopY
+                - CHARM_CARD_HEIGHT
+                - row
+                * (CHARM_CARD_HEIGHT + CHARM_CARD_GAP_Y);
+
+        out.set(
+            x,
+            y,
+            CHARM_CARD_WIDTH,
+            CHARM_CARD_HEIGHT
+        );
     }
 
     private void drawPlayerHud() {
@@ -2158,6 +3264,33 @@ public class GameScreen extends ScreenAdapter {
 
         if (rainEffect != null) {
             rainEffect.dispose();
+        }
+
+        if (charmIconTextures != null) {
+            for (Texture texture : charmIconTextures.values()) {
+                texture.dispose();
+            }
+
+            charmIconTextures.clear();
+        }
+
+        if (sharpShadowDashTextures != null) {
+            for (Texture texture : sharpShadowDashTextures) {
+                if (texture != null) {
+                    texture.dispose();
+                }
+            }
+
+            sharpShadowDashTextures = null;
+            sharpShadowDashFrames = null;
+        }
+
+        if (voidShadeSoulTexture != null) {
+            voidShadeSoulTexture.dispose();
+        }
+
+        if (voidAbyssShriekTexture != null) {
+            voidAbyssShriekTexture.dispose();
         }
 
         controller.dispose();

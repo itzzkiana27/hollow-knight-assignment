@@ -166,6 +166,7 @@ public class FalseKnight {
 
     private float shockwaveSpeed;
     private int shockwaveDirection;
+    private float shockwaveTime;
 
     private float bodyContactCooldown;
     private static final float BODY_CONTACT_COOLDOWN = 0.45f;
@@ -847,6 +848,7 @@ public class FalseKnight {
         shockwaveActive = true;
         shockwaveDirection = facingRight ? 1 : -1;
         shockwaveSpeed = 260f;
+        shockwaveTime = 0f;
 
         if (facingRight) {
             shockwaveHitbox.set(
@@ -869,6 +871,8 @@ public class FalseKnight {
         if (!shockwaveActive) {
             return;
         }
+
+        shockwaveTime += delta;
 
         /* Gradually gains more speed as it travels. */
         shockwaveSpeed += 520f * delta;
@@ -1020,6 +1024,14 @@ public class FalseKnight {
         return shockwaveActive;
     }
 
+    public float getShockwaveAnimationTime() {
+        return shockwaveTime;
+    }
+
+    public boolean isShockwaveMovingRight() {
+        return shockwaveDirection >= 0;
+    }
+
     public int getMaceDamage() {
         return MACE_DAMAGE;
     }
@@ -1091,5 +1103,6 @@ public class FalseKnight {
         shockwaveActive = false;
         shouldShakeCamera = false;
         pendingShakeIntensity = 0f;
+        shockwaveTime = 0f;
     }
 }
