@@ -261,6 +261,11 @@ public class GameScreen extends ScreenAdapter {
 
     private static final boolean VOID_SHADE_SOUL_SOURCE_FACES_RIGHT = true;
 
+    private static final float VOID_HEART_REWARD_DRAW_SIZE = 54f;
+
+    private static final float VOID_HEART_REWARD_Y_OFFSET = 58f;
+
+
     private final GameController controller;
 
     private Stage stage;
@@ -349,13 +354,7 @@ public class GameScreen extends ScreenAdapter {
         loadSharpShadowDashFrames();
         loadWhiteDashEffect();
 
-        voidShadeSoulTexture = loadEffectTexture(
-            "sprites/effects/abilities/void_shade_soul.png"
-        );
-
-        voidAbyssShriekTexture = loadEffectTexture(
-            "sprites/effects/abilities/void_abyss_shriek.png"
-        );
+       //add assets
 
         worldCamera = new GameCamera(
             CAMERA_VIEW_WIDTH,
@@ -468,6 +467,7 @@ public class GameScreen extends ScreenAdapter {
         drawMapBackground();
         drawHiddenRoomCover();
         drawCrackedWall();
+        drawVoidHeartRewardCharm();
 
         if (controller.isCurrentRoom("city_of_tears")) {
             drawRain();
@@ -504,8 +504,8 @@ public class GameScreen extends ScreenAdapter {
             drawFalseKnightDebug();
         }
 
-        drawVoidShadeSoulEffect();
-        drawVoidAbyssShriekEffect();
+       // drawVoidShadeSoulEffect(); should change
+      //  drawVoidAbyssShriekEffect(); should change
 // * Draw the delayed shadow trail behind the Knight.
 // * The Knight itself is drawn black inside drawKnight().
         drawZote();
@@ -530,6 +530,7 @@ public class GameScreen extends ScreenAdapter {
 
         handleCharmInventoryClick();
         drawPlayerHud();
+        drawCharmObtainedMessage();
         drawZoteDialogueBox();
         drawCharmInventoryMenu();
 
@@ -665,6 +666,59 @@ public class GameScreen extends ScreenAdapter {
         batch.begin();
         crackedWallRenderer.draw(batch, wall);
         batch.end();
+    }
+
+    private void drawVoidHeartRewardCharm() {
+               if (!controller.shouldDrawVoidHeartRewardCharm()) {
+                       return;
+                    }
+
+                  if (charmIconTextures == null) {
+                        return;
+                    }
+
+                    Texture texture =
+                        charmIconTextures.get(
+                                CharmType.VOID_HEART
+                               );
+
+                   if (texture == null) {
+                       return;
+                 }
+
+                    Rectangle hiddenRoom =
+                       controller
+                               .getWorld()
+                          .getHiddenRoomBounds();
+
+                   if (hiddenRoom == null) {
+                       return;
+                  }
+
+                   float drawX =
+                      hiddenRoom.x
+                               + hiddenRoom.width / 2f
+                          - VOID_HEART_REWARD_DRAW_SIZE / 2f;
+
+                    float drawY =
+                      hiddenRoom.y
+                              + VOID_HEART_REWARD_Y_OFFSET;
+
+                  batch.setProjectionMatrix(
+                          worldCamera.getCombined()
+                           );
+
+                  batch.begin();
+
+                  batch.draw(
+                            texture,
+                            drawX,
+                            drawY,
+                            VOID_HEART_REWARD_DRAW_SIZE,
+                            VOID_HEART_REWARD_DRAW_SIZE
+                           );
+
+            batch.end();
     }
 
     private void drawRain() {
@@ -3050,6 +3104,63 @@ public class GameScreen extends ScreenAdapter {
             CHARM_CARD_WIDTH,
             CHARM_CARD_HEIGHT
         );
+    }
+
+
+    private void drawCharmObtainedMessage() {
+        if (!controller.shouldShowCharmObtainedMessage()) {
+            return;
+        }
+
+        String message =
+            controller.getCharmObtainedMessage();
+
+        if (
+            message == null
+                || message.isBlank()
+        ) {
+            return;
+        }
+
+        float screenWidth =
+            stage
+                .getViewport()
+                .getWorldWidth();
+
+        float screenHeight =
+            stage
+                .getViewport()
+                .getWorldHeight();
+
+        batch.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        batch.begin();
+
+        BitmapFont font =
+            skin.getFont(
+                "window"
+            );
+
+        font.setColor(
+            0.95f,
+            0.76f,
+            0.34f,
+            1f
+        );
+
+        font.draw(
+            batch,
+            message,
+            0f,
+            screenHeight - 92f,
+            screenWidth,
+            Align.center,
+            false
+        );
+
+        batch.end();
     }
 
     private void drawPlayerHud() {

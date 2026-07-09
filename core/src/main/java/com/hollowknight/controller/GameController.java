@@ -45,6 +45,9 @@ public class GameController {
         POGO_SPIKE_GRACE_DURATION = 0.12f;
 
     private static final float
+       CHARM_OBTAINED_MESSAGE_DURATION = 3f;
+
+    private static final float
         CHECKPOINT_HAZARD_MARGIN = 110f;
 
     private static final float
@@ -197,7 +200,10 @@ public class GameController {
     private boolean abyssShriekHitWingedSentry;
     private boolean abyssShriekHitFalseKnight;
 
+
     private String charmInventoryMessage;
+    private String charmObtainedMessage;
+   private float charmObtainedMessageTimeRemaining;
 
     private String[] activeZoteDialogueLines;
     private int zoteDialogueLineIndex;
@@ -283,6 +289,8 @@ public class GameController {
         charmInventoryOpen = false;
         charmEquipFailed = false;
         charmInventoryMessage = "";
+        charmObtainedMessage = "";
+        charmObtainedMessageTimeRemaining = 0f;
 
         resetSharpShadowDashHits();
         resetVoidShadeSoulHits();
@@ -677,6 +685,13 @@ public class GameController {
     private void updateTimers(float delta) {
         health.update(delta);
 
+        if (charmObtainedMessageTimeRemaining > 0f) {
+                       charmObtainedMessageTimeRemaining -= delta;
+                          if (charmObtainedMessageTimeRemaining < 0f) {
+                               charmObtainedMessageTimeRemaining = 0f;
+                           }
+                   }
+
         if (
             pogoSpikeGraceTimeRemaining <= 0f
         ) {
@@ -922,7 +937,23 @@ public class GameController {
     public String getCharmInventoryMessage() {
         return charmInventoryMessage;
     }
+    public boolean shouldShowCharmObtainedMessage() {
+               return charmObtainedMessageTimeRemaining > 0f
+                      && charmObtainedMessage != null
+                      && !charmObtainedMessage.isBlank();
+          }
 
+       public String getCharmObtainedMessage() {
+                return charmObtainedMessage;
+           }
+
+       public boolean shouldDrawVoidHeartRewardCharm() {
+               return crackedWall != null
+                       && crackedWall.isDestroyed()
+                      && charmInventory.isOwned(
+                           CharmType.VOID_HEART
+                          );
+    }
     public boolean didCharmEquipFail() {
         return charmEquipFailed;
     }
@@ -2862,14 +2893,31 @@ public class GameController {
         if (
             result
                 == CrackedWall.HitResult.DESTROYED
-                && crackedWallPlatform != null
         ) {
-            platformWorld.removePlatform(
-                crackedWallPlatform
-            );
+            if (crackedWallPlatform != null) {
+                platformWorld.removePlatform(
+                    crackedWallPlatform
+                );
+            }
+
+            unlockVoidHeartReward();
         }
 
         return true;
+    }
+    private void unlockVoidHeartReward() {
+               charmInventory.unlockCharm(
+                        CharmType.VOID_HEART
+                        );
+
+               charmInventoryMessage =
+                       "Void Heart obtained.";
+
+                   charmObtainedMessage =
+                       "Void Heart obtained.";
+
+                    charmObtainedMessageTimeRemaining =
+                        CHARM_OBTAINED_MESSAGE_DURATION;
     }
 
     private boolean applyNailHit(

@@ -4,46 +4,51 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 
-public final class CharmInventory {
-    public static final int DEFAULT_NOTCH_CAPACITY = 3;
+public class CharmInventory {
+    private static final int DEFAULT_NOTCH_CAPACITY = 3;
 
     private final EnumSet<CharmType> ownedCharms;
     private final EnumSet<CharmType> equippedCharms;
 
-    private int notchCapacity;
+    private final int notchCapacity;
 
     public CharmInventory() {
-        this(DEFAULT_NOTCH_CAPACITY);
-    }
+        this.notchCapacity =
+            DEFAULT_NOTCH_CAPACITY;
 
-    public CharmInventory(
-        int notchCapacity
-    ) {
-        this.notchCapacity = notchCapacity;
-
-        ownedCharms =
+        this.ownedCharms =
             EnumSet.noneOf(
                 CharmType.class
             );
 
-        equippedCharms =
+        this.equippedCharms =
             EnumSet.noneOf(
                 CharmType.class
             );
 
         /*
-         * For the assignment, all charms are available from
-         * the inventory menu immediately.
+         * All charms are available at the start
+         * except Void Heart.
+         *
+         * Void Heart is unlocked later when the
+         * hidden room wall reward is collected.
          */
-        unlockAllCharms();
+        for (CharmType charm : CharmType.values()) {
+            if (charm != CharmType.VOID_HEART) {
+                ownedCharms.add(
+                    charm
+                );
+            }
+        }
     }
 
-    public void unlockAllCharms() {
-        ownedCharms.clear();
-
-        for (CharmType charm : CharmType.values()) {
-            ownedCharms.add(charm);
-        }
+    public boolean isOwned(
+        CharmType charm
+    ) {
+        return charm != null
+            && ownedCharms.contains(
+            charm
+        );
     }
 
     public void unlockCharm(
@@ -53,21 +58,26 @@ public final class CharmInventory {
             return;
         }
 
-        ownedCharms.add(charm);
+        ownedCharms.add(
+            charm
+        );
     }
 
-    public boolean isOwned(
-        CharmType charm
-    ) {
-        return charm != null
-            && ownedCharms.contains(charm);
+    public void unlockAllCharms() {
+        ownedCharms.addAll(
+            EnumSet.allOf(
+                CharmType.class
+            )
+        );
     }
 
     public boolean isEquipped(
         CharmType charm
     ) {
         return charm != null
-            && equippedCharms.contains(charm);
+            && equippedCharms.contains(
+            charm
+        );
     }
 
     public boolean toggleCharm(
@@ -78,33 +88,29 @@ public final class CharmInventory {
         }
 
         if (isEquipped(charm)) {
-            unequipCharm(charm);
+            unequipCharm(
+                charm
+            );
+
             return true;
         }
 
-        return equipCharm(charm);
+        return equipCharm(
+            charm
+        );
     }
 
     public boolean equipCharm(
         CharmType charm
     ) {
-        if (charm == null) {
-            return false;
-        }
-
-        if (!isOwned(charm)) {
-            return false;
-        }
-
-        if (isEquipped(charm)) {
-            return true;
-        }
-
         if (!canEquip(charm)) {
             return false;
         }
 
-        equippedCharms.add(charm);
+        equippedCharms.add(
+            charm
+        );
+
         return true;
     }
 
@@ -115,7 +121,9 @@ public final class CharmInventory {
             return;
         }
 
-        equippedCharms.remove(charm);
+        equippedCharms.remove(
+            charm
+        );
     }
 
     public boolean canEquip(
@@ -142,7 +150,8 @@ public final class CharmInventory {
         int usedNotches = 0;
 
         for (CharmType charm : equippedCharms) {
-            usedNotches += charm.getNotchCost();
+            usedNotches +=
+                charm.getNotchCost();
         }
 
         return usedNotches;
@@ -157,37 +166,8 @@ public final class CharmInventory {
         return notchCapacity;
     }
 
-    public void setNotchCapacity(
-        int notchCapacity
-    ) {
-        if (notchCapacity < 0) {
-            notchCapacity = 0;
-        }
-
-        this.notchCapacity = notchCapacity;
-
-        /*
-         * Safety: if capacity is lowered, remove charms
-         * until the equipped set becomes valid again.
-         */
-        while (
-            getUsedNotches()
-                > this.notchCapacity
-                && !equippedCharms.isEmpty()
-        ) {
-            CharmType lastCharm =
-                null;
-
-            for (CharmType charm : equippedCharms) {
-                lastCharm = charm;
-            }
-
-            if (lastCharm == null) {
-                break;
-            }
-
-            equippedCharms.remove(lastCharm);
-        }
+    public boolean isFull() {
+        return getRemainingNotches() <= 0;
     }
 
     public Set<CharmType> getOwnedCharms() {
@@ -204,14 +184,5 @@ public final class CharmInventory {
 
     public CharmType[] getAllCharms() {
         return CharmType.values();
-    }
-
-    public boolean isFull() {
-        return getUsedNotches()
-            >= notchCapacity;
-    }
-
-    public void clearEquippedCharms() {
-        equippedCharms.clear();
     }
 }
