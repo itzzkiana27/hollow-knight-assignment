@@ -96,6 +96,15 @@ public final class PlayerHealth {
         currentMasks = MAX_MASKS;
     }
 
+    public void setCurrentMasks(
+        int masks
+    ) {
+        currentMasks = Math.max(
+            0,
+            Math.min(MAX_MASKS, masks)
+        );
+    }
+
     public boolean isInvincible() {
         return
             invincibilityTimeRemaining > 0f;

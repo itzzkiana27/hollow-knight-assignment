@@ -1,6 +1,7 @@
 package com.hollowknight.view.screens;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
@@ -14,9 +15,12 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -42,6 +46,8 @@ import com.hollowknight.view.animation.WingedSentryAnimationManager;
 import com.hollowknight.view.effects.RainEffect;
 import com.hollowknight.model.boss.FalseKnight;
 import com.hollowknight.model.charm.CharmType;
+import com.hollowknight.model.achievement.Achievement;
+import com.hollowknight.view.actors.AchievementPopupObserver;
 import com.hollowknight.view.animation.FalseKnightAnimationManager;
 
 import java.util.EnumMap;
@@ -307,6 +313,12 @@ public class GameScreen extends ScreenAdapter {
     private final Vector2 charmTouchPosition = new Vector2();
     private CharmType selectedCharm;
 
+    private Table pauseOverlay;
+    private Table pauseContent;
+    private Label pauseMessageLabel;
+    private boolean pauseMenuOpen;
+    private AchievementPopupObserver popupObserver;
+
     private GameCamera worldCamera;
 
     public GameScreen(
@@ -378,6 +390,18 @@ public class GameScreen extends ScreenAdapter {
         resetWorldCamera();
 
         createInterface();
+        createPauseMenu();
+
+        popupObserver =
+            new AchievementPopupObserver(
+                stage,
+                skin,
+                controller::text
+            );
+
+        controller.addAchievementObserver(
+            popupObserver
+        );
 
         Gdx.input.setInputProcessor(stage);
     }
@@ -445,15 +469,328 @@ public class GameScreen extends ScreenAdapter {
         );
     }
 
-    @Override
-    public void render(float delta) {
-        controller.update(
-            delta,
-            KNIGHT_DRAW_WIDTH,
-            KNIGHT_DRAW_HEIGHT
+
+    private void createPauseMenu() {
+        pauseMenuOpen = false;
+
+        pauseOverlay = new Table();
+        pauseOverlay.setFillParent(true);
+        pauseOverlay.center();
+        pauseOverlay.setVisible(false);
+
+        Window window = new Window(
+            "PAUSE",
+            skin
         );
 
-        updateWorldCamera(delta);
+        window.setMovable(false);
+        window.setResizable(false);
+        window.pad(22f);
+
+        pauseContent = new Table();
+        pauseContent.defaults().pad(6f);
+
+        window.add(pauseContent)
+            .width(560f)
+            .pad(8f);
+
+        pauseOverlay.add(window)
+            .width(620f);
+
+        stage.addActor(pauseOverlay);
+
+        showPauseMainPanel();
+    }
+
+    private void handlePauseInput() {
+        if (
+            Gdx.input.isKeyJustPressed(
+                Input.Keys.ESCAPE
+            )
+        ) {
+            setPauseMenuOpen(
+                !pauseMenuOpen
+            );
+        }
+    }
+
+    private void setPauseMenuOpen(
+        boolean open
+    ) {
+        pauseMenuOpen = open;
+
+        if (pauseOverlay != null) {
+            pauseOverlay.setVisible(open);
+        }
+
+        if (open) {
+            showPauseMainPanel();
+        }
+    }
+
+    private void showPauseMainPanel() {
+        if (pauseContent == null) {
+            return;
+        }
+
+        pauseContent.clear();
+
+        Label title = new Label(
+            "Game Paused",
+            skin
+        );
+
+        title.setFontScale(1.45f);
+
+        pauseContent.add(title)
+            .padBottom(12f)
+            .row();
+
+        Label status = new Label(
+            controller.getCheatStatusLine(),
+            skin
+        );
+
+        status.setColor(
+            0.76f,
+            0.86f,
+            1f,
+            1f
+        );
+
+        pauseContent.add(status)
+            .width(520f)
+            .center()
+            .padBottom(8f)
+            .row();
+
+        pauseMessageLabel = new Label(
+            "",
+            skin
+        );
+
+        pauseMessageLabel.setWrap(true);
+        pauseMessageLabel.setAlignment(
+            Align.center
+        );
+
+        pauseContent.add(pauseMessageLabel)
+            .width(520f)
+            .height(36f)
+            .row();
+
+        addPauseButton(
+            "Continue",
+            () -> setPauseMenuOpen(false)
+        );
+
+        addPauseButton(
+            "Cheat Codes",
+            this::showCheatCodesPanel
+        );
+
+        addPauseButton(
+            "Achievements",
+            this::showAchievementsPanel
+        );
+
+        addPauseButton(
+            "Settings",
+            controller::openSettingsMenu
+        );
+
+        addPauseButton(
+            "Save Game",
+            () -> setPauseMessage(
+                controller.saveGame()
+            )
+        );
+
+        addPauseButton(
+            "Load Game",
+            () -> {
+                setPauseMessage(
+                    controller.loadGame()
+                );
+                resetWorldCamera();
+            }
+        );
+
+        addPauseButton(
+            "Save and Exit",
+            controller::saveGameAndExit
+        );
+    }
+
+    private void addPauseButton(
+        String text,
+        Runnable action
+    ) {
+        TextButton button = new TextButton(
+            text,
+            skin
+        );
+
+        button.getLabel().setFontScale(1.05f);
+
+        button.addListener(
+            new ChangeListener() {
+                @Override
+                public void changed(
+                    ChangeEvent event,
+                    Actor actor
+                ) {
+                    action.run();
+                }
+            }
+        );
+
+        pauseContent.add(button)
+            .width(300f)
+            .height(46f)
+            .row();
+    }
+
+    private void setPauseMessage(
+        String message
+    ) {
+        if (pauseMessageLabel != null) {
+            pauseMessageLabel.setText(
+                message == null ? "" : message
+            );
+        }
+    }
+
+    private void showCheatCodesPanel() {
+        pauseContent.clear();
+
+        Label title = new Label(
+            "Cheat Codes",
+            skin
+        );
+
+        title.setFontScale(1.35f);
+
+        pauseContent.add(title)
+            .padBottom(12f)
+            .row();
+
+        Label cheats = new Label(
+            "Left Ctrl + B  : Teleport to False Knight arena\n"
+                + "Left Ctrl + F  : Toggle flight / noclip mode\n"
+                + "Left Ctrl + H  : Emergency heal (+1 mask)\n"
+                + "Left Ctrl + S  : Refill Soul vessel\n"
+                + "Left Ctrl + G  : Toggle God Mode\n"
+                + "Left Ctrl + K  : Insta-kill enemies on screen",
+            skin
+        );
+
+        cheats.setWrap(true);
+        cheats.setAlignment(Align.left);
+
+        pauseContent.add(cheats)
+            .width(500f)
+            .padBottom(16f)
+            .row();
+
+        addPauseButton(
+            "Back",
+            this::showPauseMainPanel
+        );
+    }
+
+    private void showAchievementsPanel() {
+        pauseContent.clear();
+
+        Label title = new Label(
+            "Achievements",
+            skin
+        );
+
+        title.setFontScale(1.35f);
+
+        pauseContent.add(title)
+            .padBottom(12f)
+            .row();
+
+        Table list = new Table();
+        list.defaults().pad(5f);
+
+        for (Achievement achievement
+            : controller.getAchievements()) {
+            boolean unlocked =
+                achievement.isUnlocked();
+
+            String line =
+                (unlocked ? "✓ " : "🔒 ")
+                    + controller.text(
+                    achievement.getTitleKey()
+                )
+                    + " - "
+                    + controller.text(
+                    achievement.getDescriptionKey()
+                );
+
+            Label label = new Label(
+                line,
+                skin
+            );
+
+            label.setWrap(true);
+
+            if (!unlocked) {
+                label.setColor(Color.GRAY);
+            } else {
+                label.setColor(
+                    0.70f,
+                    1f,
+                    0.80f,
+                    1f
+                );
+            }
+
+            list.add(label)
+                .width(490f)
+                .left()
+                .row();
+        }
+
+        ScrollPane scrollPane = new ScrollPane(
+            list,
+            skin
+        );
+
+        scrollPane.setFadeScrollBars(false);
+        scrollPane.setScrollingDisabled(
+            true,
+            false
+        );
+
+        pauseContent.add(scrollPane)
+            .width(520f)
+            .height(270f)
+            .padBottom(14f)
+            .row();
+
+        addPauseButton(
+            "Back",
+            this::showPauseMainPanel
+        );
+    }
+
+    @Override
+    public void render(float delta) {
+        handlePauseInput();
+
+        if (!pauseMenuOpen) {
+            controller.update(
+                delta,
+                KNIGHT_DRAW_WIDTH,
+                KNIGHT_DRAW_HEIGHT
+            );
+
+            updateWorldCamera(delta);
+        }
 
         Gdx.gl.glClearColor(
             0.02f,
@@ -536,15 +873,21 @@ public class GameScreen extends ScreenAdapter {
          */
         stage.getViewport().apply();
 
-        handleCharmInventoryClick();
+        if (!pauseMenuOpen) {
+            handleCharmInventoryClick();
+        }
+
         drawPlayerHud();
         drawCharmObtainedMessage();
+        drawCheatMessage();
         drawZoteDialogueBox();
         drawCharmInventoryMenu();
 
         stage.draw();
 
-        finishAnimationIfNecessary();
+        if (!pauseMenuOpen) {
+            finishAnimationIfNecessary();
+        }
     }
 
     private void updateWorldCamera(
@@ -3223,6 +3566,52 @@ public class GameScreen extends ScreenAdapter {
         batch.end();
     }
 
+
+    private void drawCheatMessage() {
+        String message =
+            controller.getCheatMessage();
+
+        if (message == null || message.isBlank()) {
+            return;
+        }
+
+        float screenWidth =
+            stage.getViewport().getWorldWidth();
+
+        float screenHeight =
+            stage.getViewport().getWorldHeight();
+
+        batch.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        batch.begin();
+
+        BitmapFont font =
+            skin.getFont(
+                "window"
+            );
+
+        font.setColor(
+            0.50f,
+            0.90f,
+            1f,
+            1f
+        );
+
+        font.draw(
+            batch,
+            message,
+            0f,
+            screenHeight - 126f,
+            screenWidth,
+            Align.center,
+            false
+        );
+
+        batch.end();
+    }
+
     private void drawPlayerHud() {
         int currentMasks =
             controller.getCurrentMasks();
@@ -3527,6 +3916,10 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
+        controller.removeAchievementObserver(
+            popupObserver
+        );
+
         if (
             stage != null
                 && Gdx.input
@@ -3541,6 +3934,10 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void dispose() {
+        controller.removeAchievementObserver(
+            popupObserver
+        );
+
         if (
             knightAnimationManager != null
         ) {

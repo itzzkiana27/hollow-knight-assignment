@@ -170,6 +170,31 @@ public class CharmInventory {
         return getRemainingNotches() <= 0;
     }
 
+
+    public void setOwnedCharms(
+        Set<CharmType> charms
+    ) {
+        ownedCharms.clear();
+
+        if (charms != null) {
+            ownedCharms.addAll(charms);
+        }
+    }
+
+    public void setEquippedCharms(
+        Set<CharmType> charms
+    ) {
+        equippedCharms.clear();
+
+        if (charms == null) {
+            return;
+        }
+
+        for (CharmType charm : charms) {
+            equipCharm(charm);
+        }
+    }
+
     public Set<CharmType> getOwnedCharms() {
         return Collections.unmodifiableSet(
             ownedCharms

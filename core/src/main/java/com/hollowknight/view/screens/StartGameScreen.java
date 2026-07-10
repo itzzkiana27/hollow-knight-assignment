@@ -67,8 +67,7 @@ public class StartGameScreen extends ScreenAdapter {
 
             addButton(
                 table,
-                controller.format(
-                    "start.saveSlot",
+                controller.getSaveSlotLabel(
                     slot
                 ),
                 () -> controller.selectSaveSlot(

@@ -1,0 +1,730 @@
+--- a/core/src/main/java/com/hollowknight/model/save/SaveManager.java	2026-07-09 19:04:11.211048732 +0000
++++ b/core/src/main/java/com/hollowknight/model/save/SaveManager.java	2026-07-09 19:26:05.628776933 +0000
+@@ -6,9 +6,15 @@
+ import com.badlogic.gdx.utils.JsonWriter;
+ 
+ public class SaveManager {
+-    private static final String SAVE_PATH =
++    public static final int DEFAULT_SLOT = 1;
++    public static final int SLOT_COUNT = 4;
++
++    private static final String LEGACY_SAVE_PATH =
+         "save/game_save.json";
+ 
++    private static final String SAVE_SLOT_PATTERN =
++        "save/slot_%d.json";
++
+     private final Json json;
+ 
+     public SaveManager() {
+@@ -20,12 +26,24 @@
+     }
+ 
+     public void save(GameData data) {
++        save(
++            data,
++            DEFAULT_SLOT
++        );
++    }
++
++    public void save(
++        GameData data,
++        int slotNumber
++    ) {
+         if (data == null) {
+             return;
+         }
+ 
+         FileHandle file =
+-            Gdx.files.local(SAVE_PATH);
++            Gdx.files.local(
++                getSavePath(slotNumber)
++            );
+ 
+         file.parent().mkdirs();
+ 
+@@ -33,11 +51,48 @@
+             json.prettyPrint(data),
+             false
+         );
++
++        /*
++         * Keep the old single-save file in sync for slot 1
++         * so older code/builds can still load the latest save.
++         */
++        if (normalizeSlot(slotNumber) == DEFAULT_SLOT) {
++            FileHandle legacyFile =
++                Gdx.files.local(
++                    LEGACY_SAVE_PATH
++                );
++
++            legacyFile.parent().mkdirs();
++
++            legacyFile.writeString(
++                json.prettyPrint(data),
++                false
++            );
++        }
+     }
+ 
+     public GameData load() {
++        return load(
++            DEFAULT_SLOT
++        );
++    }
++
++    public GameData load(
++        int slotNumber
++    ) {
+         FileHandle file =
+-            Gdx.files.local(SAVE_PATH);
++            Gdx.files.local(
++                getSavePath(slotNumber)
++            );
++
++        if (
++            !file.exists()
++                && normalizeSlot(slotNumber) == DEFAULT_SLOT
++        ) {
++            file = Gdx.files.local(
++                LEGACY_SAVE_PATH
++            );
++        }
+ 
+         if (!file.exists()) {
+             return null;
+@@ -50,10 +105,80 @@
+     }
+ 
+     public boolean hasSave() {
+-        return Gdx.files.local(SAVE_PATH).exists();
++        return hasSave(
++            DEFAULT_SLOT
++        );
++    }
++
++    public boolean hasSave(
++        int slotNumber
++    ) {
++        if (
++            Gdx.files
++                .local(
++                    getSavePath(slotNumber)
++                )
++                .exists()
++        ) {
++            return true;
++        }
++
++        return normalizeSlot(slotNumber) == DEFAULT_SLOT
++            && Gdx.files.local(
++            LEGACY_SAVE_PATH
++        ).exists();
++    }
++
++    public long getSavedAtMillis(
++        int slotNumber
++    ) {
++        FileHandle file =
++            Gdx.files.local(
++                getSavePath(slotNumber)
++            );
++
++        if (
++            !file.exists()
++                && normalizeSlot(slotNumber) == DEFAULT_SLOT
++        ) {
++            file = Gdx.files.local(
++                LEGACY_SAVE_PATH
++            );
++        }
++
++        if (!file.exists()) {
++            return 0L;
++        }
++
++        return file.lastModified();
+     }
+ 
+     public String getSavePath() {
+-        return SAVE_PATH;
++        return getSavePath(
++            DEFAULT_SLOT
++        );
++    }
++
++    public String getSavePath(
++        int slotNumber
++    ) {
++        return String.format(
++            SAVE_SLOT_PATTERN,
++            normalizeSlot(slotNumber)
++        );
++    }
++
++    public static int normalizeSlot(
++        int slotNumber
++    ) {
++        if (slotNumber < 1) {
++            return DEFAULT_SLOT;
++        }
++
++        if (slotNumber > SLOT_COUNT) {
++            return SLOT_COUNT;
++        }
++
++        return slotNumber;
+     }
+ }
+--- a/core/src/main/java/com/hollowknight/model/save/DatabaseSaveManager.java	2026-07-09 19:05:55.767412610 +0000
++++ b/core/src/main/java/com/hollowknight/model/save/DatabaseSaveManager.java	2026-07-09 19:26:05.629225882 +0000
+@@ -15,7 +15,7 @@
+ /**
+  * Optional real SQLite save backend.
+  *
+- * The normal JSON save file still exists. This class stores the same GameData
++ * The normal JSON save files still exist. This class stores the same GameData
+  * object inside a real SQLite database file so the project also has a true
+  * database-backed save/load path.
+  */
+@@ -23,7 +23,7 @@
+     private static final String DATABASE_FILE_PATH =
+         "save/hollow_knight_save.db";
+ 
+-    private static final String SAVE_SLOT_ID =
++    private static final String LEGACY_SAVE_SLOT_ID =
+         "main";
+ 
+     private static final String CREATE_TABLE_SQL =
+@@ -74,10 +74,116 @@
+     }
+ 
+     public void save(GameData data) {
++        save(
++            data,
++            SaveManager.DEFAULT_SLOT
++        );
++    }
++
++    public void save(
++        GameData data,
++        int slotNumber
++    ) {
+         if (data == null) {
+             return;
+         }
+ 
++        saveToSlotId(
++            data,
++            getSlotId(slotNumber)
++        );
++
++        /*
++         * Keep the original SQLite row in sync for slot 1,
++         * so old builds that looked for "main" can still load it.
++         */
++        if (
++            SaveManager.normalizeSlot(slotNumber)
++                == SaveManager.DEFAULT_SLOT
++        ) {
++            saveToSlotId(
++                data,
++                LEGACY_SAVE_SLOT_ID
++            );
++        }
++    }
++
++    public GameData load() {
++        return load(
++            SaveManager.DEFAULT_SLOT
++        );
++    }
++
++    public GameData load(
++        int slotNumber
++    ) {
++        GameData data = loadFromSlotId(
++            getSlotId(slotNumber)
++        );
++
++        if (
++            data == null
++                && SaveManager.normalizeSlot(slotNumber)
++                == SaveManager.DEFAULT_SLOT
++        ) {
++            data = loadFromSlotId(
++                LEGACY_SAVE_SLOT_ID
++            );
++        }
++
++        return data;
++    }
++
++    public boolean hasSave() {
++        return hasSave(
++            SaveManager.DEFAULT_SLOT
++        );
++    }
++
++    public boolean hasSave(
++        int slotNumber
++    ) {
++        if (hasSaveSlotId(getSlotId(slotNumber))) {
++            return true;
++        }
++
++        return SaveManager.normalizeSlot(slotNumber)
++            == SaveManager.DEFAULT_SLOT
++            && hasSaveSlotId(
++            LEGACY_SAVE_SLOT_ID
++        );
++    }
++
++    public long getSavedAtMillis() {
++        return getSavedAtMillis(
++            SaveManager.DEFAULT_SLOT
++        );
++    }
++
++    public long getSavedAtMillis(
++        int slotNumber
++    ) {
++        long savedAtMillis = getSavedAtMillisForSlotId(
++            getSlotId(slotNumber)
++        );
++
++        if (
++            savedAtMillis <= 0L
++                && SaveManager.normalizeSlot(slotNumber)
++                == SaveManager.DEFAULT_SLOT
++        ) {
++            savedAtMillis = getSavedAtMillisForSlotId(
++                LEGACY_SAVE_SLOT_ID
++            );
++        }
++
++        return savedAtMillis;
++    }
++
++    private void saveToSlotId(
++        GameData data,
++        String slotId
++    ) {
+         long savedAtMillis =
+             System.currentTimeMillis();
+ 
+@@ -90,7 +196,7 @@
+         ) {
+             statement.setString(
+                 1,
+-                SAVE_SLOT_ID
++                slotId
+             );
+ 
+             statement.setString(
+@@ -112,7 +218,9 @@
+         }
+     }
+ 
+-    public GameData load() {
++    private GameData loadFromSlotId(
++        String slotId
++    ) {
+         try (
+             Connection connection = openConnection();
+             PreparedStatement statement =
+@@ -122,7 +230,7 @@
+         ) {
+             statement.setString(
+                 1,
+-                SAVE_SLOT_ID
++                slotId
+             );
+ 
+             try (ResultSet resultSet = statement.executeQuery()) {
+@@ -152,7 +260,9 @@
+         }
+     }
+ 
+-    public boolean hasSave() {
++    private boolean hasSaveSlotId(
++        String slotId
++    ) {
+         try (
+             Connection connection = openConnection();
+             PreparedStatement statement =
+@@ -162,7 +272,7 @@
+         ) {
+             statement.setString(
+                 1,
+-                SAVE_SLOT_ID
++                slotId
+             );
+ 
+             try (ResultSet resultSet = statement.executeQuery()) {
+@@ -176,7 +286,9 @@
+         }
+     }
+ 
+-    public long getSavedAtMillis() {
++    private long getSavedAtMillisForSlotId(
++        String slotId
++    ) {
+         try (
+             Connection connection = openConnection();
+             PreparedStatement statement =
+@@ -186,7 +298,7 @@
+         ) {
+             statement.setString(
+                 1,
+-                SAVE_SLOT_ID
++                slotId
+             );
+ 
+             try (ResultSet resultSet = statement.executeQuery()) {
+@@ -249,6 +361,13 @@
+             + databaseFile.getAbsolutePath();
+     }
+ 
++    private String getSlotId(
++        int slotNumber
++    ) {
++        return "slot_"
++            + SaveManager.normalizeSlot(slotNumber);
++    }
++
+     private void loadSqliteDriver() {
+         try {
+             Class.forName(
+--- a/core/src/main/java/com/hollowknight/HollowKnightGame.java	2026-07-09 19:04:11.207814614 +0000
++++ b/core/src/main/java/com/hollowknight/HollowKnightGame.java	2026-07-09 19:26:05.629617588 +0000
+@@ -9,6 +9,7 @@
+ import com.hollowknight.controller.StartGameController;
+ import com.hollowknight.localization.LocalizationManager;
+ import com.hollowknight.model.GameSettings;
++import com.hollowknight.model.save.SaveManager;
+ import com.hollowknight.model.achievement.AchievementManager;
+ import com.hollowknight.view.screens.*;
+ import com.hollowknight.controller.GameController;
+@@ -18,6 +19,7 @@
+     private GameSettings settings;
+     private LocalizationManager localization;
+     private AchievementManager achievementManager;
++    private int activeSaveSlot;
+ 
+     @Override
+     public void create() {
+@@ -30,6 +32,9 @@
+         achievementManager =
+             new AchievementManager();
+ 
++        activeSaveSlot =
++            SaveManager.DEFAULT_SLOT;
++
+         showMainMenu();
+     }
+ 
+@@ -45,6 +50,19 @@
+         return achievementManager;
+     }
+ 
++    public int getActiveSaveSlot() {
++        return activeSaveSlot;
++    }
++
++    public void setActiveSaveSlot(
++        int activeSaveSlot
++    ) {
++        this.activeSaveSlot =
++            SaveManager.normalizeSlot(
++                activeSaveSlot
++            );
++    }
++
+     public void applyLanguage(String language) {
+         settings.setLanguage(language);
+         settings.save();
+@@ -111,17 +129,49 @@
+         }
+     }
+     public void showGameScreen() {
++        showGameScreenForSlot(
++            activeSaveSlot
++        );
++    }
++
++    public void showGameScreenForSlot(
++        int saveSlot
++    ) {
++        setActiveSaveSlot(
++            saveSlot
++        );
++
+         changeScreen(
+             new GameScreen(
+-                new GameController(this)
++                new GameController(
++                    this,
++                    false,
++                    activeSaveSlot
++                )
+             )
+         );
+     }
+ 
+     public void showLoadedGameScreen() {
++        showLoadedGameScreenForSlot(
++            activeSaveSlot
++        );
++    }
++
++    public void showLoadedGameScreenForSlot(
++        int saveSlot
++    ) {
++        setActiveSaveSlot(
++            saveSlot
++        );
++
+         changeScreen(
+             new GameScreen(
+-                new GameController(this, true)
++                new GameController(
++                    this,
++                    true,
++                    activeSaveSlot
++                )
+             )
+         );
+     }
+--- a/core/src/main/java/com/hollowknight/controller/StartGameController.java	2026-07-09 19:04:11.209728055 +0000
++++ b/core/src/main/java/com/hollowknight/controller/StartGameController.java	2026-07-09 19:26:05.629911948 +0000
+@@ -2,13 +2,20 @@
+ 
+ import com.badlogic.gdx.Gdx;
+ import com.hollowknight.HollowKnightGame;
++import com.hollowknight.model.save.DatabaseSaveManager;
++import com.hollowknight.model.save.SaveManager;
+ 
+ public class StartGameController {
+ 
+     private final HollowKnightGame game;
++    private final SaveManager saveManager;
++    private final DatabaseSaveManager databaseSaveManager;
+ 
+     public StartGameController(HollowKnightGame game) {
+         this.game = game;
++        saveManager = new SaveManager();
++        databaseSaveManager =
++            new DatabaseSaveManager();
+     }
+ 
+     public String text(String key) {
+@@ -19,21 +26,67 @@
+         return game.getLocalization().format(key, arguments);
+     }
+ 
++    public String getSaveSlotLabel(
++        int slotNumber
++    ) {
++        int normalizedSlot =
++            SaveManager.normalizeSlot(slotNumber);
++
++        if (hasSaveSlot(normalizedSlot)) {
++            return format(
++                "start.saveSlotSaved",
++                normalizedSlot
++            );
++        }
++
++        return format(
++            "start.saveSlot",
++            normalizedSlot
++        );
++    }
++
+     public void startNewGame() {
+-        game.showGameScreen();
+-        //opening actual game screen
++        game.setActiveSaveSlot(
++            SaveManager.DEFAULT_SLOT
++        );
++
++        game.showGameScreenForSlot(
++            SaveManager.DEFAULT_SLOT
++        );
+     }
+ 
+     public void selectSaveSlot(int slotNumber) {
++        int normalizedSlot =
++            SaveManager.normalizeSlot(slotNumber);
++
+         Gdx.app.log(
+             "StartGame",
+-            "Save slot " + slotNumber + " selected"
++            "Save slot " + normalizedSlot + " selected"
++        );
++
++        game.setActiveSaveSlot(
++            normalizedSlot
+         );
+ 
+-        game.showLoadedGameScreen();
++        if (hasSaveSlot(normalizedSlot)) {
++            game.showLoadedGameScreenForSlot(
++                normalizedSlot
++            );
++        } else {
++            game.showGameScreenForSlot(
++                normalizedSlot
++            );
++        }
+     }
+ 
+     public void backToMainMenu() {
+         game.showMainMenu();
+     }
++
++    private boolean hasSaveSlot(
++        int slotNumber
++    ) {
++        return saveManager.hasSave(slotNumber)
++            || databaseSaveManager.hasSave(slotNumber);
++    }
+ }
+--- a/core/src/main/java/com/hollowknight/view/screens/StartGameScreen.java	2026-06-27 14:38:25.000000000 +0000
++++ b/core/src/main/java/com/hollowknight/view/screens/StartGameScreen.java	2026-07-09 19:26:05.630278495 +0000
+@@ -67,8 +67,7 @@
+ 
+             addButton(
+                 table,
+-                controller.format(
+-                    "start.saveSlot",
++                controller.getSaveSlotLabel(
+                     slot
+                 ),
+                 () -> controller.selectSaveSlot(
+--- a/core/src/main/java/com/hollowknight/controller/GameController.java	2026-07-09 19:04:11.209519913 +0000
++++ b/core/src/main/java/com/hollowknight/controller/GameController.java	2026-07-09 19:26:05.636687028 +0000
+@@ -188,6 +188,7 @@
+     private final AchievementManager achievementManager;
+     private final SaveManager saveManager;
+     private final DatabaseSaveManager databaseSaveManager;
++    private final int saveSlotNumber;
+ 
+     private final PlayerCheckpoint checkpoint;
+     private final PlatformWorld platformWorld;
+@@ -290,14 +291,38 @@
+     public GameController(
+         HollowKnightGame game
+     ) {
+-        this(game, false);
++        this(
++            game,
++            false,
++            game.getActiveSaveSlot()
++        );
+     }
+ 
+     public GameController(
+         HollowKnightGame game,
+         boolean loadSavedGame
+     ) {
++        this(
++            game,
++            loadSavedGame,
++            game.getActiveSaveSlot()
++        );
++    }
++
++    public GameController(
++        HollowKnightGame game,
++        boolean loadSavedGame,
++        int saveSlotNumber
++    ) {
+         this.game = game;
++        this.saveSlotNumber =
++            SaveManager.normalizeSlot(
++                saveSlotNumber
++            );
++
++        game.setActiveSaveSlot(
++            this.saveSlotNumber
++        );
+ 
+         world = new TiledWorld();
+ 
+@@ -4127,21 +4152,34 @@
+     public String saveGame() {
+         GameData data = createGameData();
+ 
+-        saveManager.save(data);
+-        databaseSaveManager.save(data);
++        saveManager.save(
++            data,
++            saveSlotNumber
++        );
++
++        databaseSaveManager.save(
++            data,
++            saveSlotNumber
++        );
+ 
+         setCheatMessage(
+             "Game saved."
+         );
+ 
+-        return "Game saved to JSON and local database.";
++        return "Game saved to slot "
++            + saveSlotNumber
++            + ".";
+     }
+ 
+     public String loadGame() {
+-        GameData data = saveManager.load();
++        GameData data = saveManager.load(
++            saveSlotNumber
++        );
+ 
+         if (data == null) {
+-            data = databaseSaveManager.load();
++            data = databaseSaveManager.load(
++                saveSlotNumber
++            );
+         }
+ 
+         if (data == null) {
+@@ -4162,8 +4200,12 @@
+     }
+ 
+     public boolean hasSavedGame() {
+-        return saveManager.hasSave()
+-            || databaseSaveManager.hasSave();
++        return saveManager.hasSave(
++            saveSlotNumber
++        )
++            || databaseSaveManager.hasSave(
++            saveSlotNumber
++        );
+     }
+ 
+     public void saveGameAndExit() {
+--- a/assets/i18n/messages.properties	2026-07-09 19:04:11.207117340 +0000
++++ b/assets/i18n/messages.properties	2026-07-09 19:26:24.197917674 +0000
+@@ -8,6 +8,7 @@
+ start.title=START GAME
+ start.newGame=New Game
+ start.saveSlot=Save Slot {0} - Empty
++start.saveSlotSaved=Save Slot {0} - Saved
+ 
+ settings.title=SETTINGS
+ settings.musicEnabled=Music enabled
+--- a/assets/i18n/messages_fr.properties	2026-06-30 21:35:47.000000000 +0000
++++ b/assets/i18n/messages_fr.properties	2026-07-09 19:26:24.198360703 +0000
+@@ -8,6 +8,7 @@
+ start.title=COMMENCER
+ start.newGame=Nouvelle partie
+ start.saveSlot=Sauvegarde {0} - Vide
++start.saveSlotSaved=Sauvegarde {0} - Enregistree
+ 
+ settings.title=PARAMÈTRES
+ settings.musicEnabled=Musique activée

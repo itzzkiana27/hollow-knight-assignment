@@ -56,9 +56,9 @@ public class AchievementManager {
         ));
 
         register(new Achievement(
-            AchievementType.SOUL_MASTER,
-            "achievements.soulMaster.title",
-            "achievements.soulMaster.description"
+            AchievementType.KILL_TWO_ENEMIES_10_SECONDS,
+            "achievements.killTwo.title",
+            "achievements.killTwo.description"
         ));
     }
 
@@ -114,6 +114,48 @@ public class AchievementManager {
         notifyObservers(achievement);
 
         return true;
+    }
+
+
+    public boolean isUnlocked(
+        AchievementType type
+    ) {
+        Achievement achievement = achievements.get(type);
+
+        return achievement != null
+            && achievement.isUnlocked();
+    }
+
+    public List<String> getUnlockedTypeNames() {
+        List<String> unlockedNames = new ArrayList<>();
+
+        for (Achievement achievement : achievements.values()) {
+            if (achievement.isUnlocked()) {
+                unlockedNames.add(
+                    achievement.getType().name()
+                );
+            }
+        }
+
+        return unlockedNames;
+    }
+
+    public void applyUnlockedTypeNames(
+        List<String> unlockedTypeNames
+    ) {
+        if (unlockedTypeNames == null) {
+            return;
+        }
+
+        for (String typeName : unlockedTypeNames) {
+            try {
+                unlock(
+                    AchievementType.valueOf(typeName)
+                );
+            } catch (IllegalArgumentException ignored) {
+                // Ignore saves from older or newer builds.
+            }
+        }
     }
 
     public void addObserver(

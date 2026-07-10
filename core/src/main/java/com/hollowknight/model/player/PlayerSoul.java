@@ -48,6 +48,15 @@ public final class PlayerSoul {
         currentSoul = MAX_SOUL;
     }
 
+    public void setCurrentSoul(
+        int soul
+    ) {
+        currentSoul = Math.max(
+            0,
+            Math.min(MAX_SOUL, soul)
+        );
+    }
+
     public int getCurrentSoul() {
         return currentSoul;
     }

@@ -5,5 +5,5 @@ public enum AchievementType {
     SPEEDRUN,
     TRUE_HUNTER,
     DEFEAT_FALSE_KNIGHT,
-    SOUL_MASTER
+    KILL_TWO_ENEMIES_10_SECONDS
 }

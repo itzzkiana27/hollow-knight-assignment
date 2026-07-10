@@ -1,0 +1,28 @@
+{
+"currentRoomId": "city_of_tears",
+"playerX": 3763.9028,
+"playerY": 6230.4746,
+"currentMasks": 5,
+"currentSoul": 0,
+"crackedWallDestroyed": false,
+"falseKnightDefeated": false,
+"godModeEnabled": false,
+"noclipModeEnabled": false,
+"elapsedGameSeconds": 28.524845,
+"ownedCharms": [
+	"SOUL_CATCHER",
+	"DASHMASTER",
+	"UNBREAKABLE_STRENGTH",
+	"QUICK_SLASH",
+	"QUICK_FOCUS",
+	"HEAVY_BLOW",
+	"SHARP_SHADOW"
+],
+"equippedCharms": [],
+"unlockedAchievements": [
+	"COMPLETION",
+	"SPEEDRUN",
+	"DEFEAT_FALSE_KNIGHT"
+],
+"killedEnemyTypes": []
+}

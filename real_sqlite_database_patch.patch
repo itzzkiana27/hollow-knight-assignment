@@ -1,0 +1,329 @@
+diff -ruN '--exclude=.git' '--exclude=build' '--exclude=.gradle' '--exclude=.DS_Store' '--exclude=__MACOSX' sqlite_patch_base/core/build.gradle sqlite_patch_new/core/build.gradle
+--- a/core/build.gradle	2026-06-16 16:56:23.000000000 +0000
++++ b/core/build.gradle	2026-07-09 19:05:56.989571937 +0000
+@@ -5,6 +5,7 @@
+   api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
+   api "com.badlogicgames.gdx:gdx:$gdxVersion"
+   api "com.github.raeleus.TenPatch:tenpatch:$tenPatchVersion"
++  api "org.xerial:sqlite-jdbc:3.46.1.0"
+ 
+   if(enableGraalNative == 'true') {
+     implementation "io.github.berstanio:gdx-svmhelper-annotations:$graalHelperVersion"
+diff -ruN '--exclude=.git' '--exclude=build' '--exclude=.gradle' '--exclude=.DS_Store' '--exclude=__MACOSX' sqlite_patch_base/core/src/main/java/com/hollowknight/model/save/DatabaseSaveManager.java sqlite_patch_new/core/src/main/java/com/hollowknight/model/save/DatabaseSaveManager.java
+--- a/core/src/main/java/com/hollowknight/model/save/DatabaseSaveManager.java	2026-07-09 19:04:11.196694121 +0000
++++ b/core/src/main/java/com/hollowknight/model/save/DatabaseSaveManager.java	2026-07-09 19:05:55.767412610 +0000
+@@ -1,42 +1,76 @@
+ package com.hollowknight.model.save;
+ 
+ import com.badlogic.gdx.Gdx;
+-import com.badlogic.gdx.Preferences;
+ import com.badlogic.gdx.utils.Json;
+ import com.badlogic.gdx.utils.JsonWriter;
+ 
++import java.io.File;
++import java.sql.Connection;
++import java.sql.DriverManager;
++import java.sql.PreparedStatement;
++import java.sql.ResultSet;
++import java.sql.SQLException;
++import java.sql.Statement;
++
+ /**
+- * Optional NoSQL-style save backend.
++ * Optional real SQLite save backend.
+  *
+- * LibGDX Preferences are used here as a small local key-value database:
+- * the full GameData JSON document is stored under one database key, and a
+- * timestamp is stored under another key. This keeps the project dependency-free
+- * while still demonstrating a database-backed save/load path in addition to
+- * the plain JSON file.
++ * The normal JSON save file still exists. This class stores the same GameData
++ * object inside a real SQLite database file so the project also has a true
++ * database-backed save/load path.
+  */
+ public class DatabaseSaveManager {
+-    private static final String DATABASE_NAME =
+-        "hollow-knight-save-database";
++    private static final String DATABASE_FILE_PATH =
++        "save/hollow_knight_save.db";
+ 
+-    private static final String GAME_DATA_KEY =
+-        "gameDataJson";
++    private static final String SAVE_SLOT_ID =
++        "main";
+ 
+-    private static final String SAVED_AT_KEY =
+-        "savedAtMillis";
++    private static final String CREATE_TABLE_SQL =
++        "CREATE TABLE IF NOT EXISTS game_saves ("
++            + "slot_id TEXT PRIMARY KEY, "
++            + "game_data_json TEXT NOT NULL, "
++            + "saved_at_millis INTEGER NOT NULL"
++            + ")";
++
++    private static final String UPSERT_SAVE_SQL =
++        "INSERT INTO game_saves "
++            + "(slot_id, game_data_json, saved_at_millis) "
++            + "VALUES (?, ?, ?) "
++            + "ON CONFLICT(slot_id) DO UPDATE SET "
++            + "game_data_json = excluded.game_data_json, "
++            + "saved_at_millis = excluded.saved_at_millis";
++
++    private static final String LOAD_SAVE_SQL =
++        "SELECT game_data_json "
++            + "FROM game_saves "
++            + "WHERE slot_id = ?";
++
++    private static final String HAS_SAVE_SQL =
++        "SELECT 1 "
++            + "FROM game_saves "
++            + "WHERE slot_id = ? "
++            + "LIMIT 1";
++
++    private static final String SAVED_AT_SQL =
++        "SELECT saved_at_millis "
++            + "FROM game_saves "
++            + "WHERE slot_id = ?";
+ 
+-    private final Preferences database;
+     private final Json json;
++    private final String databaseUrl;
+ 
+     public DatabaseSaveManager() {
+-        database = Gdx.app.getPreferences(
+-            DATABASE_NAME
+-        );
+-
+         json = new Json();
+         json.setUsePrototypes(false);
+         json.setOutputType(
+             JsonWriter.OutputType.json
+         );
++
++        databaseUrl = buildDatabaseUrl();
++
++        loadSqliteDriver();
++        createTablesIfNecessary();
+     }
+ 
+     public void save(GameData data) {
+@@ -44,49 +78,188 @@
+             return;
+         }
+ 
+-        database.putString(
+-            GAME_DATA_KEY,
+-            json.toJson(data)
+-        );
+-
+-        database.putLong(
+-            SAVED_AT_KEY,
+-            System.currentTimeMillis()
+-        );
++        long savedAtMillis =
++            System.currentTimeMillis();
+ 
+-        database.flush();
++        try (
++            Connection connection = openConnection();
++            PreparedStatement statement =
++                connection.prepareStatement(
++                    UPSERT_SAVE_SQL
++                )
++        ) {
++            statement.setString(
++                1,
++                SAVE_SLOT_ID
++            );
++
++            statement.setString(
++                2,
++                json.toJson(data)
++            );
++
++            statement.setLong(
++                3,
++                savedAtMillis
++            );
++
++            statement.executeUpdate();
++        } catch (SQLException exception) {
++            throw new IllegalStateException(
++                "Could not save game to SQLite database.",
++                exception
++            );
++        }
+     }
+ 
+     public GameData load() {
+-        String storedJson = database.getString(
+-            GAME_DATA_KEY,
+-            ""
+-        );
++        try (
++            Connection connection = openConnection();
++            PreparedStatement statement =
++                connection.prepareStatement(
++                    LOAD_SAVE_SQL
++                )
++        ) {
++            statement.setString(
++                1,
++                SAVE_SLOT_ID
++            );
++
++            try (ResultSet resultSet = statement.executeQuery()) {
++                if (!resultSet.next()) {
++                    return null;
++                }
++
++                String storedJson =
++                    resultSet.getString(
++                        "game_data_json"
++                    );
++
++                if (storedJson == null || storedJson.isEmpty()) {
++                    return null;
++                }
++
++                return json.fromJson(
++                    GameData.class,
++                    storedJson
++                );
++            }
++        } catch (SQLException exception) {
++            throw new IllegalStateException(
++                "Could not load game from SQLite database.",
++                exception
++            );
++        }
++    }
+ 
+-        if (storedJson == null || storedJson.isEmpty()) {
+-            return null;
++    public boolean hasSave() {
++        try (
++            Connection connection = openConnection();
++            PreparedStatement statement =
++                connection.prepareStatement(
++                    HAS_SAVE_SQL
++                )
++        ) {
++            statement.setString(
++                1,
++                SAVE_SLOT_ID
++            );
++
++            try (ResultSet resultSet = statement.executeQuery()) {
++                return resultSet.next();
++            }
++        } catch (SQLException exception) {
++            throw new IllegalStateException(
++                "Could not check SQLite save database.",
++                exception
++            );
+         }
++    }
+ 
+-        return json.fromJson(
+-            GameData.class,
+-            storedJson
+-        );
++    public long getSavedAtMillis() {
++        try (
++            Connection connection = openConnection();
++            PreparedStatement statement =
++                connection.prepareStatement(
++                    SAVED_AT_SQL
++                )
++        ) {
++            statement.setString(
++                1,
++                SAVE_SLOT_ID
++            );
++
++            try (ResultSet resultSet = statement.executeQuery()) {
++                if (!resultSet.next()) {
++                    return 0L;
++                }
++
++                return resultSet.getLong(
++                    "saved_at_millis"
++                );
++            }
++        } catch (SQLException exception) {
++            throw new IllegalStateException(
++                "Could not read SQLite save timestamp.",
++                exception
++            );
++        }
+     }
+ 
+-    public boolean hasSave() {
+-        String storedJson = database.getString(
+-            GAME_DATA_KEY,
+-            ""
++    private void createTablesIfNecessary() {
++        try (
++            Connection connection = openConnection();
++            Statement statement = connection.createStatement()
++        ) {
++            statement.executeUpdate(
++                CREATE_TABLE_SQL
++            );
++        } catch (SQLException exception) {
++            throw new IllegalStateException(
++                "Could not create SQLite save table.",
++                exception
++            );
++        }
++    }
++
++    private Connection openConnection()
++        throws SQLException {
++        return DriverManager.getConnection(
++            databaseUrl
+         );
++    }
++
++    private String buildDatabaseUrl() {
++        File databaseFile =
++            Gdx.files
++                .local(DATABASE_FILE_PATH)
++                .file();
++
++        File parentFolder =
++            databaseFile.getParentFile();
++
++        if (
++            parentFolder != null
++                && !parentFolder.exists()
++        ) {
++            parentFolder.mkdirs();
++        }
+ 
+-        return storedJson != null
+-            && !storedJson.isEmpty();
++        return "jdbc:sqlite:"
++            + databaseFile.getAbsolutePath();
+     }
+ 
+-    public long getSavedAtMillis() {
+-        return database.getLong(
+-            SAVED_AT_KEY,
+-            0L
+-        );
++    private void loadSqliteDriver() {
++        try {
++            Class.forName(
++                "org.sqlite.JDBC"
++            );
++        } catch (ClassNotFoundException exception) {
++            throw new IllegalStateException(
++                "SQLite JDBC driver was not found. "
++                    + "Make sure sqlite-jdbc is added to core/build.gradle.",
++                exception
++            );
++        }
+     }
+ }

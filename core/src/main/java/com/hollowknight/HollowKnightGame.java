@@ -9,6 +9,7 @@ import com.hollowknight.controller.SettingsController;
 import com.hollowknight.controller.StartGameController;
 import com.hollowknight.localization.LocalizationManager;
 import com.hollowknight.model.GameSettings;
+import com.hollowknight.model.save.SaveManager;
 import com.hollowknight.model.achievement.AchievementManager;
 import com.hollowknight.view.screens.*;
 import com.hollowknight.controller.GameController;
@@ -18,6 +19,7 @@ public class HollowKnightGame extends Game {
     private GameSettings settings;
     private LocalizationManager localization;
     private AchievementManager achievementManager;
+    private int activeSaveSlot;
 
     @Override
     public void create() {
@@ -29,6 +31,9 @@ public class HollowKnightGame extends Game {
 
         achievementManager =
             new AchievementManager();
+
+        activeSaveSlot =
+            SaveManager.DEFAULT_SLOT;
 
         showMainMenu();
     }
@@ -43,6 +48,19 @@ public class HollowKnightGame extends Game {
 
     public AchievementManager getAchievementManager() {
         return achievementManager;
+    }
+
+    public int getActiveSaveSlot() {
+        return activeSaveSlot;
+    }
+
+    public void setActiveSaveSlot(
+        int activeSaveSlot
+    ) {
+        this.activeSaveSlot =
+            SaveManager.normalizeSlot(
+                activeSaveSlot
+            );
     }
 
     public void applyLanguage(String language) {
@@ -111,9 +129,49 @@ public class HollowKnightGame extends Game {
         }
     }
     public void showGameScreen() {
+        showGameScreenForSlot(
+            activeSaveSlot
+        );
+    }
+
+    public void showGameScreenForSlot(
+        int saveSlot
+    ) {
+        setActiveSaveSlot(
+            saveSlot
+        );
+
         changeScreen(
             new GameScreen(
-                new GameController(this)
+                new GameController(
+                    this,
+                    false,
+                    activeSaveSlot
+                )
+            )
+        );
+    }
+
+    public void showLoadedGameScreen() {
+        showLoadedGameScreenForSlot(
+            activeSaveSlot
+        );
+    }
+
+    public void showLoadedGameScreenForSlot(
+        int saveSlot
+    ) {
+        setActiveSaveSlot(
+            saveSlot
+        );
+
+        changeScreen(
+            new GameScreen(
+                new GameController(
+                    this,
+                    true,
+                    activeSaveSlot
+                )
             )
         );
     }

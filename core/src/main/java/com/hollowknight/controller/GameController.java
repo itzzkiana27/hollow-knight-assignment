@@ -36,16 +36,43 @@ import com.hollowknight.model.boss.FalseKnight;
 import com.hollowknight.model.charm.CharmEffects;
 import com.hollowknight.model.charm.CharmInventory;
 import com.hollowknight.model.charm.CharmType;
+import com.hollowknight.model.achievement.Achievement;
+import com.hollowknight.model.achievement.AchievementManager;
+import com.hollowknight.model.achievement.AchievementObserver;
+import com.hollowknight.model.achievement.AchievementType;
+import com.hollowknight.model.save.DatabaseSaveManager;
+import com.hollowknight.model.save.GameData;
+import com.hollowknight.model.save.SaveManager;
 
 import java.util.EnumSet;
+import java.util.List;
 
 public class GameController {
+
+    private enum EnemyKillType {
+        HUSK_HORNHEAD,
+        CRAWLID,
+        CRYSTAL_GUARDIAN,
+        WINGED_SENTRY
+    }
 
     private static final float
         POGO_SPIKE_GRACE_DURATION = 0.12f;
 
     private static final float
        CHARM_OBTAINED_MESSAGE_DURATION = 3f;
+
+    private static final float
+        CHEAT_MESSAGE_DURATION = 2.5f;
+
+    private static final float
+        TWO_KILL_ACHIEVEMENT_WINDOW = 10f;
+
+    private static final float
+        SPEEDRUN_LIMIT_SECONDS = 600f;
+
+    private static final float
+        NOCLIP_SPEED = 650f;
 
     private static final float
         CHECKPOINT_HAZARD_MARGIN = 110f;
@@ -158,6 +185,11 @@ public class GameController {
     private final CharmInventory charmInventory;
     private final CharmEffects charmEffects;
 
+    private final AchievementManager achievementManager;
+    private final SaveManager saveManager;
+    private final DatabaseSaveManager databaseSaveManager;
+    private final int saveSlotNumber;
+
     private final PlayerCheckpoint checkpoint;
     private final PlatformWorld platformWorld;
 
@@ -197,6 +229,18 @@ public class GameController {
     private boolean zoteUsingMainDialogue;
     private boolean falseKnightMaceHitConsumed;
     private boolean falseKnightShockwaveHitConsumed;
+    private boolean falseKnightDefeated;
+
+    private boolean godModeEnabled;
+    private boolean noclipModeEnabled;
+
+    private String cheatMessage;
+    private float cheatMessageTimeRemaining;
+
+    private float elapsedGameSeconds;
+    private int recentEnemyKills;
+    private float recentEnemyKillWindowRemaining;
+    private final EnumSet<EnemyKillType> killedEnemyTypes;
 
     private boolean charmInventoryOpen;
     private boolean charmEquipFailed;
@@ -247,7 +291,38 @@ public class GameController {
     public GameController(
         HollowKnightGame game
     ) {
+        this(
+            game,
+            false,
+            game.getActiveSaveSlot()
+        );
+    }
+
+    public GameController(
+        HollowKnightGame game,
+        boolean loadSavedGame
+    ) {
+        this(
+            game,
+            loadSavedGame,
+            game.getActiveSaveSlot()
+        );
+    }
+
+    public GameController(
+        HollowKnightGame game,
+        boolean loadSavedGame,
+        int saveSlotNumber
+    ) {
         this.game = game;
+        this.saveSlotNumber =
+            SaveManager.normalizeSlot(
+                saveSlotNumber
+            );
+
+        game.setActiveSaveSlot(
+            this.saveSlotNumber
+        );
 
         world = new TiledWorld();
 
@@ -317,6 +392,16 @@ public class GameController {
             new CharmEffects(
                 charmInventory
             );
+
+        achievementManager =
+            game.getAchievementManager();
+
+        saveManager = new SaveManager();
+        databaseSaveManager =
+            new DatabaseSaveManager();
+
+        killedEnemyTypes =
+            EnumSet.noneOf(EnemyKillType.class);
 
         charmInventoryOpen = false;
         charmEquipFailed = false;
@@ -487,6 +572,19 @@ public class GameController {
                 )
             );
 
+        falseKnightDefeated = false;
+        godModeEnabled = false;
+        noclipModeEnabled = false;
+        cheatMessage = "";
+        cheatMessageTimeRemaining = 0f;
+        elapsedGameSeconds = 0f;
+        recentEnemyKills = 0;
+        recentEnemyKillWindowRemaining = 0f;
+
+        if (loadSavedGame) {
+            loadGame();
+        }
+
         currentInput =
             PlayerInput.empty();
 
@@ -504,6 +602,11 @@ public class GameController {
         float safeDelta = Math.min(
             delta,
             1f / 30f
+        );
+
+        handleCheatCodes(
+            knightDrawWidth,
+            knightDrawHeight
         );
 
         handleCharmInventoryInput();
@@ -540,6 +643,22 @@ public class GameController {
 
         if (zoteDialogueActive) {
             player.updateAnimationTime(delta);
+            return;
+        }
+
+        if (noclipModeEnabled) {
+            updateNoclipMovement(
+                safeDelta,
+                knightDrawWidth,
+                knightDrawHeight
+            );
+
+            finishNoclipFrame(
+                delta,
+                knightDrawWidth,
+                knightDrawHeight
+            );
+
             return;
         }
 
@@ -730,7 +849,27 @@ public class GameController {
     }
 
     private void updateTimers(float delta) {
+        elapsedGameSeconds += delta;
+
         health.update(delta);
+
+        if (cheatMessageTimeRemaining > 0f) {
+            cheatMessageTimeRemaining -= delta;
+
+            if (cheatMessageTimeRemaining <= 0f) {
+                cheatMessageTimeRemaining = 0f;
+                cheatMessage = "";
+            }
+        }
+
+        if (recentEnemyKillWindowRemaining > 0f) {
+            recentEnemyKillWindowRemaining -= delta;
+
+            if (recentEnemyKillWindowRemaining <= 0f) {
+                recentEnemyKillWindowRemaining = 0f;
+                recentEnemyKills = 0;
+            }
+        }
 
         if (charmObtainedMessageTimeRemaining > 0f) {
                        charmObtainedMessageTimeRemaining -= delta;
@@ -872,6 +1011,299 @@ public class GameController {
         }
     }
 
+
+
+    private void handleCheatCodes(
+        float knightDrawWidth,
+        float knightDrawHeight
+    ) {
+        if (!Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) {
+            return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.B)) {
+            teleportToFalseKnightArena(
+                knightDrawWidth,
+                knightDrawHeight
+            );
+            return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F)) {
+            toggleNoclipMode();
+            return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.H)) {
+            emergencyHeal();
+            return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.S)) {
+            refillSoulCheat();
+            return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.G)) {
+            toggleGodMode();
+            return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.K)) {
+            instaKillCurrentEnemies();
+        }
+    }
+
+    private void setCheatMessage(String message) {
+        cheatMessage = message == null
+            ? ""
+            : message;
+
+        cheatMessageTimeRemaining =
+            CHEAT_MESSAGE_DURATION;
+    }
+
+    private void teleportToFalseKnightArena(
+        float knightDrawWidth,
+        float knightDrawHeight
+    ) {
+        TiledWorld.BossSpawn targetSpawn = null;
+
+        for (TiledWorld.BossSpawn spawn : world.getBossSpawns()) {
+            if (
+                "FALSE_KNIGHT".equals(
+                    spawn.getBossType()
+                )
+            ) {
+                targetSpawn = spawn;
+                break;
+            }
+        }
+
+        if (targetSpawn == null) {
+            setCheatMessage(
+                "Boss arena spawn not found."
+            );
+            return;
+        }
+
+        currentRoomId = targetSpawn.getRoomId();
+        currentRoomSpawnX =
+            targetSpawn.getX() - 260f;
+        currentRoomSpawnY =
+            targetSpawn.getY();
+
+        configureCurrentRoomPhysics();
+
+        spikeHazards =
+            world.getSpikeHazardsForRoom(
+                currentRoomId
+            );
+
+        spawnEnemiesForCurrentRoom();
+        spawnZoteForCurrentRoom();
+        spawnFalseKnightForCurrentRoom();
+        endZoteDialogue();
+
+        combat.finishAttack();
+        focus.cancel();
+
+        movement.respawnAt(
+            currentRoomSpawnX,
+            currentRoomSpawnY
+        );
+
+        checkpoint.save(
+            currentRoomSpawnX,
+            currentRoomSpawnY
+        );
+
+        playerBody.update(
+            player,
+            knightDrawWidth,
+            knightDrawHeight
+        );
+
+        setCheatMessage(
+            "Teleported to False Knight arena."
+        );
+    }
+
+    private void toggleNoclipMode() {
+        noclipModeEnabled = !noclipModeEnabled;
+
+        combat.finishAttack();
+        focus.cancel();
+        movement.respawnAt(
+            player.getPosition().x,
+            player.getPosition().y
+        );
+
+        player.setAnimation(
+            PlayerAnimationType.IDLE
+        );
+
+        setCheatMessage(
+            noclipModeEnabled
+                ? "Flight / noclip enabled."
+                : "Flight / noclip disabled."
+        );
+    }
+
+    private void emergencyHeal() {
+        if (player.isDead()) {
+            player.setDead(false);
+        }
+
+        health.heal(1);
+
+        if (health.getCurrentMasks() <= 0) {
+            health.setCurrentMasks(1);
+        }
+
+        movement.respawnAt(
+            player.getPosition().x,
+            player.getPosition().y
+        );
+
+        player.setMovementState(
+            PlayerMovementState.GROUNDED
+        );
+
+        player.setAnimation(
+            PlayerAnimationType.FOCUS_GET
+        );
+
+        setCheatMessage(
+            "Emergency heal: +1 mask."
+        );
+    }
+
+    private void refillSoulCheat() {
+        soul.refill();
+
+        setCheatMessage(
+            "Soul vessel refilled."
+        );
+    }
+
+    private void toggleGodMode() {
+        godModeEnabled = !godModeEnabled;
+
+        setCheatMessage(
+            godModeEnabled
+                ? "God Mode enabled."
+                : "God Mode disabled."
+        );
+    }
+
+    private void instaKillCurrentEnemies() {
+        int kills = 0;
+
+        if (huskHornhead != null && huskHornhead.isAlive()) {
+            huskHornhead.takeDamage(9999);
+            registerEnemyKill(EnemyKillType.HUSK_HORNHEAD);
+            kills++;
+        }
+
+        if (crawlid != null && crawlid.isAlive()) {
+            crawlid.takeDamage(9999);
+            registerEnemyKill(EnemyKillType.CRAWLID);
+            kills++;
+        }
+
+        if (crystalGuardian != null && crystalGuardian.isAlive()) {
+            crystalGuardian.takeDamage(9999);
+            registerEnemyKill(EnemyKillType.CRYSTAL_GUARDIAN);
+            kills++;
+        }
+
+        if (wingedSentry != null && wingedSentry.isAlive()) {
+            wingedSentry.takeDamage(9999);
+            registerEnemyKill(EnemyKillType.WINGED_SENTRY);
+            kills++;
+        }
+
+        if (falseKnight != null && falseKnight.isAlive()) {
+            falseKnight.takeDamage(9999, true);
+            registerFalseKnightDefeatedIfNeeded();
+            kills++;
+        }
+
+        setCheatMessage(
+            "Insta-kill affected " + kills + " enemies."
+        );
+    }
+
+    private boolean isDamageBlockedByCheat() {
+        return godModeEnabled
+            || noclipModeEnabled;
+    }
+
+    private void updateNoclipMovement(
+        float delta,
+        float knightDrawWidth,
+        float knightDrawHeight
+    ) {
+        int horizontal =
+            currentInput.getHorizontalDirection();
+
+        int vertical = 0;
+
+        if (currentInput.isUpHeld()) {
+            vertical += 1;
+        }
+
+        if (currentInput.isDownHeld()) {
+            vertical -= 1;
+        }
+
+        player.getPosition().x +=
+            horizontal * NOCLIP_SPEED * delta;
+
+        player.getPosition().y +=
+            vertical * NOCLIP_SPEED * delta;
+
+        if (horizontal != 0) {
+            player.setFacingRight(
+                horizontal > 0
+            );
+        }
+
+        player.setMovementState(
+            PlayerMovementState.GROUNDED
+        );
+
+        player.setAnimation(
+            PlayerAnimationType.IDLE
+        );
+
+        playerBody.update(
+            player,
+            knightDrawWidth,
+            knightDrawHeight
+        );
+    }
+
+    private void finishNoclipFrame(
+        float delta,
+        float knightDrawWidth,
+        float knightDrawHeight
+    ) {
+        playerBody.update(
+            player,
+            knightDrawWidth,
+            knightDrawHeight
+        );
+
+        handleRoomTransition(
+            knightDrawWidth,
+            knightDrawHeight
+        );
+
+        updateSafeCheckpoint();
+        player.updateAnimationTime(delta);
+    }
 
     private void handleCharmInventoryInput() {
         if (
@@ -1536,6 +1968,11 @@ public class GameController {
         ) {
             shadeSoulHitHuskHornhead = true;
             huskHornhead.takeDamage(damage);
+            if (!huskHornhead.isAlive()) {
+                registerEnemyKill(
+                    EnemyKillType.HUSK_HORNHEAD
+                );
+            }
         }
 
         if (
@@ -1548,6 +1985,11 @@ public class GameController {
         ) {
             shadeSoulHitCrawlid = true;
             crawlid.takeDamage(damage);
+            if (!crawlid.isAlive()) {
+                registerEnemyKill(
+                    EnemyKillType.CRAWLID
+                );
+            }
         }
 
         if (
@@ -1560,6 +2002,11 @@ public class GameController {
         ) {
             shadeSoulHitCrystalGuardian = true;
             crystalGuardian.takeDamage(damage);
+            if (!crystalGuardian.isAlive()) {
+                registerEnemyKill(
+                    EnemyKillType.CRYSTAL_GUARDIAN
+                );
+            }
         }
 
         if (
@@ -1572,6 +2019,11 @@ public class GameController {
         ) {
             shadeSoulHitWingedSentry = true;
             wingedSentry.takeDamage(damage);
+            if (!wingedSentry.isAlive()) {
+                registerEnemyKill(
+                    EnemyKillType.WINGED_SENTRY
+                );
+            }
         }
 
         if (!shadeSoulHitFalseKnight) {
@@ -1598,6 +2050,11 @@ public class GameController {
         ) {
             abyssShriekHitHuskHornhead = true;
             huskHornhead.takeDamage(damage);
+            if (!huskHornhead.isAlive()) {
+                registerEnemyKill(
+                    EnemyKillType.HUSK_HORNHEAD
+                );
+            }
         }
 
         if (
@@ -1610,6 +2067,11 @@ public class GameController {
         ) {
             abyssShriekHitCrawlid = true;
             crawlid.takeDamage(damage);
+            if (!crawlid.isAlive()) {
+                registerEnemyKill(
+                    EnemyKillType.CRAWLID
+                );
+            }
         }
 
         if (
@@ -1622,6 +2084,11 @@ public class GameController {
         ) {
             abyssShriekHitCrystalGuardian = true;
             crystalGuardian.takeDamage(damage);
+            if (!crystalGuardian.isAlive()) {
+                registerEnemyKill(
+                    EnemyKillType.CRYSTAL_GUARDIAN
+                );
+            }
         }
 
         if (
@@ -1634,6 +2101,11 @@ public class GameController {
         ) {
             abyssShriekHitWingedSentry = true;
             wingedSentry.takeDamage(damage);
+            if (!wingedSentry.isAlive()) {
+                registerEnemyKill(
+                    EnemyKillType.WINGED_SENTRY
+                );
+            }
         }
 
         if (!abyssShriekHitFalseKnight) {
@@ -1672,10 +2144,16 @@ public class GameController {
             return false;
         }
 
+        boolean wasAlive = falseKnight.isAlive();
+
         falseKnight.takeDamage(
             damage,
             hitVulnerableBody
         );
+
+        if (wasAlive && !falseKnight.isAlive()) {
+            registerFalseKnightDefeatedIfNeeded();
+        }
 
         return true;
     }
@@ -1908,6 +2386,11 @@ public class GameController {
     }
 
     private void spawnFalseKnightForCurrentRoom() {
+        if (falseKnightDefeated) {
+            falseKnight = null;
+            return;
+        }
+
         TiledWorld.BossSpawn bossSpawn =
             world.findBossSpawn(
                 "FALSE_KNIGHT",
@@ -2069,6 +2552,10 @@ public class GameController {
             return false;
         }
 
+        if (isDamageBlockedByCheat()) {
+            return true;
+        }
+
         PlayerHealth.DamageResult result =
             health.takeDamage(
                 touchedHazard.getDamage()
@@ -2172,6 +2659,12 @@ public class GameController {
                 combat.getDamage()
             )
         );
+
+        if (!huskHornhead.isAlive()) {
+            registerEnemyKill(
+                EnemyKillType.HUSK_HORNHEAD
+            );
+        }
     }
 
     private void applySharpShadowDamageToCrawlid() {
@@ -2190,6 +2683,12 @@ public class GameController {
                 combat.getDamage()
             )
         );
+
+        if (!crawlid.isAlive()) {
+            registerEnemyKill(
+                EnemyKillType.CRAWLID
+            );
+        }
     }
 
     private void applySharpShadowDamageToCrystalGuardian() {
@@ -2208,6 +2707,12 @@ public class GameController {
                 combat.getDamage()
             )
         );
+
+        if (!crystalGuardian.isAlive()) {
+            registerEnemyKill(
+                EnemyKillType.CRYSTAL_GUARDIAN
+            );
+        }
     }
 
     private void applySharpShadowDamageToWingedSentry() {
@@ -2226,6 +2731,12 @@ public class GameController {
                 combat.getDamage()
             )
         );
+
+        if (!wingedSentry.isAlive()) {
+            registerEnemyKill(
+                EnemyKillType.WINGED_SENTRY
+            );
+        }
     }
 
     private void applySharpShadowDamageToFalseKnight(
@@ -2244,12 +2755,18 @@ public class GameController {
 
         sharpShadowHitFalseKnight = true;
 
+        boolean wasAlive = falseKnight.isAlive();
+
         falseKnight.takeDamage(
             charmEffects.getSharpShadowDamage(
                 combat.getDamage()
             ),
             falseKnight.isStunned()
         );
+
+        if (wasAlive && !falseKnight.isAlive()) {
+            registerFalseKnightDefeatedIfNeeded();
+        }
     }
 
     private boolean handleCrystalLaserContact() {
@@ -2269,6 +2786,10 @@ public class GameController {
                 )
         ) {
             return false;
+        }
+
+        if (isDamageBlockedByCheat()) {
+            return true;
         }
 
         PlayerHealth.DamageResult result =
@@ -2511,6 +3032,10 @@ public class GameController {
         Rectangle enemyBounds,
         int damage
     ) {
+        if (isDamageBlockedByCheat()) {
+            return true;
+        }
+
         PlayerHealth.DamageResult result =
             health.takeDamage(damage);
 
@@ -2953,11 +3478,21 @@ public class GameController {
             return false;
         }
 
-        return applyNailHit(
+        boolean wasAlive = huskHornhead.isAlive();
+
+        boolean hit = applyNailHit(
             huskHornhead.getBounds(),
             huskHornhead,
             huskHornhead
         );
+
+        if (hit && wasAlive && !huskHornhead.isAlive()) {
+            registerEnemyKill(
+                EnemyKillType.HUSK_HORNHEAD
+            );
+        }
+
+        return hit;
     }
 
     private boolean tryHitCrawlid() {
@@ -2968,11 +3503,21 @@ public class GameController {
             return false;
         }
 
-        return applyNailHit(
+        boolean wasAlive = crawlid.isAlive();
+
+        boolean hit = applyNailHit(
             crawlid.getBounds(),
             crawlid,
             crawlid
         );
+
+        if (hit && wasAlive && !crawlid.isAlive()) {
+            registerEnemyKill(
+                EnemyKillType.CRAWLID
+            );
+        }
+
+        return hit;
     }
 
     private boolean
@@ -2984,11 +3529,21 @@ public class GameController {
             return false;
         }
 
-        return applyNailHit(
+        boolean wasAlive = crystalGuardian.isAlive();
+
+        boolean hit = applyNailHit(
             crystalGuardian.getBounds(),
             crystalGuardian,
             crystalGuardian
         );
+
+        if (hit && wasAlive && !crystalGuardian.isAlive()) {
+            registerEnemyKill(
+                EnemyKillType.CRYSTAL_GUARDIAN
+            );
+        }
+
+        return hit;
     }
 
     private boolean tryHitWingedSentry() {
@@ -2999,11 +3554,21 @@ public class GameController {
             return false;
         }
 
-        return applyNailHit(
+        boolean wasAlive = wingedSentry.isAlive();
+
+        boolean hit = applyNailHit(
             wingedSentry.getBounds(),
             wingedSentry,
             wingedSentry
         );
+
+        if (hit && wasAlive && !wingedSentry.isAlive()) {
+            registerEnemyKill(
+                EnemyKillType.WINGED_SENTRY
+            );
+        }
+
+        return hit;
     }
 
     private boolean tryHitZote() {
@@ -3069,10 +3634,16 @@ public class GameController {
 
         combat.registerHit();
 
+        boolean wasAlive = falseKnight.isAlive();
+
         falseKnight.takeDamage(
             getNailDamage(),
             hitVulnerableBody
         );
+
+        if (wasAlive && !falseKnight.isAlive()) {
+            registerFalseKnightDefeatedIfNeeded();
+        }
 
         gainSoulFromNailHit();
 
@@ -3335,6 +3906,360 @@ public class GameController {
 
         pogoSpikeGraceTimeRemaining =
             POGO_SPIKE_GRACE_DURATION;
+    }
+
+
+    private void registerEnemyKill(
+        EnemyKillType enemyType
+    ) {
+        if (enemyType == null) {
+            return;
+        }
+
+        killedEnemyTypes.add(enemyType);
+
+        recentEnemyKills++;
+        recentEnemyKillWindowRemaining =
+            TWO_KILL_ACHIEVEMENT_WINDOW;
+
+        if (recentEnemyKills >= 2) {
+            achievementManager.unlock(
+                AchievementType
+                    .KILL_TWO_ENEMIES_10_SECONDS
+            );
+        }
+
+        if (
+            killedEnemyTypes.containsAll(
+                EnumSet.allOf(EnemyKillType.class)
+            )
+        ) {
+            achievementManager.unlock(
+                AchievementType.TRUE_HUNTER
+            );
+        }
+    }
+
+    private void registerFalseKnightDefeatedIfNeeded() {
+        if (
+            falseKnight == null
+                || falseKnight.isAlive()
+                || falseKnightDefeated
+        ) {
+            return;
+        }
+
+        falseKnightDefeated = true;
+
+        achievementManager.unlock(
+            AchievementType.DEFEAT_FALSE_KNIGHT
+        );
+
+        achievementManager.unlock(
+            AchievementType.COMPLETION
+        );
+
+        if (elapsedGameSeconds <= SPEEDRUN_LIMIT_SECONDS) {
+            achievementManager.unlock(
+                AchievementType.SPEEDRUN
+            );
+        }
+    }
+
+    private GameData createGameData() {
+        GameData data = new GameData();
+
+        data.currentRoomId = currentRoomId;
+        data.playerX = player.getPosition().x;
+        data.playerY = player.getPosition().y;
+        data.currentMasks = health.getCurrentMasks();
+        data.currentSoul = soul.getCurrentSoul();
+        data.crackedWallDestroyed =
+            crackedWall != null
+                && crackedWall.isDestroyed();
+        data.falseKnightDefeated =
+            falseKnightDefeated
+                || (falseKnight != null
+                && !falseKnight.isAlive());
+        data.godModeEnabled = godModeEnabled;
+        data.noclipModeEnabled = noclipModeEnabled;
+        data.elapsedGameSeconds = elapsedGameSeconds;
+
+        for (CharmType charm : charmInventory.getOwnedCharms()) {
+            data.ownedCharms.add(charm.name());
+        }
+
+        for (CharmType charm : charmInventory.getEquippedCharms()) {
+            data.equippedCharms.add(charm.name());
+        }
+
+        for (EnemyKillType enemyType : killedEnemyTypes) {
+            data.killedEnemyTypes.add(enemyType.name());
+        }
+
+        data.unlockedAchievements.addAll(
+            achievementManager.getUnlockedTypeNames()
+        );
+
+        return data;
+    }
+
+    private void applyGameData(
+        GameData data
+    ) {
+        if (data == null) {
+            return;
+        }
+
+        currentRoomId = data.currentRoomId == null
+            ? "forgotten_crossroads"
+            : data.currentRoomId;
+
+        currentRoomBounds = world.getRoomBounds(
+            currentRoomId
+        );
+
+        currentRoomSpawnX = data.playerX;
+        currentRoomSpawnY = data.playerY;
+
+        falseKnightDefeated =
+            data.falseKnightDefeated;
+
+        godModeEnabled =
+            data.godModeEnabled;
+
+        noclipModeEnabled =
+            data.noclipModeEnabled;
+
+        elapsedGameSeconds =
+            Math.max(0f, data.elapsedGameSeconds);
+
+        configureCurrentRoomPhysics();
+
+        if (
+            data.crackedWallDestroyed
+                && crackedWall != null
+                && !crackedWall.isDestroyed()
+        ) {
+            while (!crackedWall.isDestroyed()) {
+                crackedWall.hit();
+            }
+
+            if (crackedWallPlatform != null) {
+                platformWorld.removePlatform(
+                    crackedWallPlatform
+                );
+            }
+        }
+
+        spikeHazards = world.getSpikeHazardsForRoom(
+            currentRoomId
+        );
+
+        spawnEnemiesForCurrentRoom();
+        spawnZoteForCurrentRoom();
+        spawnFalseKnightForCurrentRoom();
+        endZoteDialogue();
+
+        movement.respawnAt(
+            data.playerX,
+            data.playerY
+        );
+
+        checkpoint.save(
+            data.playerX,
+            data.playerY
+        );
+
+        health.setCurrentMasks(
+            data.currentMasks
+        );
+
+        soul.setCurrentSoul(
+            data.currentSoul
+        );
+
+        applySavedCharms(data);
+
+        killedEnemyTypes.clear();
+
+        if (data.killedEnemyTypes != null) {
+            for (String enemyName : data.killedEnemyTypes) {
+                try {
+                    killedEnemyTypes.add(
+                        EnemyKillType.valueOf(enemyName)
+                    );
+                } catch (IllegalArgumentException ignored) {
+                    // Ignore unknown enemy types from other builds.
+                }
+            }
+        }
+
+        achievementManager.applyUnlockedTypeNames(
+            data.unlockedAchievements
+        );
+
+        combat.finishAttack();
+        focus.cancel();
+    }
+
+    private void applySavedCharms(
+        GameData data
+    ) {
+        EnumSet<CharmType> owned =
+            EnumSet.noneOf(CharmType.class);
+
+        if (data.ownedCharms != null) {
+            for (String charmName : data.ownedCharms) {
+                try {
+                    owned.add(
+                        CharmType.valueOf(charmName)
+                    );
+                } catch (IllegalArgumentException ignored) {
+                    // Ignore unknown charms from other builds.
+                }
+            }
+        }
+
+        if (owned.isEmpty()) {
+            for (CharmType charm : CharmType.values()) {
+                if (charm != CharmType.VOID_HEART) {
+                    owned.add(charm);
+                }
+            }
+        }
+
+        charmInventory.setOwnedCharms(owned);
+
+        EnumSet<CharmType> equipped =
+            EnumSet.noneOf(CharmType.class);
+
+        if (data.equippedCharms != null) {
+            for (String charmName : data.equippedCharms) {
+                try {
+                    equipped.add(
+                        CharmType.valueOf(charmName)
+                    );
+                } catch (IllegalArgumentException ignored) {
+                    // Ignore unknown charms from other builds.
+                }
+            }
+        }
+
+        charmInventory.setEquippedCharms(equipped);
+    }
+
+    public String saveGame() {
+        GameData data = createGameData();
+
+        saveManager.save(
+            data,
+            saveSlotNumber
+        );
+
+        databaseSaveManager.save(
+            data,
+            saveSlotNumber
+        );
+
+        setCheatMessage(
+            "Game saved."
+        );
+
+        return "Game saved to slot "
+            + saveSlotNumber
+            + ".";
+    }
+
+    public String loadGame() {
+        GameData data = saveManager.load(
+            saveSlotNumber
+        );
+
+        if (data == null) {
+            data = databaseSaveManager.load(
+                saveSlotNumber
+            );
+        }
+
+        if (data == null) {
+            setCheatMessage(
+                "No save file found."
+            );
+
+            return "No save file found.";
+        }
+
+        applyGameData(data);
+
+        setCheatMessage(
+            "Game loaded."
+        );
+
+        return "Game loaded.";
+    }
+
+    public boolean hasSavedGame() {
+        return saveManager.hasSave(
+            saveSlotNumber
+        )
+            || databaseSaveManager.hasSave(
+            saveSlotNumber
+        );
+    }
+
+    public void saveGameAndExit() {
+        saveGame();
+        returnToMainMenu();
+    }
+
+    public void openSettingsMenu() {
+        game.showSettingsMenu();
+    }
+
+    public void openAchievementsMenu() {
+        game.showAchievementsMenu();
+    }
+
+    public List<Achievement> getAchievements() {
+        return achievementManager.getAchievements();
+    }
+
+    public void addAchievementObserver(
+        AchievementObserver observer
+    ) {
+        achievementManager.addObserver(observer);
+    }
+
+    public void removeAchievementObserver(
+        AchievementObserver observer
+    ) {
+        achievementManager.removeObserver(observer);
+    }
+
+    public boolean isGodModeEnabled() {
+        return godModeEnabled;
+    }
+
+    public boolean isNoclipModeEnabled() {
+        return noclipModeEnabled;
+    }
+
+    public String getCheatMessage() {
+        return cheatMessage == null
+            ? ""
+            : cheatMessage;
+    }
+
+    public String getCheatStatusLine() {
+        return "God Mode: "
+            + (godModeEnabled ? "ON" : "OFF")
+            + "   Flight/Noclip: "
+            + (noclipModeEnabled ? "ON" : "OFF");
+    }
+
+    public float getElapsedGameSeconds() {
+        return elapsedGameSeconds;
     }
 
     public Player getPlayer() {
