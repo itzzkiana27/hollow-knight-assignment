@@ -1,14 +1,14 @@
 {
 "currentRoomId": "forgotten_crossroads",
-"playerX": 3213.8164,
-"playerY": 6913.0244,
-"currentMasks": 5,
+"playerX": 2434.7163,
+"playerY": 6558.6143,
+"currentMasks": 4,
 "currentSoul": 0,
 "crackedWallDestroyed": true,
 "falseKnightDefeated": false,
 "godModeEnabled": false,
 "noclipModeEnabled": false,
-"elapsedGameSeconds": 32.381958,
+"elapsedGameSeconds": 42.694878,
 "deathCount": 0,
 "totalEnemiesKilled": 0,
 "ownedCharms": [

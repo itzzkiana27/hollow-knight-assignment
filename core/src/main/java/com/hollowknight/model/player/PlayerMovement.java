@@ -839,13 +839,9 @@ public final class PlayerMovement {
         verticalVelocity =
             JUMP_SPEED;
 
-        jumpsUsed = 1;
+        resetAirborneAbilitiesAfterPogo();
+
         jumpCutAvailable = false;
-
-        dashCooldownRemaining = 0f;
-        dashTimeRemaining = 0f;
-        airDashUsed = false;
-
         wallJumpPushTimeRemaining = 0f;
 
         player.setMovementState(
@@ -855,6 +851,19 @@ public final class PlayerMovement {
         player.setAnimation(
             PlayerAnimationType.AIRBORNE
         );
+    }
+
+    /**
+     * A successful pogo acts like touching a refresh point in mid-air.
+     * The next airborne jump and dash must be available immediately,
+     * even when both abilities were already spent before hitting spikes.
+     */
+    private void resetAirborneAbilitiesAfterPogo() {
+        jumpsUsed = 0;
+
+        airDashUsed = false;
+        dashCooldownRemaining = 0f;
+        dashTimeRemaining = 0f;
     }
 
     public boolean isOnGround() {

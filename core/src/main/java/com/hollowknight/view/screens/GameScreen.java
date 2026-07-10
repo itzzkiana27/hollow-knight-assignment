@@ -334,6 +334,7 @@ public class GameScreen extends ScreenAdapter {
     private ShapeRenderer shapeRenderer;
     private OrthogonalTiledMapRenderer mapRenderer;
     private CrackedWallRenderer crackedWallRenderer;
+    private Texture hiddenRoomCoverTexture;
     private RainEffect rainEffect;
 
     private KnightAnimationManager knightAnimationManager;
@@ -434,6 +435,14 @@ public class GameScreen extends ScreenAdapter {
             new CrackedWallRenderer(
                 controller.getCrackedWall()
             );
+
+        hiddenRoomCoverTexture = new Texture(
+            Gdx.files.internal(
+                "maps/environment/forgotten_crossroads/background/"
+                    + "crossroads_secret_01_cover.png"
+            )
+        );
+
         rainEffect = new RainEffect();
 
         knightAnimationManager = new KnightAnimationManager();
@@ -1075,31 +1084,24 @@ public class GameScreen extends ScreenAdapter {
             return;
         }
 
-        shapeRenderer.setProjectionMatrix(
+        if (hiddenRoomCoverTexture == null) {
+            return;
+        }
+
+        batch.setProjectionMatrix(
             worldCamera.getCombined()
         );
 
-        shapeRenderer.begin(
-            ShapeRenderer.ShapeType.Filled
-        );
-
-        // Blend the hidden-room cover into the Crossroads
-        // background instead of showing a pure-black rectangle.
-        shapeRenderer.setColor(
-            0.020f,
-            0.024f,
-            0.052f,
-            1f
-        );
-
-        shapeRenderer.rect(
+        batch.begin();
+        batch.setColor(Color.WHITE);
+        batch.draw(
+            hiddenRoomCoverTexture,
             hiddenRoom.x,
             hiddenRoom.y,
             hiddenRoom.width,
             hiddenRoom.height
         );
-
-        shapeRenderer.end();
+        batch.end();
     }
 
     private void drawCrackedWall() {
@@ -4449,6 +4451,11 @@ public class GameScreen extends ScreenAdapter {
 
         if (crackedWallRenderer != null) {
             crackedWallRenderer.dispose();
+        }
+
+        if (hiddenRoomCoverTexture != null) {
+            hiddenRoomCoverTexture.dispose();
+            hiddenRoomCoverTexture = null;
         }
 
         if (mapRenderer != null) {
