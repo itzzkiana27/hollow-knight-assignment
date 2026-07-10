@@ -2,6 +2,7 @@ package com.hollowknight.controller;
 
 import com.badlogic.gdx.Gdx;
 import com.hollowknight.HollowKnightGame;
+import com.hollowknight.view.theme.MenuThemeType;
 
 public class MainMenuController {
 
@@ -30,6 +31,28 @@ public class MainMenuController {
 
     public void openAchievements() {
         game.showAchievementsMenu();
+    }
+
+    public String getMenuThemeDisplayName() {
+        return MenuThemeType
+            .fromId(game.getSettings().getMenuTheme())
+            .getDisplayName();
+    }
+
+    public void cycleMenuTheme() {
+        MenuThemeType nextTheme = MenuThemeType
+            .fromId(game.getSettings().getMenuTheme())
+            .next();
+
+        game.getSettings().setMenuTheme(
+            nextTheme.getId()
+        );
+
+        game.getSettings().save();
+
+        Gdx.app.postRunnable(
+            game::showMainMenu
+        );
     }
 
     public void quitGame() {

@@ -3,6 +3,7 @@ package com.hollowknight.view.theme;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
@@ -46,6 +47,9 @@ public final class MenuThemeSkin implements Disposable {
     private static final int MENU_TITLE_FONT_SIZE = 34;
 
     private static final int MENU_SMALL_FONT_SIZE = 20;
+
+    private static Cursor sharedCursor;
+    private static boolean cursorLoaded;
 
     private final MenuThemeType theme;
     private final Skin skin;
@@ -170,6 +174,7 @@ public final class MenuThemeSkin implements Disposable {
         );
 
         customizeSkin();
+        applyCustomCursor();
     }
 
     public static MenuThemeSkin fromSettings() {
@@ -262,7 +267,6 @@ public final class MenuThemeSkin implements Disposable {
             themeTint(1f)
         );
 
-        drawBeam(width, height);
         drawParticles(width, height);
 
         backgroundBatch.setColor(
@@ -455,6 +459,55 @@ public final class MenuThemeSkin implements Disposable {
 
     public Texture getSoulGlowTexture() {
         return soulGlowTexture;
+    }
+
+    private static void applyCustomCursor() {
+        if (cursorLoaded) {
+            if (sharedCursor != null) {
+                Gdx.graphics.setCursor(sharedCursor);
+            }
+            return;
+        }
+
+        cursorLoaded = true;
+
+        FileHandle cursorFile = Gdx.files.internal(
+            BASE_PATH + "common/cursor.png"
+        );
+
+        if (!cursorFile.exists()) {
+            return;
+        }
+
+        Pixmap cursorPixmap = null;
+
+        try {
+            cursorPixmap = new Pixmap(cursorFile);
+
+            int hotspotX = Math.min(
+                8,
+                Math.max(0, cursorPixmap.getWidth() / 6)
+            );
+
+            int hotspotY = Math.min(
+                8,
+                Math.max(0, cursorPixmap.getHeight() / 6)
+            );
+
+            sharedCursor = Gdx.graphics.newCursor(
+                cursorPixmap,
+                hotspotX,
+                hotspotY
+            );
+
+            Gdx.graphics.setCursor(sharedCursor);
+        } catch (GdxRuntimeException exception) {
+            sharedCursor = null;
+        } finally {
+            if (cursorPixmap != null) {
+                cursorPixmap.dispose();
+            }
+        }
     }
 
     private Texture load(String path) {

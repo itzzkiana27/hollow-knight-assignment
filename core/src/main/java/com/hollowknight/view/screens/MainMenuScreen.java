@@ -90,15 +90,27 @@ public class MainMenuScreen extends ScreenAdapter {
             controller::quitGame
         );
 
-        Label themeHint = menuTheme.createBodyLabel(
-            menuTheme.getTheme().getDisplayName()
+        TextButton themeButton = menuTheme.createMenuButton(
+            "Theme: " + controller.getMenuThemeDisplayName()
         );
-        themeHint.setAlignment(Align.center);
-        themeHint.setColor(0.55f, 0.62f, 0.70f, 0.75f);
+        themeButton.getLabel().setFontScale(0.82f);
+        themeButton.getLabel().setAlignment(Align.center);
+        themeButton.getLabel().setColor(0.55f, 0.62f, 0.70f, 0.82f);
 
-        table.add(themeHint)
+        themeButton.addListener(new ChangeListener() {
+            @Override
+            public void changed(
+                ChangeEvent event,
+                Actor actor
+            ) {
+                controller.cycleMenuTheme();
+            }
+        });
+
+        table.add(themeButton)
             .width(300f)
-            .padTop(32f)
+            .height(36f)
+            .padTop(28f)
             .row();
 
         stage.addActor(table);

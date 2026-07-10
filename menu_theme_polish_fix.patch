@@ -1,0 +1,260 @@
+diff -ruN menu_polish_base/core/src/main/java/com/hollowknight/controller/MainMenuController.java menu_polish_new/core/src/main/java/com/hollowknight/controller/MainMenuController.java
+--- menu_polish_base/core/src/main/java/com/hollowknight/controller/MainMenuController.java	2026-07-10 14:08:30.520629060 +0000
++++ menu_polish_new/core/src/main/java/com/hollowknight/controller/MainMenuController.java	2026-07-10 14:09:10.714983264 +0000
+@@ -2,6 +2,7 @@
+ 
+ import com.badlogic.gdx.Gdx;
+ import com.hollowknight.HollowKnightGame;
++import com.hollowknight.view.theme.MenuThemeType;
+ 
+ public class MainMenuController {
+ 
+@@ -32,6 +33,28 @@
+         game.showAchievementsMenu();
+     }
+ 
++    public String getMenuThemeDisplayName() {
++        return MenuThemeType
++            .fromId(game.getSettings().getMenuTheme())
++            .getDisplayName();
++    }
++
++    public void cycleMenuTheme() {
++        MenuThemeType nextTheme = MenuThemeType
++            .fromId(game.getSettings().getMenuTheme())
++            .next();
++
++        game.getSettings().setMenuTheme(
++            nextTheme.getId()
++        );
++
++        game.getSettings().save();
++
++        Gdx.app.postRunnable(
++            game::showMainMenu
++        );
++    }
++
+     public void quitGame() {
+         Gdx.app.exit();
+     }
+diff -ruN menu_polish_base/core/src/main/java/com/hollowknight/view/screens/GuideScreen.java menu_polish_new/core/src/main/java/com/hollowknight/view/screens/GuideScreen.java
+--- menu_polish_base/core/src/main/java/com/hollowknight/view/screens/GuideScreen.java	2026-07-10 14:08:30.567500467 +0000
++++ menu_polish_new/core/src/main/java/com/hollowknight/view/screens/GuideScreen.java	2026-07-10 14:09:10.716876272 +0000
+@@ -44,8 +44,11 @@
+         Table contentTable = new Table();
+ 
+         contentTable.top();
+-        contentTable.pad(32f);
+-        contentTable.defaults().pad(7f);
++        contentTable.pad(34f);
++        contentTable.defaults()
++            .pad(7f)
++            .padLeft(18f)
++            .padRight(18f);
+         contentTable.setBackground(
+             menuTheme.panelDrawable(0.60f)
+         );
+@@ -86,7 +89,7 @@
+         rootTable.center();
+ 
+         rootTable.add(scrollPane)
+-            .width(Math.min(880f, Gdx.graphics.getWidth() * 0.90f))
++            .width(Math.min(780f, Gdx.graphics.getWidth() * 0.86f))
+             .height(Math.min(690f, Gdx.graphics.getHeight() * 0.90f));
+ 
+         stage.addActor(rootTable);
+@@ -302,16 +305,17 @@
+         Label actionLabel = menuTheme.createBodyLabel(action);
+         Label keyLabel = menuTheme.createSectionLabel(key);
+ 
+-        table.add(menuTheme.createMagicOrbIcon(20f))
+-            .size(20f)
+-            .padRight(8f);
++        table.add(menuTheme.createMagicOrbIcon(18f))
++            .size(18f)
++            .padLeft(18f)
++            .padRight(10f);
+ 
+         table.add(actionLabel)
+-            .width(360f)
++            .width(300f)
+             .left();
+ 
+         table.add(keyLabel)
+-            .width(260f)
++            .width(170f)
+             .left()
+             .row();
+     }
+@@ -333,8 +337,9 @@
+         }
+ 
+         table.add(icon)
+-            .size(42f)
+-            .padRight(8f)
++            .size(38f)
++            .padLeft(18f)
++            .padRight(10f)
+             .top();
+ 
+         addDescriptionCells(
+@@ -349,9 +354,10 @@
+         String heading,
+         String description
+     ) {
+-        table.add(menuTheme.createMagicOrbIcon(20f))
+-            .size(20f)
+-            .padRight(8f)
++        table.add(menuTheme.createMagicOrbIcon(18f))
++            .size(18f)
++            .padLeft(18f)
++            .padRight(10f)
+             .top();
+ 
+         addDescriptionCells(
+@@ -383,12 +389,12 @@
+         );
+ 
+         table.add(headingLabel)
+-            .width(230f)
++            .width(200f)
+             .left()
+             .top();
+ 
+         table.add(descriptionLabel)
+-            .width(500f)
++            .width(380f)
+             .left()
+             .top()
+             .row();
+diff -ruN menu_polish_base/core/src/main/java/com/hollowknight/view/screens/MainMenuScreen.java menu_polish_new/core/src/main/java/com/hollowknight/view/screens/MainMenuScreen.java
+--- menu_polish_base/core/src/main/java/com/hollowknight/view/screens/MainMenuScreen.java	2026-07-10 14:08:30.544861959 +0000
++++ menu_polish_new/core/src/main/java/com/hollowknight/view/screens/MainMenuScreen.java	2026-07-10 14:09:10.715940432 +0000
+@@ -90,15 +90,27 @@
+             controller::quitGame
+         );
+ 
+-        Label themeHint = menuTheme.createBodyLabel(
+-            menuTheme.getTheme().getDisplayName()
++        TextButton themeButton = menuTheme.createMenuButton(
++            "Theme: " + controller.getMenuThemeDisplayName()
+         );
+-        themeHint.setAlignment(Align.center);
+-        themeHint.setColor(0.55f, 0.62f, 0.70f, 0.75f);
++        themeButton.getLabel().setFontScale(0.82f);
++        themeButton.getLabel().setAlignment(Align.center);
++        themeButton.getLabel().setColor(0.55f, 0.62f, 0.70f, 0.82f);
+ 
+-        table.add(themeHint)
++        themeButton.addListener(new ChangeListener() {
++            @Override
++            public void changed(
++                ChangeEvent event,
++                Actor actor
++            ) {
++                controller.cycleMenuTheme();
++            }
++        });
++
++        table.add(themeButton)
+             .width(300f)
+-            .padTop(32f)
++            .height(36f)
++            .padTop(28f)
+             .row();
+ 
+         stage.addActor(table);
+diff -ruN menu_polish_base/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java menu_polish_new/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java
+--- menu_polish_base/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java	2026-07-10 14:08:30.491753740 +0000
++++ menu_polish_new/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java	2026-07-10 14:09:10.713902623 +0000
+@@ -3,6 +3,7 @@
+ import com.badlogic.gdx.Gdx;
+ import com.badlogic.gdx.files.FileHandle;
+ import com.badlogic.gdx.graphics.Color;
++import com.badlogic.gdx.graphics.Cursor;
+ import com.badlogic.gdx.graphics.GL20;
+ import com.badlogic.gdx.graphics.Pixmap;
+ import com.badlogic.gdx.graphics.Texture;
+@@ -47,6 +48,9 @@
+ 
+     private static final int MENU_SMALL_FONT_SIZE = 20;
+ 
++    private static Cursor sharedCursor;
++    private static boolean cursorLoaded;
++
+     private final MenuThemeType theme;
+     private final Skin skin;
+     private final SpriteBatch backgroundBatch;
+@@ -170,6 +174,7 @@
+         );
+ 
+         customizeSkin();
++        applyCustomCursor();
+     }
+ 
+     public static MenuThemeSkin fromSettings() {
+@@ -262,7 +267,6 @@
+             themeTint(1f)
+         );
+ 
+-        drawBeam(width, height);
+         drawParticles(width, height);
+ 
+         backgroundBatch.setColor(
+@@ -457,6 +461,55 @@
+         return soulGlowTexture;
+     }
+ 
++    private static void applyCustomCursor() {
++        if (cursorLoaded) {
++            if (sharedCursor != null) {
++                Gdx.graphics.setCursor(sharedCursor);
++            }
++            return;
++        }
++
++        cursorLoaded = true;
++
++        FileHandle cursorFile = Gdx.files.internal(
++            BASE_PATH + "common/cursor.png"
++        );
++
++        if (!cursorFile.exists()) {
++            return;
++        }
++
++        Pixmap cursorPixmap = null;
++
++        try {
++            cursorPixmap = new Pixmap(cursorFile);
++
++            int hotspotX = Math.min(
++                8,
++                Math.max(0, cursorPixmap.getWidth() / 6)
++            );
++
++            int hotspotY = Math.min(
++                8,
++                Math.max(0, cursorPixmap.getHeight() / 6)
++            );
++
++            sharedCursor = Gdx.graphics.newCursor(
++                cursorPixmap,
++                hotspotX,
++                hotspotY
++            );
++
++            Gdx.graphics.setCursor(sharedCursor);
++        } catch (GdxRuntimeException exception) {
++            sharedCursor = null;
++        } finally {
++            if (cursorPixmap != null) {
++                cursorPixmap.dispose();
++            }
++        }
++    }
++
+     private Texture load(String path) {
+         FileHandle file = Gdx.files.internal(path);
+ 

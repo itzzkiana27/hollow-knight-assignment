@@ -44,8 +44,11 @@ public class GuideScreen extends ScreenAdapter {
         Table contentTable = new Table();
 
         contentTable.top();
-        contentTable.pad(32f);
-        contentTable.defaults().pad(7f);
+        contentTable.pad(34f);
+        contentTable.defaults()
+            .pad(7f)
+            .padLeft(18f)
+            .padRight(18f);
         contentTable.setBackground(
             menuTheme.panelDrawable(0.60f)
         );
@@ -86,7 +89,7 @@ public class GuideScreen extends ScreenAdapter {
         rootTable.center();
 
         rootTable.add(scrollPane)
-            .width(Math.min(880f, Gdx.graphics.getWidth() * 0.90f))
+            .width(Math.min(780f, Gdx.graphics.getWidth() * 0.86f))
             .height(Math.min(690f, Gdx.graphics.getHeight() * 0.90f));
 
         stage.addActor(rootTable);
@@ -302,16 +305,17 @@ public class GuideScreen extends ScreenAdapter {
         Label actionLabel = menuTheme.createBodyLabel(action);
         Label keyLabel = menuTheme.createSectionLabel(key);
 
-        table.add(menuTheme.createMagicOrbIcon(20f))
-            .size(20f)
-            .padRight(8f);
+        table.add(menuTheme.createMagicOrbIcon(18f))
+            .size(18f)
+            .padLeft(18f)
+            .padRight(10f);
 
         table.add(actionLabel)
-            .width(360f)
+            .width(300f)
             .left();
 
         table.add(keyLabel)
-            .width(260f)
+            .width(170f)
             .left()
             .row();
     }
@@ -333,8 +337,9 @@ public class GuideScreen extends ScreenAdapter {
         }
 
         table.add(icon)
-            .size(42f)
-            .padRight(8f)
+            .size(38f)
+            .padLeft(18f)
+            .padRight(10f)
             .top();
 
         addDescriptionCells(
@@ -349,9 +354,10 @@ public class GuideScreen extends ScreenAdapter {
         String heading,
         String description
     ) {
-        table.add(menuTheme.createMagicOrbIcon(20f))
-            .size(20f)
-            .padRight(8f)
+        table.add(menuTheme.createMagicOrbIcon(18f))
+            .size(18f)
+            .padLeft(18f)
+            .padRight(10f)
             .top();
 
         addDescriptionCells(
@@ -383,12 +389,12 @@ public class GuideScreen extends ScreenAdapter {
         );
 
         table.add(headingLabel)
-            .width(230f)
+            .width(200f)
             .left()
             .top();
 
         table.add(descriptionLabel)
-            .width(500f)
+            .width(380f)
             .left()
             .top()
             .row();
