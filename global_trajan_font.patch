@@ -1,0 +1,279 @@
+diff --git a/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java b/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java
+index 44002fa..1fb41a8 100644
+--- a/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java
++++ b/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java
+@@ -14,10 +14,13 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
+ import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+ import com.badlogic.gdx.scenes.scene2d.ui.Image;
+ import com.badlogic.gdx.scenes.scene2d.ui.Label;
++import com.badlogic.gdx.scenes.scene2d.ui.List;
+ import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+ import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
++import com.badlogic.gdx.scenes.scene2d.ui.TextField;
++import com.badlogic.gdx.scenes.scene2d.ui.Window;
+ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
+ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+ import com.badlogic.gdx.utils.Array;
+@@ -38,15 +41,17 @@ public final class MenuThemeSkin implements Disposable {
+     private static final String TRAJAN_FONT_PATH =
+         "ui/fonts/TrajanPro-Regular.ttf";
+ 
+-    private static final int MENU_FONT_SIZE = 28;
++    private static final int MENU_BODY_FONT_SIZE = 24;
++
++    private static final int MENU_TITLE_FONT_SIZE = 34;
++
++    private static final int MENU_SMALL_FONT_SIZE = 20;
+ 
+     private final MenuThemeType theme;
+     private final Skin skin;
+     private final SpriteBatch backgroundBatch;
+     private final Array<Texture> ownedTextures;
+ 
+-    private BitmapFont generatedMenuFont;
+-
+     private final Texture backgroundTexture;
+     private final Texture saveBackgroundTexture;
+     private final Texture titleLogoTexture;
+@@ -471,13 +476,18 @@ public final class MenuThemeSkin implements Disposable {
+     }
+ 
+ 
+-    private BitmapFont createMenuFont() {
++    private BitmapFont createTrajanFont(
++        int size,
++        float borderWidth,
++        int shadowOffsetX,
++        int shadowOffsetY
++    ) {
+         FileHandle fontFile = Gdx.files.internal(
+             TRAJAN_FONT_PATH
+         );
+ 
+         if (!fontFile.exists()) {
+-            return skin.getFont("window");
++            return null;
+         }
+ 
+         FreeTypeFontGenerator generator = null;
+@@ -490,18 +500,18 @@ public final class MenuThemeSkin implements Disposable {
+             FreeTypeFontGenerator.FreeTypeFontParameter parameter =
+                 new FreeTypeFontGenerator.FreeTypeFontParameter();
+ 
+-            parameter.size = MENU_FONT_SIZE;
++            parameter.size = size;
+             parameter.minFilter = Texture.TextureFilter.Linear;
+             parameter.magFilter = Texture.TextureFilter.Linear;
+-            parameter.borderWidth = 0.65f;
++            parameter.borderWidth = borderWidth;
+             parameter.borderColor = new Color(
+                 0f,
+                 0f,
+                 0f,
+                 0.72f
+             );
+-            parameter.shadowOffsetX = 1;
+-            parameter.shadowOffsetY = -1;
++            parameter.shadowOffsetX = shadowOffsetX;
++            parameter.shadowOffsetY = shadowOffsetY;
+             parameter.shadowColor = new Color(
+                 0f,
+                 0f,
+@@ -512,14 +522,14 @@ public final class MenuThemeSkin implements Disposable {
+                 FreeTypeFontGenerator.DEFAULT_CHARS
+                     + "–—’‘“”…•◦؛،؟آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیءئۀة";
+ 
+-            generatedMenuFont = generator.generateFont(
++            BitmapFont font = generator.generateFont(
+                 parameter
+             );
+-            generatedMenuFont.getData().markupEnabled = true;
++            font.getData().markupEnabled = true;
+ 
+-            return generatedMenuFont;
++            return font;
+         } catch (GdxRuntimeException exception) {
+-            return skin.getFont("window");
++            return null;
+         } finally {
+             if (generator != null) {
+                 generator.dispose();
+@@ -527,17 +537,115 @@ public final class MenuThemeSkin implements Disposable {
+         }
+     }
+ 
++    private BitmapFont createOrGetFont(
++        String skinFontName,
++        int size,
++        float borderWidth
++    ) {
++        BitmapFont trajanFont = createTrajanFont(
++            size,
++            borderWidth,
++            1,
++            -1
++        );
++
++        if (trajanFont != null) {
++            skin.add(
++                skinFontName,
++                trajanFont,
++                BitmapFont.class
++            );
++            return trajanFont;
++        }
++
++        return skin.getFont(
++            skinFontName
++        );
++    }
++
++    private <T> T findStyle(
++        String name,
++        Class<T> styleType
++    ) {
++        try {
++            return skin.get(
++                name,
++                styleType
++            );
++        } catch (GdxRuntimeException exception) {
++            return null;
++        }
++    }
++
+     private void customizeSkin() {
+-        BitmapFont menuFont = createMenuFont();
++        BitmapFont defaultFont = createOrGetFont(
++            "default",
++            MENU_BODY_FONT_SIZE,
++            0.55f
++        );
++
++        BitmapFont bodyFont = createOrGetFont(
++            "font",
++            MENU_BODY_FONT_SIZE,
++            0.55f
++        );
++
++        BitmapFont subtitleFont = createOrGetFont(
++            "subtitle",
++            MENU_BODY_FONT_SIZE,
++            0.55f
++        );
++
++        BitmapFont smallFont = createOrGetFont(
++            "list",
++            MENU_SMALL_FONT_SIZE,
++            0.45f
++        );
++
++        BitmapFont titleFont = createOrGetFont(
++            "window",
++            MENU_TITLE_FONT_SIZE,
++            0.70f
++        );
+ 
+         Label.LabelStyle labelStyle =
+             skin.get(Label.LabelStyle.class);
+-        labelStyle.font = menuFont;
++        labelStyle.font = bodyFont;
+         labelStyle.fontColor = bodyColor();
+ 
++        Label.LabelStyle windowLabelStyle = findStyle(
++            "window",
++            Label.LabelStyle.class
++        );
++
++        if (windowLabelStyle != null) {
++            windowLabelStyle.font = titleFont;
++            windowLabelStyle.fontColor = titleColor();
++        }
++
++        Label.LabelStyle listLabelStyle = findStyle(
++            "list",
++            Label.LabelStyle.class
++        );
++
++        if (listLabelStyle != null) {
++            listLabelStyle.font = smallFont;
++            listLabelStyle.fontColor = bodyColor();
++        }
++
++        Label.LabelStyle subtitleLabelStyle = findStyle(
++            "subtitle",
++            Label.LabelStyle.class
++        );
++
++        if (subtitleLabelStyle != null) {
++            subtitleLabelStyle.font = subtitleFont;
++            subtitleLabelStyle.fontColor = bodyColor();
++        }
++
+         TextButton.TextButtonStyle buttonStyle =
+             skin.get(TextButton.TextButtonStyle.class);
+-        buttonStyle.font = menuFont;
++        buttonStyle.font = bodyFont;
+         buttonStyle.fontColor = bodyColor();
+         buttonStyle.overFontColor = highlightColor();
+         buttonStyle.downFontColor = Color.WHITE;
+@@ -548,9 +656,35 @@ public final class MenuThemeSkin implements Disposable {
+ 
+         SelectBox.SelectBoxStyle selectStyle =
+             skin.get(SelectBox.SelectBoxStyle.class);
+-        selectStyle.font = menuFont;
++        selectStyle.font = bodyFont;
+         selectStyle.fontColor = bodyColor();
+ 
++        if (selectStyle.listStyle != null) {
++            selectStyle.listStyle.font = smallFont;
++            selectStyle.listStyle.fontColorSelected =
++                highlightColor();
++            selectStyle.listStyle.fontColorUnselected =
++                bodyColor();
++        }
++
++        List.ListStyle listStyle =
++            skin.get(List.ListStyle.class);
++        listStyle.font = smallFont;
++        listStyle.fontColorSelected = highlightColor();
++        listStyle.fontColorUnselected = bodyColor();
++
++        TextField.TextFieldStyle textFieldStyle =
++            skin.get(TextField.TextFieldStyle.class);
++        textFieldStyle.font = bodyFont;
++        textFieldStyle.messageFont = bodyFont;
++        textFieldStyle.fontColor = bodyColor();
++        textFieldStyle.messageFontColor = bodyColor();
++
++        Window.WindowStyle windowStyle =
++            skin.get(Window.WindowStyle.class);
++        windowStyle.titleFont = titleFont;
++        windowStyle.titleFontColor = titleColor();
++
+         Slider.SliderStyle sliderStyle =
+             skin.get(
+                 "default-horizontal",
+@@ -571,7 +705,7 @@ public final class MenuThemeSkin implements Disposable {
+ 
+         CheckBox.CheckBoxStyle checkBoxStyle =
+             skin.get(CheckBox.CheckBoxStyle.class);
+-        checkBoxStyle.font = menuFont;
++        checkBoxStyle.font = bodyFont;
+         checkBoxStyle.fontColor = bodyColor();
+         checkBoxStyle.checkboxOn = drawable(
+             load(BASE_PATH + "settings/toggle_on.png")
+@@ -738,11 +872,6 @@ public final class MenuThemeSkin implements Disposable {
+     public void dispose() {
+         backgroundBatch.dispose();
+ 
+-        if (generatedMenuFont != null) {
+-            generatedMenuFont.dispose();
+-            generatedMenuFont = null;
+-        }
+-
+         if (skin != null) {
+             skin.dispose();
+         }

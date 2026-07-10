@@ -1,0 +1,215 @@
+@@ -37,15 +40,17 @@
+     private static final String TRAJAN_FONT_PATH =
+         "ui/fonts/TrajanPro-Regular.ttf";
+ 
+-    private static final int MENU_FONT_SIZE = 28;
++    private static final int MENU_BODY_FONT_SIZE = 24;
++
++    private static final int MENU_TITLE_FONT_SIZE = 34;
++
++    private static final int MENU_SMALL_FONT_SIZE = 20;
+ 
+     private final MenuThemeType theme;
+     private final Skin skin;
+     private final SpriteBatch backgroundBatch;
+     private final Array<Texture> ownedTextures;
+ 
+-    private BitmapFont generatedMenuFont;
+-
+     private final Texture backgroundTexture;
+     private final Texture saveBackgroundTexture;
+     private final Texture titleLogoTexture;
+@@ -470,13 +475,18 @@
+     }
+ 
+ 
+-    private BitmapFont createMenuFont() {
++    private BitmapFont createTrajanFont(
++        int size,
++        float borderWidth,
++        int shadowOffsetX,
++        int shadowOffsetY
++    ) {
+         FileHandle fontFile = Gdx.files.internal(
+             TRAJAN_FONT_PATH
+         );
+ 
+         if (!fontFile.exists()) {
+-            return skin.getFont("window");
++            return null;
+         }
+ 
+         FreeTypeFontGenerator generator = null;
+@@ -489,18 +499,18 @@
+             FreeTypeFontGenerator.FreeTypeFontParameter parameter =
+                 new FreeTypeFontGenerator.FreeTypeFontParameter();
+ 
+-            parameter.size = MENU_FONT_SIZE;
++            parameter.size = size;
+             parameter.minFilter = Texture.TextureFilter.Linear;
+             parameter.magFilter = Texture.TextureFilter.Linear;
+-            parameter.borderWidth = 0.65f;
++            parameter.borderWidth = borderWidth;
+             parameter.borderColor = new Color(
+                 0f,
+                 0f,
+                 0f,
+                 0.72f
+             );
+-            parameter.shadowOffsetX = 1;
+-            parameter.shadowOffsetY = -1;
++            parameter.shadowOffsetX = shadowOffsetX;
++            parameter.shadowOffsetY = shadowOffsetY;
+             parameter.shadowColor = new Color(
+                 0f,
+                 0f,
+@@ -511,14 +521,14 @@
+                 FreeTypeFontGenerator.DEFAULT_CHARS
+                     + "–—’‘“”…•◦؛،؟آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیءئۀة";
+ 
+-            generatedMenuFont = generator.generateFont(
++            BitmapFont font = generator.generateFont(
+                 parameter
+             );
+-            generatedMenuFont.getData().markupEnabled = true;
++            font.getData().markupEnabled = true;
+ 
+-            return generatedMenuFont;
++            return font;
+         } catch (GdxRuntimeException exception) {
+-            return skin.getFont("window");
++            return null;
+         } finally {
+             if (generator != null) {
+                 generator.dispose();
+@@ -526,17 +536,115 @@
+         }
+     }
+ 
++    private BitmapFont createOrGetFont(
++        String skinFontName,
++        int size,
++        float borderWidth
++    ) {
++        BitmapFont trajanFont = createTrajanFont(
++            size,
++            borderWidth,
++            1,
++            -1
++        );
++
++        if (trajanFont != null) {
++            skin.add(
++                skinFontName,
++                trajanFont,
++                BitmapFont.class
++            );
++            return trajanFont;
++        }
++
++        return skin.getFont(
++            skinFontName
++        );
++    }
++
++    private <T> T findStyle(
++        String name,
++        Class<T> styleType
++    ) {
++        try {
++            return skin.get(
++                name,
++                styleType
++            );
++        } catch (GdxRuntimeException exception) {
++            return null;
++        }
++    }
++
+     private void customizeSkin() {
+-        BitmapFont menuFont = createMenuFont();
++        BitmapFont defaultFont = createOrGetFont(
++            "default",
++            MENU_BODY_FONT_SIZE,
++            0.55f
++        );
++
++        BitmapFont bodyFont = createOrGetFont(
++            "font",
++            MENU_BODY_FONT_SIZE,
++            0.55f
++        );
++
++        BitmapFont subtitleFont = createOrGetFont(
++            "subtitle",
++            MENU_BODY_FONT_SIZE,
++            0.55f
++        );
++
++        BitmapFont smallFont = createOrGetFont(
++            "list",
++            MENU_SMALL_FONT_SIZE,
++            0.45f
++        );
++
++        BitmapFont titleFont = createOrGetFont(
++            "window",
++            MENU_TITLE_FONT_SIZE,
++            0.70f
++        );
+ 
+         Label.LabelStyle labelStyle =
+             skin.get(Label.LabelStyle.class);
+-        labelStyle.font = menuFont;
++        labelStyle.font = bodyFont;
+         labelStyle.fontColor = bodyColor();
+ 
++        Label.LabelStyle windowLabelStyle = findStyle(
++            "window",
++            Label.LabelStyle.class
++        );
++
++        if (windowLabelStyle != null) {
++            windowLabelStyle.font = titleFont;
++            windowLabelStyle.fontColor = titleColor();
++        }
++
++        Label.LabelStyle listLabelStyle = findStyle(
++            "list",
++            Label.LabelStyle.class
++        );
++
++        if (listLabelStyle != null) {
++            listLabelStyle.font = smallFont;
++            listLabelStyle.fontColor = bodyColor();
++        }
++
++        Label.LabelStyle subtitleLabelStyle = findStyle(
++            "subtitle",
++            Label.LabelStyle.class
++        );
++
++        if (subtitleLabelStyle != null) {
++            subtitleLabelStyle.font = subtitleFont;
++            subtitleLabelStyle.fontColor = bodyColor();
++        }
++
+         TextButton.TextButtonStyle buttonStyle =
+             skin.get(TextButton.TextButtonStyle.class);
+-        buttonStyle.font = menuFont;
++        buttonStyle.font = bodyFont;
+         buttonStyle.fontColor = bodyColor();
+         buttonStyle.overFontColor = highlightColor();
+         buttonStyle.downFontColor = Color.WHITE;
+@@ -737,11 +871,6 @@
+     public void dispose() {
+         backgroundBatch.dispose();
+ 
+-        if (generatedMenuFont != null) {
+-            generatedMenuFont.dispose();
+-            generatedMenuFont = null;
+-        }
+-
+         if (skin != null) {
+             skin.dispose();
+         }
