@@ -244,6 +244,26 @@ public class GameScreen extends ScreenAdapter {
     private static final float WHITE_DASH_EFFECT_ALPHA = 0.85f;
     private static final float WHITE_DASH_EFFECT_DURATION = 0.11f;
 
+    private static final int WHITE_DASH_EFFECT_FRAME_COUNT = 11;
+
+    private static final int BLAST_SOUL_FRAME_COUNT = 8;
+
+    private static final int SOUL_BALL_FRAME_COUNT = 4;
+
+    private static final int SOUL_BALL_END_FRAME_COUNT = 3;
+
+    private static final int SHADOW_BALL_FRAME_COUNT = 8;
+
+    private static final int SHADOW_BALL_END_FRAME_COUNT = 3;
+
+    private static final int SOUL_SCREAM_FRAME_COUNT = 14;
+
+    private static final int SHADOW_SCREAM_FRAME_COUNT = 14;
+
+    private static final float SHADE_SOUL_PROJECTILE_VISUAL_DURATION = 0.72f;
+
+    private static final float SHADE_SOUL_PROJECTILE_FRAME_DURATION = 0.055f;
+
     /*
      * If the white dash effect faces the wrong way,
      * change this to false.
@@ -329,18 +349,25 @@ public class GameScreen extends ScreenAdapter {
     private Texture[] sharpShadowDashTextures;
     private TextureRegion[] sharpShadowDashFrames;
     private Texture whiteDashEffectTexture;
-    private TextureRegion whiteDashEffectFrame;
+    private TextureRegion[] whiteDashEffectFrames;
     private Texture[] slashEffectTextures;
     private TextureRegion[] slashHorizontalEffectFrames;
     private TextureRegion[] slashUpEffectFrames;
     private TextureRegion[] slashDownEffectFrames;
     private Texture blastSoulTexture;
+    private TextureRegion[] blastSoulFrames;
     private Texture soulBallTexture;
+    private TextureRegion[] soulBallFrames;
     private Texture soulBallEndTexture;
+    private TextureRegion[] soulBallEndFrames;
     private Texture shadowBallTexture;
+    private TextureRegion[] shadowBallFrames;
     private Texture shadowBallEndTexture;
+    private TextureRegion[] shadowBallEndFrames;
     private Texture soulScreamTexture;
+    private TextureRegion[] soulScreamFrames;
     private Texture shadowScreamTexture;
+    private TextureRegion[] shadowScreamFrames;
     private final Rectangle charmMenuPanelBounds = new Rectangle();
     private final Rectangle charmCardBounds = new Rectangle();
     private final Vector2 charmTouchPosition = new Vector2();
@@ -2265,7 +2292,7 @@ public class GameScreen extends ScreenAdapter {
     private void drawWhiteDashEffect() {
         if (
             !isDashVisualActive()
-                || whiteDashEffectFrame == null
+                || whiteDashEffectFrames == null
         ) {
             return;
         }
@@ -2280,20 +2307,33 @@ public class GameScreen extends ScreenAdapter {
             return;
         }
 
+        TextureRegion frame =
+            getFrameFromElapsedTime(
+                whiteDashEffectFrames,
+                dashVisualTime,
+                WHITE_DASH_EFFECT_DURATION
+                    / WHITE_DASH_EFFECT_FRAME_COUNT,
+                false
+            );
+
+        if (frame == null) {
+            return;
+        }
+
         float dashAlpha =
             WHITE_DASH_EFFECT_ALPHA
                 * (1f - dashVisualTime / WHITE_DASH_EFFECT_DURATION);
 
         float scale =
             WHITE_DASH_EFFECT_DRAW_HEIGHT
-                / whiteDashEffectFrame.getRegionHeight();
+                / frame.getRegionHeight();
 
         float drawWidth =
-            whiteDashEffectFrame.getRegionWidth()
+            frame.getRegionWidth()
                 * scale;
 
         float drawHeight =
-            whiteDashEffectFrame.getRegionHeight()
+            frame.getRegionHeight()
                 * scale;
 
         float drawX =
@@ -2325,7 +2365,7 @@ public class GameScreen extends ScreenAdapter {
 
         if (shouldFlip) {
             batch.draw(
-                whiteDashEffectFrame,
+                frame,
                 drawX + drawWidth,
                 drawY,
                 -drawWidth,
@@ -2333,7 +2373,7 @@ public class GameScreen extends ScreenAdapter {
             );
         } else {
             batch.draw(
-                whiteDashEffectFrame,
+                frame,
                 drawX,
                 drawY,
                 drawWidth,
@@ -2504,8 +2544,11 @@ public class GameScreen extends ScreenAdapter {
             return;
         }
 
-        drawCenteredAbilityTexture(
-            blastSoulTexture,
+        drawCenteredAbilityFrame(
+            getFrameFromProgress(
+                blastSoulFrames,
+                controller.getShadeSoulCastProgress()
+            ),
             controller.getShadeSoulCastBounds(),
             SHADE_SOUL_CAST_EFFECT_HEIGHT,
             controller.isVoidShadeSoulFacingRight(),
@@ -2520,13 +2563,19 @@ public class GameScreen extends ScreenAdapter {
             return;
         }
 
-        Texture projectileTexture =
+        TextureRegion[] projectileFrames =
             controller.isCurrentShadeSoulVoidVariant()
-                ? shadowBallTexture
-                : soulBallTexture;
+                ? shadowBallFrames
+                : soulBallFrames;
 
-        drawCenteredAbilityTexture(
-            projectileTexture,
+        drawCenteredAbilityFrame(
+            getFrameFromElapsedTime(
+                projectileFrames,
+                (1f - clamp01(controller.getVoidShadeSoulProgress()))
+                    * SHADE_SOUL_PROJECTILE_VISUAL_DURATION,
+                SHADE_SOUL_PROJECTILE_FRAME_DURATION,
+                true
+            ),
             controller.getVoidShadeSoulBounds(),
             SHADE_SOUL_PROJECTILE_EFFECT_HEIGHT,
             controller.isVoidShadeSoulFacingRight(),
@@ -2541,13 +2590,16 @@ public class GameScreen extends ScreenAdapter {
             return;
         }
 
-        Texture endTexture =
+        TextureRegion[] endFrames =
             controller.isCurrentShadeSoulEndVoidVariant()
-                ? shadowBallEndTexture
-                : soulBallEndTexture;
+                ? shadowBallEndFrames
+                : soulBallEndFrames;
 
-        drawCenteredAbilityTexture(
-            endTexture,
+        drawCenteredAbilityFrame(
+            getFrameFromProgress(
+                endFrames,
+                controller.getShadeSoulEndProgress()
+            ),
             controller.getShadeSoulEndBounds(),
             SHADE_SOUL_END_EFFECT_HEIGHT,
             controller.isVoidShadeSoulFacingRight(),
@@ -2562,13 +2614,16 @@ public class GameScreen extends ScreenAdapter {
             return;
         }
 
-        Texture screamTexture =
+        TextureRegion[] screamFrames =
             controller.isCurrentAbyssShriekVoidVariant()
-                ? shadowScreamTexture
-                : soulScreamTexture;
+                ? shadowScreamFrames
+                : soulScreamFrames;
 
-        drawCenteredAbilityTexture(
-            screamTexture,
+        drawCenteredAbilityFrame(
+            getFrameFromProgress(
+                screamFrames,
+                controller.getVoidAbyssShriekProgress()
+            ),
             controller.getVoidAbyssShriekBounds(),
             ABYSS_SHRIEK_EFFECT_HEIGHT,
             true,
@@ -2578,8 +2633,8 @@ public class GameScreen extends ScreenAdapter {
         );
     }
 
-    private void drawCenteredAbilityTexture(
-        Texture texture,
+    private void drawCenteredAbilityFrame(
+        TextureRegion frame,
         Rectangle bounds,
         float targetHeight,
         boolean facingRight,
@@ -2587,18 +2642,18 @@ public class GameScreen extends ScreenAdapter {
         float maxAlpha,
         float progress
     ) {
-        if (texture == null || bounds == null) {
+        if (frame == null || bounds == null) {
             return;
         }
 
         float scale =
-            targetHeight / texture.getHeight();
+            targetHeight / frame.getRegionHeight();
 
         float drawWidth =
-            texture.getWidth() * scale;
+            frame.getRegionWidth() * scale;
 
         float drawHeight =
-            texture.getHeight() * scale;
+            frame.getRegionHeight() * scale;
 
         float drawX =
             bounds.x
@@ -2632,7 +2687,7 @@ public class GameScreen extends ScreenAdapter {
 
         if (shouldFlip) {
             batch.draw(
-                texture,
+                frame,
                 drawX + drawWidth,
                 drawY,
                 -drawWidth,
@@ -2640,7 +2695,7 @@ public class GameScreen extends ScreenAdapter {
             );
         } else {
             batch.draw(
-                texture,
+                frame,
                 drawX,
                 drawY,
                 drawWidth,
@@ -2651,6 +2706,72 @@ public class GameScreen extends ScreenAdapter {
         batch.setColor(Color.WHITE);
 
         batch.end();
+    }
+
+    private TextureRegion getFrameFromProgress(
+        TextureRegion[] frames,
+        float progress
+    ) {
+        if (
+            frames == null
+                || frames.length == 0
+        ) {
+            return null;
+        }
+
+        float elapsedProgress =
+            1f - clamp01(progress);
+
+        int frameIndex = Math.min(
+            frames.length - 1,
+            Math.max(
+                0,
+                (int)(elapsedProgress * frames.length)
+            )
+        );
+
+        return frames[frameIndex];
+    }
+
+    private TextureRegion getFrameFromElapsedTime(
+        TextureRegion[] frames,
+        float elapsedTime,
+        float frameDuration,
+        boolean loop
+    ) {
+        if (
+            frames == null
+                || frames.length == 0
+        ) {
+            return null;
+        }
+
+        if (frameDuration <= 0f) {
+            return frames[0];
+        }
+
+        int frameIndex =
+            (int)(Math.max(0f, elapsedTime) / frameDuration);
+
+        if (loop) {
+            frameIndex %= frames.length;
+        } else if (frameIndex >= frames.length) {
+            frameIndex = frames.length - 1;
+        }
+
+        return frames[frameIndex];
+    }
+
+    private float clamp01(
+        float value
+    ) {
+        return Math.max(
+            0f,
+            Math.min(
+                1f,
+                value
+            )
+        );
     }
 
     private boolean isDashVisualActive() {
@@ -2847,33 +2968,107 @@ public class GameScreen extends ScreenAdapter {
         return texture;
     }
 
+    private TextureRegion[] splitHorizontalSheet(
+        Texture texture,
+        int frameCount
+    ) {
+        if (
+            texture == null
+                || frameCount <= 0
+        ) {
+            return new TextureRegion[0];
+        }
+
+        TextureRegion[] frames =
+            new TextureRegion[frameCount];
+
+        int baseFrameWidth =
+            Math.max(
+                1,
+                texture.getWidth() / frameCount
+            );
+
+        for (
+            int index = 0;
+            index < frameCount;
+            index++
+        ) {
+            int x =
+                index * baseFrameWidth;
+
+            int frameWidth =
+                index == frameCount - 1
+                    ? texture.getWidth() - x
+                    : baseFrameWidth;
+
+            frames[index] =
+                new TextureRegion(
+                    texture,
+                    x,
+                    0,
+                    Math.max(1, frameWidth),
+                    texture.getHeight()
+                );
+        }
+
+        return frames;
+    }
+
     private void loadAbilityEffectTextures() {
         blastSoulTexture = loadEffectTexture(
             "sprites/effects/abilities/blast_soul.png"
+        );
+        blastSoulFrames = splitHorizontalSheet(
+            blastSoulTexture,
+            BLAST_SOUL_FRAME_COUNT
         );
 
         soulBallTexture = loadEffectTexture(
             "sprites/effects/abilities/soul_ball.png"
         );
+        soulBallFrames = splitHorizontalSheet(
+            soulBallTexture,
+            SOUL_BALL_FRAME_COUNT
+        );
 
         soulBallEndTexture = loadEffectTexture(
             "sprites/effects/abilities/soul_ball_end.png"
+        );
+        soulBallEndFrames = splitHorizontalSheet(
+            soulBallEndTexture,
+            SOUL_BALL_END_FRAME_COUNT
         );
 
         shadowBallTexture = loadEffectTexture(
             "sprites/effects/abilities/shadow_ball.png"
         );
+        shadowBallFrames = splitHorizontalSheet(
+            shadowBallTexture,
+            SHADOW_BALL_FRAME_COUNT
+        );
 
         shadowBallEndTexture = loadEffectTexture(
             "sprites/effects/abilities/shadow_ball_end.png"
+        );
+        shadowBallEndFrames = splitHorizontalSheet(
+            shadowBallEndTexture,
+            SHADOW_BALL_END_FRAME_COUNT
         );
 
         soulScreamTexture = loadEffectTexture(
             "sprites/effects/abilities/soul_scream.png"
         );
+        soulScreamFrames = splitHorizontalSheet(
+            soulScreamTexture,
+            SOUL_SCREAM_FRAME_COUNT
+        );
 
         shadowScreamTexture = loadEffectTexture(
             "sprites/effects/abilities/shadow_scream.png"
+        );
+        shadowScreamFrames = splitHorizontalSheet(
+            shadowScreamTexture,
+            SHADOW_SCREAM_FRAME_COUNT
         );
     }
 
@@ -2930,10 +3125,10 @@ public class GameScreen extends ScreenAdapter {
             Texture.TextureFilter.Linear
         );
 
-        whiteDashEffectFrame =
-            new TextureRegion(
-                whiteDashEffectTexture
-            );
+        whiteDashEffectFrames = splitHorizontalSheet(
+            whiteDashEffectTexture,
+            WHITE_DASH_EFFECT_FRAME_COUNT
+        );
     }
 
     private void loadSlashEffects() {
@@ -4281,7 +4476,7 @@ public class GameScreen extends ScreenAdapter {
         if (whiteDashEffectTexture != null) {
             whiteDashEffectTexture.dispose();
             whiteDashEffectTexture = null;
-            whiteDashEffectFrame = null;
+            whiteDashEffectFrames = null;
         }
 
         if (slashEffectTextures != null) {
@@ -4310,30 +4505,44 @@ public class GameScreen extends ScreenAdapter {
 
         if (blastSoulTexture != null) {
             blastSoulTexture.dispose();
+            blastSoulTexture = null;
+            blastSoulFrames = null;
         }
 
         if (soulBallTexture != null) {
             soulBallTexture.dispose();
+            soulBallTexture = null;
+            soulBallFrames = null;
         }
 
         if (soulBallEndTexture != null) {
             soulBallEndTexture.dispose();
+            soulBallEndTexture = null;
+            soulBallEndFrames = null;
         }
 
         if (shadowBallTexture != null) {
             shadowBallTexture.dispose();
+            shadowBallTexture = null;
+            shadowBallFrames = null;
         }
 
         if (shadowBallEndTexture != null) {
             shadowBallEndTexture.dispose();
+            shadowBallEndTexture = null;
+            shadowBallEndFrames = null;
         }
 
         if (soulScreamTexture != null) {
             soulScreamTexture.dispose();
+            soulScreamTexture = null;
+            soulScreamFrames = null;
         }
 
         if (shadowScreamTexture != null) {
             shadowScreamTexture.dispose();
+            shadowScreamTexture = null;
+            shadowScreamFrames = null;
         }
 
         controller.dispose();
