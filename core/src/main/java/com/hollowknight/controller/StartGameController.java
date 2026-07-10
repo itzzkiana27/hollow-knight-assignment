@@ -83,7 +83,7 @@ public class StartGameController {
         game.showMainMenu();
     }
 
-    private boolean hasSaveSlot(
+    public boolean hasSaveSlot(
         int slotNumber
     ) {
         return saveManager.hasSave(slotNumber)

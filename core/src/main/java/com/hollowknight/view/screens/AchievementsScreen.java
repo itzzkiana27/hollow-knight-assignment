@@ -22,6 +22,7 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.AchievementsController;
 import com.hollowknight.model.achievement.Achievement;
 import com.hollowknight.view.actors.AchievementPopupObserver;
+import com.hollowknight.view.theme.MenuThemeSkin;
 
 public class AchievementsScreen extends ScreenAdapter {
 
@@ -29,6 +30,7 @@ public class AchievementsScreen extends ScreenAdapter {
 
     private Stage stage;
     private Skin skin;
+    private MenuThemeSkin menuTheme;
 
     private Texture lockTexture;
     private Texture panelTexture;
@@ -45,9 +47,8 @@ public class AchievementsScreen extends ScreenAdapter {
     public void show() {
         stage = new Stage(new ScreenViewport());
 
-        skin = new Skin(
-            Gdx.files.internal("ui/uiskin.json")
-        );
+        menuTheme = MenuThemeSkin.fromSettings();
+        skin = menuTheme.getSkin();
 
         lockTexture = createLockTexture();
         panelTexture = createPanelTexture();
@@ -70,25 +71,31 @@ public class AchievementsScreen extends ScreenAdapter {
         Table contentTable = new Table();
 
         contentTable.top();
-        contentTable.pad(35f);
+        contentTable.pad(34f);
         contentTable.defaults().pad(7f);
-
-        Label title = new Label(
-            controller.text("achievements.title"),
-            skin
+        contentTable.setBackground(
+            menuTheme.panelDrawable(0.58f)
         );
 
-        title.setFontScale(1.7f);
+        Label title = menuTheme.createTitleLabel(
+            controller.text("achievements.title")
+        );
+        title.setAlignment(Align.center);
 
         contentTable.add(title)
-            .padBottom(15f)
+            .padBottom(3f)
             .row();
 
-        Label introduction = new Label(
+        contentTable.add(menuTheme.createOrnament(260f))
+            .width(260f)
+            .height(30f)
+            .padBottom(12f)
+            .row();
+
+        Label introduction = menuTheme.createBodyLabel(
             controller.text(
                 "achievements.introduction"
-            ),
-            skin
+            )
         );
 
         introduction.setWrap(true);
@@ -98,8 +105,8 @@ public class AchievementsScreen extends ScreenAdapter {
         );
 
         contentTable.add(introduction)
-            .width(780f)
-            .padBottom(25f)
+            .width(760f)
+            .padBottom(18f)
             .row();
 
         for (
@@ -109,14 +116,13 @@ public class AchievementsScreen extends ScreenAdapter {
             contentTable.add(
                     createAchievementCard(achievement)
                 )
-                .width(820f)
+                .width(800f)
                 .padBottom(12f)
                 .row();
         }
 
-        TextButton backButton = new TextButton(
-            controller.text("common.back"),
-            skin
+        TextButton backButton = menuTheme.createMenuButton(
+            controller.text("common.back")
         );
 
         backButton.addListener(
@@ -149,10 +155,11 @@ public class AchievementsScreen extends ScreenAdapter {
 
         Table rootTable = new Table();
         rootTable.setFillParent(true);
+        rootTable.center();
 
         rootTable.add(scrollPane)
-            .grow()
-            .pad(10f);
+            .width(Math.min(900f, Gdx.graphics.getWidth() * 0.92f))
+            .height(Math.min(690f, Gdx.graphics.getHeight() * 0.90f));
 
         stage.addActor(rootTable);
     }
@@ -164,23 +171,23 @@ public class AchievementsScreen extends ScreenAdapter {
             achievement.isUnlocked();
 
         Table card = new Table();
-        card.pad(15f);
+        card.pad(14f);
 
         Color backgroundColor;
 
         if (unlocked) {
             backgroundColor = new Color(
-                0.08f,
-                0.18f,
-                0.22f,
+                menuTheme.highlightColor().r * 0.18f,
+                menuTheme.highlightColor().g * 0.18f,
+                menuTheme.highlightColor().b * 0.18f,
                 0.95f
             );
         } else {
             backgroundColor = new Color(
-                0.12f,
-                0.12f,
-                0.12f,
-                0.95f
+                0.06f,
+                0.065f,
+                0.075f,
+                0.92f
             );
         }
 
@@ -193,40 +200,36 @@ public class AchievementsScreen extends ScreenAdapter {
         Actor iconActor;
 
         if (unlocked) {
-            iconActor = new Actor();
+            iconActor = menuTheme.createMagicOrbIcon(34f);
         } else {
             Image lockImage = new Image(lockTexture);
 
             lockImage.setColor(
-                0.65f,
-                0.65f,
-                0.65f,
-                1f
+                0.50f,
+                0.50f,
+                0.55f,
+                0.88f
             );
 
             iconActor = lockImage;
         }
 
         card.add(iconActor)
-            .size(36f)
+            .size(40f)
             .padRight(15f);
 
         Table textTable = new Table();
 
-        Label titleLabel = new Label(
+        Label titleLabel = menuTheme.createSectionLabel(
             controller.text(
                 achievement.getTitleKey()
-            ),
-            skin
+            )
         );
 
-        titleLabel.setFontScale(1.2f);
-
-        Label descriptionLabel = new Label(
+        Label descriptionLabel = menuTheme.createBodyLabel(
             controller.text(
                 achievement.getDescriptionKey()
-            ),
-            skin
+            )
         );
 
         descriptionLabel.setWrap(true);
@@ -234,44 +237,41 @@ public class AchievementsScreen extends ScreenAdapter {
         if (!unlocked) {
             titleLabel.setColor(Color.GRAY);
             descriptionLabel.setColor(
-                Color.DARK_GRAY
+                0.34f,
+                0.35f,
+                0.39f,
+                1f
             );
         }
 
         textTable.add(titleLabel)
-            .width(560f)
+            .width(540f)
             .left()
             .row();
 
         textTable.add(descriptionLabel)
-            .width(560f)
+            .width(540f)
             .left()
             .padTop(5f)
             .row();
 
         card.add(textTable)
-            .width(580f)
+            .width(560f)
             .growX()
             .left();
 
-        Label statusLabel = new Label(
+        Label statusLabel = menuTheme.createBodyLabel(
             unlocked
                 ? controller.text(
                 "achievements.unlocked"
             )
                 : controller.text(
                 "achievements.locked"
-            ),
-            skin
+            )
         );
 
         if (unlocked) {
-            statusLabel.setColor(
-                0.35f,
-                0.9f,
-                0.55f,
-                1f
-            );
+            statusLabel.setColor(menuTheme.highlightColor());
         } else {
             statusLabel.setColor(Color.GRAY);
         }
@@ -314,7 +314,6 @@ public class AchievementsScreen extends ScreenAdapter {
 
         pixmap.setColor(Color.WHITE);
 
-        // Lock body
         pixmap.fillRectangle(
             6,
             14,
@@ -322,7 +321,6 @@ public class AchievementsScreen extends ScreenAdapter {
             14
         );
 
-        // Lock shackle
         pixmap.fillRectangle(
             9,
             7,
@@ -344,7 +342,6 @@ public class AchievementsScreen extends ScreenAdapter {
             4
         );
 
-        // Keyhole
         pixmap.setColor(Color.CLEAR);
 
         pixmap.fillRectangle(
@@ -364,14 +361,19 @@ public class AchievementsScreen extends ScreenAdapter {
     @Override
     public void render(float delta) {
         Gdx.gl.glClearColor(
-            0.02f,
-            0.02f,
-            0.05f,
+            0.01f,
+            0.01f,
+            0.015f,
             1f
         );
 
         Gdx.gl.glClear(
             GL20.GL_COLOR_BUFFER_BIT
+        );
+
+        menuTheme.drawBackground(
+            delta,
+            false
         );
 
         stage.act(
@@ -424,8 +426,8 @@ public class AchievementsScreen extends ScreenAdapter {
             stage.dispose();
         }
 
-        if (skin != null) {
-            skin.dispose();
+        if (menuTheme != null) {
+            menuTheme.dispose();
         }
     }
 }

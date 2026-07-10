@@ -4,6 +4,7 @@ import com.hollowknight.HollowKnightGame;
 import com.hollowknight.model.GameSettings;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.hollowknight.view.theme.MenuThemeType;
 
 public class SettingsController {
 
@@ -65,6 +66,37 @@ public class SettingsController {
 
     public String getLanguage() {
         return settings.getLanguage();
+    }
+
+    public String getMenuTheme() {
+        return settings.getMenuTheme();
+    }
+
+    public void setMenuTheme(String menuTheme) {
+        settings.setMenuTheme(menuTheme);
+        settings.save();
+
+        Gdx.app.postRunnable(
+            game::showSettingsMenu
+        );
+    }
+
+    public String[] getMenuThemeDisplayNames() {
+        return MenuThemeType.displayNames();
+    }
+
+    public String getCurrentMenuThemeDisplayName() {
+        return MenuThemeType
+            .fromId(settings.getMenuTheme())
+            .getDisplayName();
+    }
+
+    public String getMenuThemeIdFromDisplayName(
+        String displayName
+    ) {
+        return MenuThemeType
+            .fromDisplayName(displayName)
+            .getId();
     }
 
     public void setLanguage(String language) {

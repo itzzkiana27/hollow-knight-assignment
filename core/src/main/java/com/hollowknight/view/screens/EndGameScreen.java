@@ -16,6 +16,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.EndGameController;
 import com.hollowknight.model.EndGameStats;
+import com.hollowknight.view.theme.MenuThemeSkin;
 
 public final class EndGameScreen extends ScreenAdapter {
 
@@ -29,6 +30,7 @@ public final class EndGameScreen extends ScreenAdapter {
 
     private Stage stage;
     private Skin skin;
+    private MenuThemeSkin menuTheme;
     private Music victoryMusic;
 
     public EndGameScreen(EndGameController controller) {
@@ -41,9 +43,8 @@ public final class EndGameScreen extends ScreenAdapter {
             new ScreenViewport()
         );
 
-        skin = new Skin(
-            Gdx.files.internal("ui/uiskin.json")
-        );
+        menuTheme = MenuThemeSkin.fromSettings();
+        skin = menuTheme.getSkin();
 
         Gdx.input.setInputProcessor(stage);
 
@@ -53,12 +54,12 @@ public final class EndGameScreen extends ScreenAdapter {
 
     private void createMenu() {
         float contentWidth = Math.min(
-            560f,
+            620f,
             Gdx.graphics.getWidth() * 0.82f
         );
 
         float buttonWidth = Math.min(
-            260f,
+            280f,
             contentWidth * 0.62f
         );
 
@@ -66,58 +67,72 @@ public final class EndGameScreen extends ScreenAdapter {
         table.setFillParent(true);
         table.center();
         table.pad(24f);
-        table.defaults().pad(5f);
+        table.defaults().pad(6f);
 
-        Label title = new Label(
-            controller.text("end.title"),
-            skin
+        Table panel = new Table();
+        panel.pad(32f);
+        panel.setBackground(
+            menuTheme.panelDrawable(0.62f)
         );
 
-        title.setFontScale(1.35f);
+        Label title = menuTheme.createTitleLabel(
+            controller.text("end.title")
+        );
+
+        title.setFontScale(1.75f);
         title.setAlignment(Align.center);
 
-        table.add(title)
+        panel.add(title)
             .width(contentWidth)
-            .padBottom(16f)
+            .padBottom(5f)
+            .row();
+
+        panel.add(menuTheme.createOrnament(310f))
+            .width(310f)
+            .height(34f)
+            .padBottom(18f)
             .row();
 
         EndGameStats stats =
             controller.getStats();
 
         addStatLine(
-            table,
+            panel,
             controller.text("end.deaths"),
             String.valueOf(stats.getDeathCount()),
             contentWidth
         );
 
         addStatLine(
-            table,
+            panel,
             controller.text("end.enemiesKilled"),
             String.valueOf(stats.getTotalEnemiesKilled()),
             contentWidth
         );
 
         addStatLine(
-            table,
+            panel,
             controller.text("end.totalTime"),
             controller.getFormattedTime(),
             contentWidth
         );
 
         addButton(
-            table,
+            panel,
             controller.text("end.restart"),
             controller::restartGame,
             buttonWidth
         );
 
         addButton(
-            table,
+            panel,
             controller.text("end.mainMenu"),
             controller::backToMainMenu,
             buttonWidth
         );
+
+        table.add(panel)
+            .width(contentWidth + 80f);
 
         stage.addActor(table);
     }
@@ -128,17 +143,16 @@ public final class EndGameScreen extends ScreenAdapter {
         String value,
         float contentWidth
     ) {
-        Label stat = new Label(
-            label + ": " + value,
-            skin
+        Label stat = menuTheme.createBodyLabel(
+            label + ": " + value
         );
 
-        stat.setFontScale(1.0f);
+        stat.setFontScale(1.05f);
         stat.setAlignment(Align.center);
 
         table.add(stat)
             .width(contentWidth)
-            .height(30f)
+            .height(34f)
             .row();
     }
 
@@ -148,12 +162,11 @@ public final class EndGameScreen extends ScreenAdapter {
         Runnable action,
         float buttonWidth
     ) {
-        TextButton button = new TextButton(
-            text,
-            skin
+        TextButton button = menuTheme.createMenuButton(
+            text
         );
 
-        button.getLabel().setFontScale(1.0f);
+        button.getLabel().setFontScale(1.05f);
 
         button.addListener(
             new ChangeListener() {
@@ -170,8 +183,8 @@ public final class EndGameScreen extends ScreenAdapter {
 
         table.add(button)
             .width(buttonWidth)
-            .height(44f)
-            .padTop(7f)
+            .height(46f)
+            .padTop(9f)
             .row();
     }
 
@@ -210,14 +223,19 @@ public final class EndGameScreen extends ScreenAdapter {
     @Override
     public void render(float delta) {
         Gdx.gl.glClearColor(
-            0.02f,
-            0.02f,
-            0.05f,
+            0.01f,
+            0.01f,
+            0.015f,
             1f
         );
 
         Gdx.gl.glClear(
             GL20.GL_COLOR_BUFFER_BIT
+        );
+
+        menuTheme.drawBackground(
+            delta,
+            false
         );
 
         stage.act(
@@ -258,8 +276,8 @@ public final class EndGameScreen extends ScreenAdapter {
             stage.dispose();
         }
 
-        if (skin != null) {
-            skin.dispose();
+        if (menuTheme != null) {
+            menuTheme.dispose();
         }
     }
 }

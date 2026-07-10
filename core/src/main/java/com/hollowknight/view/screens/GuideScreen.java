@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.GuideController;
+import com.hollowknight.view.theme.MenuThemeSkin;
 
 public class GuideScreen extends ScreenAdapter {
 
@@ -21,6 +22,7 @@ public class GuideScreen extends ScreenAdapter {
 
     private Stage stage;
     private Skin skin;
+    private MenuThemeSkin menuTheme;
 
     public GuideScreen(GuideController controller) {
         this.controller = controller;
@@ -30,9 +32,8 @@ public class GuideScreen extends ScreenAdapter {
     public void show() {
         stage = new Stage(new ScreenViewport());
 
-        skin = new Skin(
-            Gdx.files.internal("ui/uiskin.json")
-        );
+        menuTheme = MenuThemeSkin.fromSettings();
+        skin = menuTheme.getSkin();
 
         Gdx.input.setInputProcessor(stage);
 
@@ -43,19 +44,27 @@ public class GuideScreen extends ScreenAdapter {
         Table contentTable = new Table();
 
         contentTable.top();
-        contentTable.pad(35f);
+        contentTable.pad(32f);
         contentTable.defaults().pad(7f);
-
-        Label title = new Label(
-            controller.text("guide.title"),
-            skin
+        contentTable.setBackground(
+            menuTheme.panelDrawable(0.60f)
         );
 
-        title.setFontScale(1.7f);
+        Label title = menuTheme.createTitleLabel(
+            controller.text("guide.title")
+        );
+        title.setAlignment(Align.center);
 
         contentTable.add(title)
-            .colspan(2)
-            .padBottom(25f)
+            .colspan(3)
+            .padBottom(5f)
+            .row();
+
+        contentTable.add(menuTheme.createOrnament(260f))
+            .colspan(3)
+            .width(260f)
+            .height(30f)
+            .padBottom(18f)
             .row();
 
         createControlsSection(contentTable);
@@ -74,10 +83,11 @@ public class GuideScreen extends ScreenAdapter {
 
         Table rootTable = new Table();
         rootTable.setFillParent(true);
+        rootTable.center();
 
         rootTable.add(scrollPane)
-            .grow()
-            .pad(10f);
+            .width(Math.min(880f, Gdx.graphics.getWidth() * 0.90f))
+            .height(Math.min(690f, Gdx.graphics.getHeight() * 0.90f));
 
         stage.addActor(rootTable);
     }
@@ -175,14 +185,16 @@ public class GuideScreen extends ScreenAdapter {
             controller.text("guide.abilitiesTitle")
         );
 
-        addDescription(
+        addIconDescription(
             table,
+            "health",
             controller.text("guide.healthTitle"),
             controller.text("guide.healthDescription")
         );
 
-        addDescription(
+        addIconDescription(
             table,
+            "soul",
             controller.text("guide.soulTitle"),
             controller.text("guide.soulDescription")
         );
@@ -205,14 +217,16 @@ public class GuideScreen extends ScreenAdapter {
             controller.text("guide.focusAbilityDescription")
         );
 
-        addDescription(
+        addIconDescription(
             table,
+            "vengeful",
             controller.text("guide.vengefulSpiritTitle"),
             controller.text("guide.vengefulSpiritDescription")
         );
 
-        addDescription(
+        addIconDescription(
             table,
+            "howling",
             controller.text("guide.howlingWraithsTitle"),
             controller.text("guide.howlingWraithsDescription")
         );
@@ -271,12 +285,10 @@ public class GuideScreen extends ScreenAdapter {
         Table table,
         String text
     ) {
-        Label sectionTitle = new Label(text, skin);
-
-        sectionTitle.setFontScale(1.3f);
+        Label sectionTitle = menuTheme.createSectionLabel(text);
 
         table.add(sectionTitle)
-            .colspan(2)
+            .colspan(3)
             .padTop(22f)
             .padBottom(10f)
             .row();
@@ -287,11 +299,15 @@ public class GuideScreen extends ScreenAdapter {
         String action,
         String key
     ) {
-        Label actionLabel = new Label(action, skin);
-        Label keyLabel = new Label(key, skin);
+        Label actionLabel = menuTheme.createBodyLabel(action);
+        Label keyLabel = menuTheme.createSectionLabel(key);
+
+        table.add(menuTheme.createMagicOrbIcon(20f))
+            .size(20f)
+            .padRight(8f);
 
         table.add(actionLabel)
-            .width(320f)
+            .width(360f)
             .left();
 
         table.add(keyLabel)
@@ -300,21 +316,64 @@ public class GuideScreen extends ScreenAdapter {
             .row();
     }
 
+    private void addIconDescription(
+        Table table,
+        String iconType,
+        String heading,
+        String description
+    ) {
+        Actor icon;
+
+        if ("health".equals(iconType)) {
+            icon = menuTheme.createHealthIcon(34f);
+        } else if ("soul".equals(iconType)) {
+            icon = menuTheme.createSoulOrbIcon(34f);
+        } else {
+            icon = menuTheme.createSpellIcon(iconType);
+        }
+
+        table.add(icon)
+            .size(42f)
+            .padRight(8f)
+            .top();
+
+        addDescriptionCells(
+            table,
+            heading,
+            description
+        );
+    }
+
     private void addDescription(
         Table table,
         String heading,
         String description
     ) {
-        Label headingLabel = new Label(
+        table.add(menuTheme.createMagicOrbIcon(20f))
+            .size(20f)
+            .padRight(8f)
+            .top();
+
+        addDescriptionCells(
+            table,
             heading,
-            skin
+            description
+        );
+    }
+
+    private void addDescriptionCells(
+        Table table,
+        String heading,
+        String description
+    ) {
+        Label headingLabel = menuTheme.createSectionLabel(
+            heading
         );
 
         headingLabel.setAlignment(Align.left);
 
-        Label descriptionLabel = new Label(
-            description,
-            skin
+        Label descriptionLabel = menuTheme.createBodyLabel(
+            description
         );
 
         descriptionLabel.setWrap(true);
@@ -324,21 +383,20 @@ public class GuideScreen extends ScreenAdapter {
         );
 
         table.add(headingLabel)
-            .width(220f)
+            .width(230f)
             .left()
             .top();
 
         table.add(descriptionLabel)
-            .width(540f)
+            .width(500f)
             .left()
             .top()
             .row();
     }
 
     private void createBackButton(Table table) {
-        TextButton backButton = new TextButton(
-            controller.text("common.back"),
-            skin
+        TextButton backButton = menuTheme.createMenuButton(
+            controller.text("common.back")
         );
 
         backButton.addListener(new ChangeListener() {
@@ -352,8 +410,8 @@ public class GuideScreen extends ScreenAdapter {
         });
 
         table.add(backButton)
-            .colspan(2)
-            .width(220f)
+            .colspan(3)
+            .width(240f)
             .height(52f)
             .padTop(30f)
             .padBottom(25f)
@@ -363,14 +421,19 @@ public class GuideScreen extends ScreenAdapter {
     @Override
     public void render(float delta) {
         Gdx.gl.glClearColor(
-            0.02f,
-            0.02f,
-            0.05f,
+            0.01f,
+            0.01f,
+            0.015f,
             1f
         );
 
         Gdx.gl.glClear(
             GL20.GL_COLOR_BUFFER_BIT
+        );
+
+        menuTheme.drawBackground(
+            delta,
+            false
         );
 
         stage.act(
@@ -405,8 +468,8 @@ public class GuideScreen extends ScreenAdapter {
             stage.dispose();
         }
 
-        if (skin != null) {
-            skin.dispose();
+        if (menuTheme != null) {
+            menuTheme.dispose();
         }
     }
 }

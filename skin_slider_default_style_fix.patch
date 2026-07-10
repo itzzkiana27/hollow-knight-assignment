@@ -1,0 +1,15 @@
+diff -ruN skin_slider_fix_base/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java skin_slider_fix_new/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java
+--- skin_slider_fix_base/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java	2026-07-10 13:20:01.723650358 +0000
++++ skin_slider_fix_new/core/src/main/java/com/hollowknight/view/theme/MenuThemeSkin.java	2026-07-10 13:20:04.494229512 +0000
+@@ -486,7 +486,10 @@
+         selectStyle.fontColor = bodyColor();
+ 
+         Slider.SliderStyle sliderStyle =
+-            skin.get(Slider.SliderStyle.class);
++            skin.get(
++                "default-horizontal",
++                Slider.SliderStyle.class
++            );
+         sliderStyle.background = new TextureRegionDrawable(
+             new TextureRegion(
+                 load(BASE_PATH + "settings/horizontal_slider.png")

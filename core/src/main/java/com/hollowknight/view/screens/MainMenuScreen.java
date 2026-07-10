@@ -10,8 +10,10 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.MainMenuController;
+import com.hollowknight.view.theme.MenuThemeSkin;
 
 public class MainMenuScreen extends ScreenAdapter {
 
@@ -19,6 +21,7 @@ public class MainMenuScreen extends ScreenAdapter {
 
     private Stage stage;
     private Skin skin;
+    private MenuThemeSkin menuTheme;
 
     public MainMenuScreen(MainMenuController controller) {
         this.controller = controller;
@@ -30,9 +33,8 @@ public class MainMenuScreen extends ScreenAdapter {
             new ScreenViewport()
         );
 
-        skin = new Skin(
-            Gdx.files.internal("ui/uiskin.json")
-        );
+        menuTheme = MenuThemeSkin.fromSettings();
+        skin = menuTheme.getSkin();
 
         Gdx.input.setInputProcessor(stage);
 
@@ -44,16 +46,18 @@ public class MainMenuScreen extends ScreenAdapter {
 
         table.setFillParent(true);
         table.center();
+        table.defaults().pad(7f);
 
-        Label title = new Label(
-            controller.text("main.title"),
-            skin
-        );
+        table.add(menuTheme.createTitleLogo(420f))
+            .width(420f)
+            .height(160f)
+            .padBottom(8f)
+            .row();
 
-        title.setFontScale(1.7f);
-
-        table.add(title)
-            .padBottom(25f)
+        table.add(menuTheme.createOrnament(260f))
+            .width(260f)
+            .height(30f)
+            .padBottom(92f)
             .row();
 
         addButton(
@@ -86,6 +90,17 @@ public class MainMenuScreen extends ScreenAdapter {
             controller::quitGame
         );
 
+        Label themeHint = menuTheme.createBodyLabel(
+            menuTheme.getTheme().getDisplayName()
+        );
+        themeHint.setAlignment(Align.center);
+        themeHint.setColor(0.55f, 0.62f, 0.70f, 0.75f);
+
+        table.add(themeHint)
+            .width(300f)
+            .padTop(32f)
+            .row();
+
         stage.addActor(table);
     }
 
@@ -94,12 +109,10 @@ public class MainMenuScreen extends ScreenAdapter {
         String text,
         Runnable action
     ) {
-        TextButton button = new TextButton(
-            text,
-            skin
-        );
+        TextButton button = menuTheme.createMenuButton(text);
 
-        button.getLabel().setFontScale(1.1f);
+        button.getLabel().setFontScale(1.45f);
+        button.getLabel().setAlignment(Align.center);
 
         button.addListener(new ChangeListener() {
             @Override
@@ -112,23 +125,27 @@ public class MainMenuScreen extends ScreenAdapter {
         });
 
         table.add(button)
-            .width(280f)
-            .height(55f)
-            .pad(6f)
+            .width(360f)
+            .height(48f)
             .row();
     }
 
     @Override
     public void render(float delta) {
         Gdx.gl.glClearColor(
-            0.02f,
-            0.02f,
-            0.05f,
+            0.01f,
+            0.01f,
+            0.015f,
             1f
         );
 
         Gdx.gl.glClear(
             GL20.GL_COLOR_BUFFER_BIT
+        );
+
+        menuTheme.drawBackground(
+            delta,
+            false
         );
 
         stage.act(
@@ -165,8 +182,8 @@ public class MainMenuScreen extends ScreenAdapter {
             stage.dispose();
         }
 
-        if (skin != null) {
-            skin.dispose();
+        if (menuTheme != null) {
+            menuTheme.dispose();
         }
     }
 }

@@ -49,6 +49,7 @@ import com.hollowknight.model.charm.CharmType;
 import com.hollowknight.model.achievement.Achievement;
 import com.hollowknight.view.actors.AchievementPopupObserver;
 import com.hollowknight.view.animation.FalseKnightAnimationManager;
+import com.hollowknight.view.theme.MenuThemeSkin;
 
 import java.util.EnumMap;
 
@@ -280,6 +281,7 @@ public class GameScreen extends ScreenAdapter {
 
     private Stage stage;
     private Skin skin;
+    private MenuThemeSkin menuTheme;
 
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
@@ -337,11 +339,8 @@ public class GameScreen extends ScreenAdapter {
             new ScreenViewport()
         );
 
-        skin = new Skin(
-            Gdx.files.internal(
-                "ui/uiskin.json"
-            )
-        );
+        menuTheme = MenuThemeSkin.fromSettings();
+        skin = menuTheme.getSkin();
 
         batch = new SpriteBatch();
 
@@ -486,6 +485,7 @@ public class GameScreen extends ScreenAdapter {
         window.setMovable(false);
         window.setResizable(false);
         window.pad(22f);
+        window.setColor(1f, 1f, 1f, 0.94f);
 
         pauseContent = new Table();
         pauseContent.defaults().pad(6f);
@@ -535,9 +535,8 @@ public class GameScreen extends ScreenAdapter {
 
         pauseContent.clear();
 
-        Label title = new Label(
-            "Game Paused",
-            skin
+        Label title = menuTheme.createTitleLabel(
+            "Game Paused"
         );
 
         title.setFontScale(1.45f);
@@ -626,9 +625,8 @@ public class GameScreen extends ScreenAdapter {
         String text,
         Runnable action
     ) {
-        TextButton button = new TextButton(
-            text,
-            skin
+        TextButton button = menuTheme.createMenuButton(
+            text
         );
 
         button.getLabel().setFontScale(1.05f);
@@ -664,9 +662,8 @@ public class GameScreen extends ScreenAdapter {
     private void showCheatCodesPanel() {
         pauseContent.clear();
 
-        Label title = new Label(
-            "Cheat Codes",
-            skin
+        Label title = menuTheme.createTitleLabel(
+            "Cheat Codes"
         );
 
         title.setFontScale(1.35f);
@@ -702,9 +699,8 @@ public class GameScreen extends ScreenAdapter {
     private void showAchievementsPanel() {
         pauseContent.clear();
 
-        Label title = new Label(
-            "Achievements",
-            skin
+        Label title = menuTheme.createTitleLabel(
+            "Achievements"
         );
 
         title.setFontScale(1.35f);
@@ -3876,6 +3872,69 @@ public class GameScreen extends ScreenAdapter {
         );
 
         shapeRenderer.end();
+
+        drawSoulHudIcon(
+            vesselCenterX,
+            vesselCenterY,
+            vesselOuterRadius,
+            soulRatio
+        );
+    }
+
+    private void drawSoulHudIcon(
+        float centerX,
+        float centerY,
+        float radius,
+        float soulRatio
+    ) {
+        if (
+            menuTheme == null
+                || menuTheme.getSoulOrbTexture() == null
+        ) {
+            return;
+        }
+
+        batch.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+
+        batch.begin();
+
+        float glowSize = radius * 3.4f;
+        float orbSize = radius * 2.35f;
+
+        batch.setColor(
+            1f,
+            1f,
+            1f,
+            0.18f + soulRatio * 0.55f
+        );
+
+        batch.draw(
+            menuTheme.getSoulGlowTexture(),
+            centerX - glowSize / 2f,
+            centerY - glowSize / 2f,
+            glowSize,
+            glowSize
+        );
+
+        batch.setColor(
+            1f,
+            1f,
+            1f,
+            0.72f + soulRatio * 0.28f
+        );
+
+        batch.draw(
+            menuTheme.getSoulOrbTexture(),
+            centerX - orbSize / 2f,
+            centerY - orbSize / 2f,
+            orbSize,
+            orbSize
+        );
+
+        batch.setColor(Color.WHITE);
+        batch.end();
     }
 
     private void finishAnimationIfNecessary() {
@@ -3988,8 +4047,8 @@ public class GameScreen extends ScreenAdapter {
             stage.dispose();
         }
 
-        if (skin != null) {
-            skin.dispose();
+        if (menuTheme != null) {
+            menuTheme.dispose();
         }
 
         if (

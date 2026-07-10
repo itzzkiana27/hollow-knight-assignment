@@ -26,6 +26,7 @@ public class GameSettings {
 
     private String musicStyle;
     private String language;
+    private String menuTheme;
 
     private int moveLeftKey;
     private int moveRightKey;
@@ -59,6 +60,9 @@ public class GameSettings {
 
         language =
             preferences.getString("language", "en");
+
+        menuTheme =
+            preferences.getString("menuTheme", "voidheart");
 
         int controlsVersion = preferences.getInteger(
             CONTROLS_VERSION_KEY,
@@ -134,6 +138,11 @@ public class GameSettings {
         preferences.putString(
             "language",
             language
+        );
+
+        preferences.putString(
+            "menuTheme",
+            menuTheme
         );
 
         preferences.putInteger(
@@ -256,6 +265,18 @@ public class GameSettings {
     public void setLanguage(String language) {
         this.language = language;
     }
+
+    public String getMenuTheme() {
+        return menuTheme;
+    }
+
+    public void setMenuTheme(String menuTheme) {
+        if (menuTheme == null || menuTheme.isEmpty()) {
+            this.menuTheme = "voidheart";
+        } else {
+            this.menuTheme = menuTheme;
+        }
+    }
     public void resetAll() {
         musicEnabled = true;
         soundEffectsEnabled = true;
@@ -266,6 +287,7 @@ public class GameSettings {
         brightness = 1f;
         musicStyle = "Original";
         language = "en";
+        menuTheme = "voidheart";
 
         setDefaultControls();
 

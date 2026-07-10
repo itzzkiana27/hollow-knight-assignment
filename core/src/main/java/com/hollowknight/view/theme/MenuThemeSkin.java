@@ -1,0 +1,683 @@
+package com.hollowknight.view.theme;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.Disposable;
+
+public final class MenuThemeSkin implements Disposable {
+
+    private static final String PREFERENCES_NAME =
+        "hollow-knight-settings";
+
+    private static final String THEME_KEY =
+        "menuTheme";
+
+    private static final String BASE_PATH =
+        "ui/menu/";
+
+    private final MenuThemeType theme;
+    private final Skin skin;
+    private final SpriteBatch backgroundBatch;
+    private final Array<Texture> ownedTextures;
+
+    private final Texture backgroundTexture;
+    private final Texture saveBackgroundTexture;
+    private final Texture titleLogoTexture;
+    private final Texture titleOrnamentTexture;
+    private final Texture borderTexture;
+    private final Texture controllerPromptTexture;
+    private final Texture mainBeamTexture;
+    private final Texture voidBeamTexture;
+    private final Texture soulOrbTexture;
+    private final Texture soulGlowTexture;
+    private final Texture magicOrbTexture;
+    private final Texture healthMaskTexture;
+    private final Texture vengefulSpiritTexture;
+    private final Texture shadeSoulTexture;
+    private final Texture howlingWraithsTexture;
+    private final Texture abyssShriekTexture;
+    private final Texture slotForgottenCrossroadsTexture;
+    private final Texture slotCityOfTearsTexture;
+    private final Texture slotAbyssTexture;
+    private final Texture slotWhitePalaceTexture;
+    private final Texture slotDirtmouthTexture;
+
+    private float particleTime;
+
+    private MenuThemeSkin(MenuThemeType theme) {
+        this.theme = theme;
+        this.ownedTextures = new Array<>();
+        this.backgroundBatch = new SpriteBatch();
+
+        skin = new Skin(
+            Gdx.files.internal("ui/uiskin.json")
+        );
+
+        backgroundTexture = load(
+            BASE_PATH + "backgrounds/voidheart_menu_bg.png"
+        );
+
+        saveBackgroundTexture = load(
+            BASE_PATH + "backgrounds/save_background.png"
+        );
+
+        titleLogoTexture = load(
+            BASE_PATH + "common/vheart_title.png"
+        );
+
+        titleOrnamentTexture = load(
+            BASE_PATH + "common/title_ornament_large.png"
+        );
+
+        borderTexture = load(
+            BASE_PATH + "common/menu_border_black.png"
+        );
+
+        controllerPromptTexture = load(
+            BASE_PATH + "common/controller_prompt_bg.png"
+        );
+
+        mainBeamTexture = load(
+            BASE_PATH + "effects/main_menu_beam.png"
+        );
+
+        voidBeamTexture = load(
+            BASE_PATH + "effects/vheart_beam.png"
+        );
+
+        soulOrbTexture = load(
+            BASE_PATH + "icons/soul_orb_full.png"
+        );
+
+        soulGlowTexture = load(
+            BASE_PATH + "icons/soul_orb_glow.png"
+        );
+
+        magicOrbTexture = load(
+            BASE_PATH + "icons/magic_orb_small.png"
+        );
+
+        healthMaskTexture = load(
+            BASE_PATH + "icons/health_mask.png"
+        );
+
+        vengefulSpiritTexture = load(
+            BASE_PATH + "icons/spell_vengeful_spirit.png"
+        );
+
+        shadeSoulTexture = load(
+            BASE_PATH + "icons/spell_shade_soul.png"
+        );
+
+        howlingWraithsTexture = load(
+            BASE_PATH + "icons/spell_howling_wraiths.png"
+        );
+
+        abyssShriekTexture = load(
+            BASE_PATH + "icons/spell_abyss_shriek.png"
+        );
+
+        slotForgottenCrossroadsTexture = load(
+            BASE_PATH + "slots/area_forgotten_crossroads.png"
+        );
+
+        slotCityOfTearsTexture = load(
+            BASE_PATH + "slots/area_city_of_tears.png"
+        );
+
+        slotAbyssTexture = load(
+            BASE_PATH + "slots/area_abyss.png"
+        );
+
+        slotWhitePalaceTexture = load(
+            BASE_PATH + "slots/area_white_palace.png"
+        );
+
+        slotDirtmouthTexture = load(
+            BASE_PATH + "slots/area_dirtmouth.png"
+        );
+
+        customizeSkin();
+    }
+
+    public static MenuThemeSkin fromSettings() {
+        String id = Gdx.app
+            .getPreferences(PREFERENCES_NAME)
+            .getString(
+                THEME_KEY,
+                MenuThemeType.VOIDHEART.getId()
+            );
+
+        return new MenuThemeSkin(
+            MenuThemeType.fromId(id)
+        );
+    }
+
+    public static MenuThemeSkin fromThemeId(String themeId) {
+        return new MenuThemeSkin(
+            MenuThemeType.fromId(themeId)
+        );
+    }
+
+    public Skin getSkin() {
+        return skin;
+    }
+
+    public MenuThemeType getTheme() {
+        return theme;
+    }
+
+    public Color titleColor() {
+        switch (theme) {
+            case ROYAL_GOLD:
+                return new Color(0.95f, 0.70f, 0.22f, 1f);
+
+            case CLASSIC_HOLLOW:
+                return new Color(0.88f, 0.96f, 1f, 1f);
+
+            case VOIDHEART:
+            default:
+                return new Color(0.92f, 0.94f, 0.98f, 1f);
+        }
+    }
+
+    public Color highlightColor() {
+        switch (theme) {
+            case ROYAL_GOLD:
+                return new Color(1f, 0.70f, 0.18f, 1f);
+
+            case CLASSIC_HOLLOW:
+                return new Color(0.45f, 0.82f, 1f, 1f);
+
+            case VOIDHEART:
+            default:
+                return new Color(0.85f, 0.90f, 1f, 1f);
+        }
+    }
+
+    public Color bodyColor() {
+        switch (theme) {
+            case ROYAL_GOLD:
+                return new Color(0.82f, 0.75f, 0.64f, 1f);
+
+            case CLASSIC_HOLLOW:
+                return new Color(0.77f, 0.88f, 0.94f, 1f);
+
+            case VOIDHEART:
+            default:
+                return new Color(0.78f, 0.80f, 0.86f, 1f);
+        }
+    }
+
+    public void drawBackground(
+        float delta,
+        boolean saveScreen
+    ) {
+        particleTime += delta;
+
+        float width = Gdx.graphics.getWidth();
+        float height = Gdx.graphics.getHeight();
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        backgroundBatch.begin();
+
+        drawCovered(
+            saveScreen
+                ? saveBackgroundTexture
+                : backgroundTexture,
+            width,
+            height,
+            themeTint(1f)
+        );
+
+        drawBeam(width, height);
+        drawParticles(width, height);
+
+        backgroundBatch.setColor(
+            0f,
+            0f,
+            0f,
+            theme == MenuThemeType.ROYAL_GOLD
+                ? 0.45f
+                : 0.28f
+        );
+        backgroundBatch.draw(
+            backgroundTexture,
+            0f,
+            0f,
+            width,
+            height
+        );
+
+        backgroundBatch.setColor(Color.WHITE);
+        backgroundBatch.end();
+    }
+
+    public Image createTitleLogo(float width) {
+        Image image = new Image(
+            drawable(titleLogoTexture)
+        );
+
+        image.setColor(titleColor());
+        image.setScaling(
+            com.badlogic.gdx.utils.Scaling.fit
+        );
+        image.setSize(width, width * 0.32f);
+
+        return image;
+    }
+
+    public Image createOrnament(float width) {
+        Image image = new Image(
+            drawable(titleOrnamentTexture)
+        );
+
+        image.setColor(highlightColor());
+        image.setScaling(
+            com.badlogic.gdx.utils.Scaling.fit
+        );
+        image.setSize(width, width * 0.09f);
+
+        return image;
+    }
+
+    public Image createPanelBorder(float width, float height) {
+        Image image = new Image(drawable(borderTexture));
+        image.setColor(1f, 1f, 1f, 0.65f);
+        image.setSize(width, height);
+        return image;
+    }
+
+    public Image createSlotPreview(
+        int slotNumber,
+        boolean saved
+    ) {
+        Texture texture;
+
+        switch (slotNumber) {
+            case 2:
+                texture = slotCityOfTearsTexture;
+                break;
+
+            case 3:
+                texture = slotAbyssTexture;
+                break;
+
+            case 4:
+                texture = slotWhitePalaceTexture;
+                break;
+
+            case 1:
+            default:
+                texture = saved
+                    ? slotForgottenCrossroadsTexture
+                    : slotDirtmouthTexture;
+                break;
+        }
+
+        Image image = new Image(drawable(texture));
+        image.setScaling(
+            com.badlogic.gdx.utils.Scaling.stretch
+        );
+
+        if (!saved) {
+            image.setColor(0.45f, 0.50f, 0.58f, 0.72f);
+        }
+
+        return image;
+    }
+
+    public Image createSoulOrbIcon(float size) {
+        Image image = new Image(drawable(soulOrbTexture));
+        image.setSize(size, size);
+        return image;
+    }
+
+    public Image createHealthIcon(float size) {
+        Image image = new Image(drawable(healthMaskTexture));
+        image.setSize(size, size);
+        return image;
+    }
+
+    public Image createMagicOrbIcon(float size) {
+        Image image = new Image(drawable(magicOrbTexture));
+        image.setSize(size, size);
+        return image;
+    }
+
+    public Image createSpellIcon(String spellKey) {
+        Texture texture;
+
+        if ("shade".equals(spellKey)) {
+            texture = shadeSoulTexture;
+        } else if ("howling".equals(spellKey)) {
+            texture = howlingWraithsTexture;
+        } else if ("abyss".equals(spellKey)) {
+            texture = abyssShriekTexture;
+        } else {
+            texture = vengefulSpiritTexture;
+        }
+
+        Image image = new Image(drawable(texture));
+        image.setScaling(
+            com.badlogic.gdx.utils.Scaling.fit
+        );
+        return image;
+    }
+
+    public Drawable panelDrawable(float alpha) {
+        return solidDrawable(
+            0.02f,
+            0.025f,
+            0.035f,
+            alpha
+        );
+    }
+
+    public Drawable lineDrawable() {
+        Color color = highlightColor();
+        return solidDrawable(
+            color.r,
+            color.g,
+            color.b,
+            0.80f
+        );
+    }
+
+    public TextButton createMenuButton(
+        String text
+    ) {
+        TextButton button = new TextButton(
+            text,
+            skin
+        );
+
+        button.getLabel().setFontScale(1.0f);
+        button.getLabel().setColor(bodyColor());
+        return button;
+    }
+
+    public Label createTitleLabel(String text) {
+        Label label = new Label(text, skin);
+        label.setColor(titleColor());
+        label.setFontScale(1.55f);
+        return label;
+    }
+
+    public Label createSectionLabel(String text) {
+        Label label = new Label(text, skin);
+        label.setColor(highlightColor());
+        label.setFontScale(1.15f);
+        return label;
+    }
+
+    public Label createBodyLabel(String text) {
+        Label label = new Label(text, skin);
+        label.setColor(bodyColor());
+        return label;
+    }
+
+    public Texture getSoulOrbTexture() {
+        return soulOrbTexture;
+    }
+
+    public Texture getSoulGlowTexture() {
+        return soulGlowTexture;
+    }
+
+    private Texture load(String path) {
+        FileHandle file = Gdx.files.internal(path);
+
+        if (!file.exists()) {
+            Texture fallback = createFallbackTexture();
+            ownedTextures.add(fallback);
+            return fallback;
+        }
+
+        Texture texture = new Texture(file);
+        texture.setFilter(
+            Texture.TextureFilter.Linear,
+            Texture.TextureFilter.Linear
+        );
+        ownedTextures.add(texture);
+        return texture;
+    }
+
+    private void customizeSkin() {
+        BitmapFont menuFont = skin.getFont("window");
+
+        Label.LabelStyle labelStyle =
+            skin.get(Label.LabelStyle.class);
+        labelStyle.font = menuFont;
+        labelStyle.fontColor = bodyColor();
+
+        TextButton.TextButtonStyle buttonStyle =
+            skin.get(TextButton.TextButtonStyle.class);
+        buttonStyle.font = menuFont;
+        buttonStyle.fontColor = bodyColor();
+        buttonStyle.overFontColor = highlightColor();
+        buttonStyle.downFontColor = Color.WHITE;
+        buttonStyle.checkedFontColor = highlightColor();
+        buttonStyle.up = solidDrawable(0f, 0f, 0f, 0f);
+        buttonStyle.down = solidDrawable(1f, 1f, 1f, 0.06f);
+        buttonStyle.over = solidDrawable(1f, 1f, 1f, 0.035f);
+
+        SelectBox.SelectBoxStyle selectStyle =
+            skin.get(SelectBox.SelectBoxStyle.class);
+        selectStyle.font = menuFont;
+        selectStyle.fontColor = bodyColor();
+
+        Slider.SliderStyle sliderStyle =
+            skin.get(
+                "default-horizontal",
+                Slider.SliderStyle.class
+            );
+        sliderStyle.background = new TextureRegionDrawable(
+            new TextureRegion(
+                load(BASE_PATH + "settings/horizontal_slider.png")
+            )
+        ).tint(bodyColor());
+        sliderStyle.knob = drawable(
+            load(BASE_PATH + "settings/slider_thumb.png")
+        );
+        sliderStyle.knobOver = drawable(
+            load(BASE_PATH + "settings/slider_thumb_active.png")
+        );
+        sliderStyle.knobDown = sliderStyle.knobOver;
+
+        CheckBox.CheckBoxStyle checkBoxStyle =
+            skin.get(CheckBox.CheckBoxStyle.class);
+        checkBoxStyle.font = menuFont;
+        checkBoxStyle.fontColor = bodyColor();
+        checkBoxStyle.checkboxOn = drawable(
+            load(BASE_PATH + "settings/toggle_on.png")
+        );
+        checkBoxStyle.checkboxOff = drawable(
+            load(BASE_PATH + "settings/toggle_hover.png")
+        );
+        checkBoxStyle.checkboxOver = drawable(
+            load(BASE_PATH + "settings/toggle_active.png")
+        );
+        checkBoxStyle.checkboxOnOver = checkBoxStyle.checkboxOver;
+    }
+
+    private void drawCovered(
+        Texture texture,
+        float width,
+        float height,
+        Color color
+    ) {
+        float textureRatio =
+            (float) texture.getWidth()
+                / Math.max(1f, texture.getHeight());
+
+        float screenRatio =
+            width / Math.max(1f, height);
+
+        float drawWidth = width;
+        float drawHeight = height;
+
+        if (textureRatio > screenRatio) {
+            drawWidth = height * textureRatio;
+        } else {
+            drawHeight = width / textureRatio;
+        }
+
+        float x = (width - drawWidth) / 2f;
+        float y = (height - drawHeight) / 2f;
+
+        backgroundBatch.setColor(color);
+        backgroundBatch.draw(
+            texture,
+            x,
+            y,
+            drawWidth,
+            drawHeight
+        );
+    }
+
+    private void drawBeam(float width, float height) {
+        Texture beam = theme == MenuThemeType.VOIDHEART
+            ? voidBeamTexture
+            : mainBeamTexture;
+
+        Color color = highlightColor();
+        backgroundBatch.setColor(
+            color.r,
+            color.g,
+            color.b,
+            0.18f
+        );
+
+        float beamHeight = height * 0.82f;
+        float beamWidth = beamHeight
+            * beam.getWidth()
+            / Math.max(1f, beam.getHeight());
+
+        backgroundBatch.draw(
+            beam,
+            width * 0.5f - beamWidth * 0.5f,
+            height * 0.18f,
+            beamWidth,
+            beamHeight
+        );
+    }
+
+    private void drawParticles(float width, float height) {
+        Color color = highlightColor();
+
+        for (int index = 0; index < 18; index++) {
+            float seed = index * 37.17f;
+            float x = (seed * 53f) % width;
+            float y = ((seed * 29f) + particleTime * (12f + index))
+                % height;
+            float size = 5f + (index % 4) * 2.3f;
+            float alpha = 0.10f + (index % 5) * 0.028f;
+
+            backgroundBatch.setColor(
+                color.r,
+                color.g,
+                color.b,
+                alpha
+            );
+            backgroundBatch.draw(
+                soulGlowTexture,
+                x,
+                y,
+                size,
+                size
+            );
+        }
+    }
+
+    private Color themeTint(float alpha) {
+        switch (theme) {
+            case ROYAL_GOLD:
+                return new Color(0.72f, 0.55f, 0.34f, alpha);
+
+            case CLASSIC_HOLLOW:
+                return new Color(0.55f, 0.80f, 1f, alpha);
+
+            case VOIDHEART:
+            default:
+                return new Color(0.86f, 0.90f, 1f, alpha);
+        }
+    }
+
+    private TextureRegionDrawable drawable(Texture texture) {
+        return new TextureRegionDrawable(
+            new TextureRegion(texture)
+        );
+    }
+
+    private Drawable solidDrawable(
+        float r,
+        float g,
+        float b,
+        float a
+    ) {
+        Pixmap pixmap = new Pixmap(
+            1,
+            1,
+            Pixmap.Format.RGBA8888
+        );
+
+        pixmap.setColor(r, g, b, a);
+        pixmap.fill();
+
+        Texture texture = new Texture(pixmap);
+        pixmap.dispose();
+
+        ownedTextures.add(texture);
+
+        return new TextureRegionDrawable(
+            new TextureRegion(texture)
+        );
+    }
+
+    private Texture createFallbackTexture() {
+        Pixmap pixmap = new Pixmap(
+            1,
+            1,
+            Pixmap.Format.RGBA8888
+        );
+
+        pixmap.setColor(Color.CLEAR);
+        pixmap.fill();
+
+        Texture texture = new Texture(pixmap);
+        pixmap.dispose();
+        return texture;
+    }
+
+    @Override
+    public void dispose() {
+        backgroundBatch.dispose();
+
+        if (skin != null) {
+            skin.dispose();
+        }
+
+        for (Texture texture : ownedTextures) {
+            texture.dispose();
+        }
+    }
+}

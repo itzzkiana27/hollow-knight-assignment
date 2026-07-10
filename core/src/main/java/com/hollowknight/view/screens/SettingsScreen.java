@@ -16,8 +16,10 @@ import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.SettingsController;
+import com.hollowknight.view.theme.MenuThemeSkin;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -28,6 +30,7 @@ public class SettingsScreen extends ScreenAdapter {
 
     private Stage stage;
     private Skin skin;
+    private MenuThemeSkin menuTheme;
     private InputMultiplexer inputMultiplexer;
 
     private CheckBox musicCheckBox;
@@ -39,6 +42,7 @@ public class SettingsScreen extends ScreenAdapter {
 
     private SelectBox<String> musicStyleSelectBox;
     private SelectBox<String> languageSelectBox;
+    private SelectBox<String> themeSelectBox;
 
     private final Map<ControlAction, TextButton>
         controlButtons = new EnumMap<>(ControlAction.class);
@@ -53,9 +57,10 @@ public class SettingsScreen extends ScreenAdapter {
     public void show() {
         stage = new Stage(new ScreenViewport());
 
-        skin = new Skin(
-            Gdx.files.internal("ui/uiskin.json")
+        menuTheme = MenuThemeSkin.fromThemeId(
+            controller.getMenuTheme()
         );
+        skin = menuTheme.getSkin();
 
         createMenu();
         createInputProcessor();
@@ -94,25 +99,34 @@ public class SettingsScreen extends ScreenAdapter {
         Table contentTable = new Table();
 
         contentTable.top();
-        contentTable.pad(25f);
-        contentTable.defaults().pad(6f);
-
-        Label title = new Label(
-            controller.text("settings.title"),
-            skin
+        contentTable.pad(32f);
+        contentTable.defaults().pad(7f);
+        contentTable.setBackground(
+            menuTheme.panelDrawable(0.58f)
         );
 
-        title.setFontScale(1.6f);
+        Label title = menuTheme.createTitleLabel(
+            controller.text("settings.title")
+        );
+        title.setAlignment(Align.center);
 
         contentTable.add(title)
             .colspan(2)
-            .padBottom(20f)
+            .padBottom(8f)
+            .row();
+
+        contentTable.add(menuTheme.createOrnament(230f))
+            .colspan(2)
+            .width(230f)
+            .height(32f)
+            .padBottom(18f)
             .row();
 
         createMusicControls(contentTable);
         createSoundEffectsControls(contentTable);
         createBrightnessControl(contentTable);
         createMusicStyleControl(contentTable);
+        createThemeControl(contentTable);
         createLanguageControl(contentTable);
         createControlsSection(contentTable);
         createButtons(contentTable);
@@ -128,10 +142,11 @@ public class SettingsScreen extends ScreenAdapter {
 
         Table rootTable = new Table();
         rootTable.setFillParent(true);
+        rootTable.center();
 
         rootTable.add(scrollPane)
-            .grow()
-            .pad(10f);
+            .width(Math.min(760f, Gdx.graphics.getWidth() * 0.86f))
+            .height(Math.min(680f, Gdx.graphics.getHeight() * 0.88f));
 
         stage.addActor(rootTable);
     }
@@ -186,7 +201,7 @@ public class SettingsScreen extends ScreenAdapter {
         });
 
         table.add(musicVolumeSlider)
-            .width(250f)
+            .width(260f)
             .row();
     }
 
@@ -246,14 +261,13 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(soundEffectsVolumeSlider)
-            .width(250f)
+            .width(260f)
             .row();
     }
 
     private void createBrightnessControl(Table table) {
-        Label brightnessLabel = new Label(
-            controller.text("settings.brightness"),
-            skin
+        Label brightnessLabel = menuTheme.createBodyLabel(
+            controller.text("settings.brightness")
         );
 
         table.add(brightnessLabel)
@@ -286,14 +300,13 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(brightnessSlider)
-            .width(250f)
+            .width(260f)
             .row();
     }
 
     private void createMusicStyleControl(Table table) {
-        Label musicStyleLabel = new Label(
-            controller.text("settings.musicStyle"),
-            skin
+        Label musicStyleLabel = menuTheme.createBodyLabel(
+            controller.text("settings.musicStyle")
         );
 
         table.add(musicStyleLabel)
@@ -354,14 +367,50 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(musicStyleSelectBox)
-            .width(250f)
+            .width(260f)
+            .row();
+    }
+
+    private void createThemeControl(Table table) {
+        Label themeLabel = menuTheme.createSectionLabel(
+            "Menu Theme"
+        );
+
+        table.add(themeLabel)
+            .left();
+
+        themeSelectBox = new SelectBox<>(skin);
+        themeSelectBox.setItems(
+            controller.getMenuThemeDisplayNames()
+        );
+        themeSelectBox.setSelected(
+            controller.getCurrentMenuThemeDisplayName()
+        );
+
+        themeSelectBox.addListener(
+            new ChangeListener() {
+                @Override
+                public void changed(
+                    ChangeEvent event,
+                    Actor actor
+                ) {
+                    controller.setMenuTheme(
+                        controller.getMenuThemeIdFromDisplayName(
+                            themeSelectBox.getSelected()
+                        )
+                    );
+                }
+            }
+        );
+
+        table.add(themeSelectBox)
+            .width(260f)
             .row();
     }
 
     private void createLanguageControl(Table table) {
-        Label languageLabel = new Label(
-            controller.text("settings.language"),
-            skin
+        Label languageLabel = menuTheme.createBodyLabel(
+            controller.text("settings.language")
         );
 
         table.add(languageLabel)
@@ -403,17 +452,14 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(languageSelectBox)
-            .width(250f)
+            .width(260f)
             .row();
     }
 
     private void createControlsSection(Table table) {
-        Label controlsTitle = new Label(
-            controller.text("settings.controls"),
-            skin
+        Label controlsTitle = menuTheme.createSectionLabel(
+            controller.text("settings.controls")
         );
-
-        controlsTitle.setFontScale(1.25f);
 
         table.add(controlsTitle)
             .colspan(2)
@@ -451,9 +497,8 @@ public class SettingsScreen extends ScreenAdapter {
             "settings.attack"
         );
 
-        TextButton resetControlsButton = new TextButton(
-            controller.text("settings.resetControls"),
-            skin
+        TextButton resetControlsButton = menuTheme.createMenuButton(
+            controller.text("settings.resetControls")
         );
 
         resetControlsButton.addListener(
@@ -472,7 +517,7 @@ public class SettingsScreen extends ScreenAdapter {
 
         table.add(resetControlsButton)
             .colspan(2)
-            .width(240f)
+            .width(260f)
             .height(46f)
             .padTop(8f)
             .row();
@@ -483,14 +528,12 @@ public class SettingsScreen extends ScreenAdapter {
         ControlAction action,
         String labelKey
     ) {
-        Label actionLabel = new Label(
-            controller.text(labelKey),
-            skin
+        Label actionLabel = menuTheme.createBodyLabel(
+            controller.text(labelKey)
         );
 
-        TextButton keyButton = new TextButton(
-            controller.keyName(getControlKey(action)),
-            skin
+        TextButton keyButton = menuTheme.createMenuButton(
+            controller.keyName(getControlKey(action))
         );
 
         keyButton.addListener(
@@ -512,8 +555,8 @@ public class SettingsScreen extends ScreenAdapter {
             .left();
 
         table.add(keyButton)
-            .width(250f)
-            .height(44f)
+            .width(260f)
+            .height(42f)
             .row();
     }
 
@@ -593,9 +636,8 @@ public class SettingsScreen extends ScreenAdapter {
     }
 
     private void createButtons(Table table) {
-        TextButton resetAudioButton = new TextButton(
-            controller.text("settings.resetAudio"),
-            skin
+        TextButton resetAudioButton = menuTheme.createMenuButton(
+            controller.text("settings.resetAudio")
         );
 
         resetAudioButton.addListener(
@@ -612,13 +654,12 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(resetAudioButton)
-            .width(210f)
+            .width(220f)
             .height(50f)
             .padTop(20f);
 
-        TextButton resetAllButton = new TextButton(
-            controller.text("settings.resetAll"),
-            skin
+        TextButton resetAllButton = menuTheme.createMenuButton(
+            controller.text("settings.resetAll")
         );
 
         resetAllButton.addListener(
@@ -634,15 +675,16 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(resetAllButton)
-            .width(210f)
+            .width(220f)
             .height(50f)
             .padTop(20f)
             .row();
 
-        TextButton backButton = new TextButton(
-            controller.text("common.back"),
-            skin
+        TextButton backButton = menuTheme.createMenuButton(
+            controller.text("common.back")
         );
+
+        backButton.getLabel().setFontScale(1.15f);
 
         backButton.addListener(
             new ChangeListener() {
@@ -658,9 +700,9 @@ public class SettingsScreen extends ScreenAdapter {
 
         table.add(backButton)
             .colspan(2)
-            .width(210f)
-            .height(50f)
-            .padTop(10f)
+            .width(220f)
+            .height(52f)
+            .padTop(12f)
             .padBottom(20f)
             .row();
     }
@@ -700,14 +742,19 @@ public class SettingsScreen extends ScreenAdapter {
     @Override
     public void render(float delta) {
         Gdx.gl.glClearColor(
-            0.02f,
-            0.02f,
-            0.05f,
+            0.01f,
+            0.01f,
+            0.015f,
             1f
         );
 
         Gdx.gl.glClear(
             GL20.GL_COLOR_BUFFER_BIT
+        );
+
+        menuTheme.drawBackground(
+            delta,
+            false
         );
 
         stage.act(
@@ -745,8 +792,8 @@ public class SettingsScreen extends ScreenAdapter {
             stage.dispose();
         }
 
-        if (skin != null) {
-            skin.dispose();
+        if (menuTheme != null) {
+            menuTheme.dispose();
         }
     }
 }
