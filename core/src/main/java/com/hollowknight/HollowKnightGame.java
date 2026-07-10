@@ -25,6 +25,7 @@ public class HollowKnightGame extends Game {
     private AchievementManager achievementManager;
     private GameMusicPlayer musicPlayer;
     private int activeSaveSlot;
+    private GameController suspendedGameController;
 
     @Override
     public void create() {
@@ -122,6 +123,50 @@ public class HollowKnightGame extends Game {
     }
 
     public void showSettingsMenu() {
+        suspendedGameController = null;
+        showSettingsScreen();
+    }
+
+    public void showSettingsMenuFromPause(
+        GameController controller
+    ) {
+        Screen currentScreen = getScreen();
+
+        if (currentScreen instanceof GameScreen) {
+            ((GameScreen) currentScreen)
+                .preserveControllerOnDispose();
+        }
+
+        suspendedGameController = controller;
+        showSettingsScreen();
+    }
+
+    public void refreshSettingsMenu() {
+        showSettingsScreen();
+    }
+
+    public void closeSettingsMenu() {
+        if (suspendedGameController == null) {
+            showMainMenu();
+            return;
+        }
+
+        GameController controller =
+            suspendedGameController;
+
+        suspendedGameController = null;
+
+        changeScreen(
+            new GameScreen(
+                controller,
+                true
+            )
+        );
+
+        controller.resumeAfterSettings();
+    }
+
+    private void showSettingsScreen() {
         if (musicPlayer != null) {
             musicPlayer.playMenuTheme();
         }
@@ -202,6 +247,11 @@ public class HollowKnightGame extends Game {
 
         if (currentScreen != null) {
             currentScreen.dispose();
+        }
+
+        if (suspendedGameController != null) {
+            suspendedGameController.dispose();
+            suspendedGameController = null;
         }
 
         if (musicPlayer != null) {

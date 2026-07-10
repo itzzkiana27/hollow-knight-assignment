@@ -226,7 +226,7 @@ public class GameController {
     private final Rectangle voidShadeSoulBounds;
     private final Rectangle shadeSoulEndBounds;
     private final Rectangle voidAbyssShriekBounds;
-    private final KeyBindings keyBindings;
+    private KeyBindings keyBindings;
     private final GameSfxPlayer gameSfxPlayer;
 
     private final Sound[] zoteVoiceSounds;
@@ -1140,7 +1140,10 @@ public class GameController {
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.F)) {
-            toggleNoclipMode();
+            toggleNoclipMode(
+                knightDrawWidth,
+                knightDrawHeight
+            );
             return;
         }
 
@@ -1240,8 +1243,18 @@ public class GameController {
         );
     }
 
-    private void toggleNoclipMode() {
+    private void toggleNoclipMode(
+        float knightDrawWidth,
+        float knightDrawHeight
+    ) {
         noclipModeEnabled = !noclipModeEnabled;
+
+        if (!noclipModeEnabled) {
+            synchronizeRoomAfterNoclip(
+                knightDrawWidth,
+                knightDrawHeight
+            );
+        }
 
         combat.finishAttack();
         cancelFocus();
@@ -1258,6 +1271,66 @@ public class GameController {
             noclipModeEnabled
                 ? "Flight / noclip enabled."
                 : "Flight / noclip disabled."
+        );
+    }
+
+    /**
+     * Noclip can move the player into another room without touching one of
+     * the normal transition triggers. When noclip ends, update the active
+     * room without teleporting the player so camera bounds, collisions,
+     * hazards, enemies, and music all match the player's actual location.
+     */
+    private void synchronizeRoomAfterNoclip(
+        float knightDrawWidth,
+        float knightDrawHeight
+    ) {
+        float playerCenterX =
+            player.getPosition().x
+                + knightDrawWidth / 2f;
+
+        float playerCenterY =
+            player.getPosition().y
+                + knightDrawHeight / 2f;
+
+        String roomAtPlayer =
+            world.findRoomIdAt(
+                playerCenterX,
+                playerCenterY
+            );
+
+        if (
+            roomAtPlayer == null
+                || roomAtPlayer.equals(currentRoomId)
+        ) {
+            return;
+        }
+
+        currentRoomId = roomAtPlayer;
+        currentRoomSpawnX = player.getPosition().x;
+        currentRoomSpawnY = player.getPosition().y;
+
+        configureCurrentRoomPhysics();
+
+        spikeHazards =
+            world.getSpikeHazardsForRoom(
+                currentRoomId
+            );
+
+        spawnEnemiesForCurrentRoom();
+        spawnZoteForCurrentRoom();
+        spawnFalseKnightForCurrentRoom();
+        endZoteDialogue();
+        updateBackgroundMusic();
+
+        checkpoint.save(
+            currentRoomSpawnX,
+            currentRoomSpawnY
+        );
+
+        playerBody.update(
+            player,
+            knightDrawWidth,
+            knightDrawHeight
         );
     }
 
@@ -4467,7 +4540,21 @@ public class GameController {
     }
 
     public void openSettingsMenu() {
-        game.showSettingsMenu();
+        game.showSettingsMenuFromPause(this);
+    }
+
+    public void resumeAfterSettings() {
+        GameSettings settings = game.getSettings();
+
+        keyBindings = new KeyBindings(
+            settings.getMoveLeftKey(),
+            settings.getMoveRightKey(),
+            settings.getJumpKey(),
+            settings.getDashKey(),
+            settings.getAttackKey()
+        );
+
+        updateBackgroundMusic();
     }
 
     public void openAchievementsMenu() {

@@ -377,6 +377,8 @@ public class GameScreen extends ScreenAdapter {
     private Table pauseContent;
     private Label pauseMessageLabel;
     private boolean pauseMenuOpen;
+    private boolean startPaused;
+    private boolean preserveControllerOnDispose;
     private AchievementPopupObserver popupObserver;
 
     private GameCamera worldCamera;
@@ -384,7 +386,19 @@ public class GameScreen extends ScreenAdapter {
     public GameScreen(
         GameController controller
     ) {
+        this(controller, false);
+    }
+
+    public GameScreen(
+        GameController controller,
+        boolean startPaused
+    ) {
         this.controller = controller;
+        this.startPaused = startPaused;
+    }
+
+    public void preserveControllerOnDispose() {
+        preserveControllerOnDispose = true;
     }
 
     @Override
@@ -452,6 +466,11 @@ public class GameScreen extends ScreenAdapter {
 
         createInterface();
         createPauseMenu();
+
+        if (startPaused) {
+            setPauseMenuOpen(true);
+            startPaused = false;
+        }
 
         popupObserver =
             new AchievementPopupObserver(
@@ -4554,6 +4573,8 @@ public class GameScreen extends ScreenAdapter {
             shadowScreamFrames = null;
         }
 
-        controller.dispose();
+        if (!preserveControllerOnDispose) {
+            controller.dispose();
+        }
     }
 }

@@ -79,7 +79,7 @@ public class SettingsController {
         settings.save();
 
         Gdx.app.postRunnable(
-            game::showSettingsMenu
+            game::refreshSettingsMenu
         );
     }
 
@@ -105,7 +105,7 @@ public class SettingsController {
         game.applyLanguage(language);
 
         // Recreate the Settings screen after the current click event finishes.
-        Gdx.app.postRunnable(game::showSettingsMenu);
+        Gdx.app.postRunnable(game::refreshSettingsMenu);
     }
     public void resetAudio() {
         settings.resetAudio();
@@ -121,13 +121,13 @@ public class SettingsController {
         game.refreshMusicSettings();
 
         Gdx.app.postRunnable(
-            game::showSettingsMenu
+            game::refreshSettingsMenu
         );
     }
 
-    public void backToMainMenu() {
+    public void goBack() {
         settings.save();
-        game.showMainMenu();
+        game.closeSettingsMenu();
     }
 
     public String text(String key) {

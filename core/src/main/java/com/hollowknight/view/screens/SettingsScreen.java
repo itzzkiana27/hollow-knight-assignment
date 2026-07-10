@@ -693,7 +693,7 @@ public class SettingsScreen extends ScreenAdapter {
                     ChangeEvent event,
                     Actor actor
                 ) {
-                    controller.backToMainMenu();
+                    controller.goBack();
                 }
             }
         );

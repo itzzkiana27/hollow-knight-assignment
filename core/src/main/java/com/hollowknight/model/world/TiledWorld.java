@@ -1213,6 +1213,45 @@ public final class TiledWorld implements Disposable {
         return npcSpawns;
     }
 
+    /**
+     * Finds the logical room containing a world-space point.
+     *
+     * Some maps contain smaller helper/secret room rectangles inside a main
+     * room rectangle. In that case, prefer the largest containing rectangle
+     * so the result remains the main gameplay room used by transitions,
+     * camera bounds, enemies, and music.
+     *
+     * @return the containing room id, or {@code null} when the point is not
+     * inside any declared room
+     */
+    public String findRoomIdAt(
+        float worldX,
+        float worldY
+    ) {
+        String containingRoomId = null;
+        float containingRoomArea = -1f;
+
+        for (
+            Map.Entry<String, Rectangle> entry
+            : roomBoundsById.entrySet()
+        ) {
+            Rectangle bounds = entry.getValue();
+
+            if (!bounds.contains(worldX, worldY)) {
+                continue;
+            }
+
+            float area = bounds.width * bounds.height;
+
+            if (area > containingRoomArea) {
+                containingRoomId = entry.getKey();
+                containingRoomArea = area;
+            }
+        }
+
+        return containingRoomId;
+    }
+
     public Rectangle getRoomBounds(
         String roomId
     ) {
