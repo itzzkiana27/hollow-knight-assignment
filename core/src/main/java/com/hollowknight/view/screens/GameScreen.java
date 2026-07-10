@@ -1083,7 +1083,14 @@ public class GameScreen extends ScreenAdapter {
             ShapeRenderer.ShapeType.Filled
         );
 
-        shapeRenderer.setColor(Color.BLACK);
+        // Blend the hidden-room cover into the Crossroads
+        // background instead of showing a pure-black rectangle.
+        shapeRenderer.setColor(
+            0.020f,
+            0.024f,
+            0.052f,
+            1f
+        );
 
         shapeRenderer.rect(
             hiddenRoom.x,

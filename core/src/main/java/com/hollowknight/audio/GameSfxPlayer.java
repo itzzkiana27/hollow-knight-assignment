@@ -24,6 +24,9 @@ public final class GameSfxPlayer {
     private final Sound[] soulGainSounds;
 
     private final Sound enemyDamageSound;
+    private final Sound breakableWallHit1Sound;
+    private final Sound breakableWallHit2Sound;
+    private final Sound breakableWallDestroyedSound;
     private final Sound focusReadySound;
     private final Sound focusChargingSound;
     private final Sound focusHealSound;
@@ -57,6 +60,15 @@ public final class GameSfxPlayer {
         );
 
         enemyDamageSound = load("sword_hit_reject.wav");
+        breakableWallHit1Sound = load(
+            "breakable_wall/breakable_wall_hit_1.wav"
+        );
+        breakableWallHit2Sound = load(
+            "breakable_wall/breakable_wall_hit_2.wav"
+        );
+        breakableWallDestroyedSound = load(
+            "breakable_wall/breakable_wall_destroyed.wav"
+        );
         focusReadySound = load("focus_ready.wav");
         focusChargingSound = load("focus_health_charging.wav");
         focusHealSound = load("focus_health_heal.wav");
@@ -72,6 +84,18 @@ public final class GameSfxPlayer {
 
     public void playEnemyDamage() {
         play(enemyDamageSound, 0.42f);
+    }
+
+    public void playBreakableWallHit1() {
+        play(breakableWallHit1Sound, 0.72f);
+    }
+
+    public void playBreakableWallHit2() {
+        play(breakableWallHit2Sound, 0.78f);
+    }
+
+    public void playBreakableWallDestroyed() {
+        play(breakableWallDestroyedSound, 0.86f);
     }
 
     public void playSoulGain() {
@@ -122,6 +146,9 @@ public final class GameSfxPlayer {
         disposeAll(soulGainSounds);
 
         dispose(enemyDamageSound);
+        dispose(breakableWallHit1Sound);
+        dispose(breakableWallHit2Sound);
+        dispose(breakableWallDestroyedSound);
         dispose(focusReadySound);
         dispose(focusChargingSound);
         dispose(focusHealSound);
