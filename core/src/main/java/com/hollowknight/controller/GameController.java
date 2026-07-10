@@ -260,6 +260,7 @@ public class GameController {
     private boolean godModeEnabled;
     private boolean noclipModeEnabled;
     private boolean emergencyHealArmed;
+    private boolean respawnAfterDeathAnimation;
 
     private String cheatMessage;
     private float cheatMessageTimeRemaining;
@@ -613,6 +614,7 @@ public class GameController {
         godModeEnabled = false;
         noclipModeEnabled = false;
         emergencyHealArmed = false;
+        respawnAfterDeathAnimation = false;
         cheatMessage = "";
         cheatMessageTimeRemaining = 0f;
         elapsedGameSeconds = 0f;
@@ -1363,6 +1365,7 @@ public class GameController {
 
     private void triggerEmergencyHeal() {
         emergencyHealArmed = false;
+        respawnAfterDeathAnimation = false;
 
         if (player.isDead()) {
             player.setDead(false);
@@ -2855,7 +2858,7 @@ public class GameController {
                 return true;
             }
 
-            resetPlayerAfterDefeat();
+            beginPlayerDeath(true);
             return true;
         }
 
@@ -3120,7 +3123,7 @@ public class GameController {
                 return true;
             }
 
-            resetPlayerAfterDefeat();
+            beginPlayerDeath(true);
             return true;
         }
 
@@ -3373,7 +3376,7 @@ public class GameController {
                 return true;
             }
 
-            resetPlayerAfterDefeat();
+            beginPlayerDeath(true);
             return true;
         }
 
@@ -3398,10 +3401,41 @@ public class GameController {
         return true;
     }
 
-    private void resetPlayerAfterDefeat() {
+    private void beginPlayerDeath(
+        boolean respawnAutomatically
+    ) {
         emergencyHealArmed = false;
+        respawnAfterDeathAnimation =
+            respawnAutomatically;
 
-        deathCount++;
+        if (respawnAutomatically) {
+            deathCount++;
+        }
+
+        combat.finishAttack();
+        cancelFocus();
+
+        player.setDead(true);
+        player.setMovementState(
+            PlayerMovementState.DEAD
+        );
+        player.setAnimation(
+            PlayerAnimationType.DEATH
+        );
+
+        /*
+         * Stop every movement timer but leave the
+         * Knight at the death position. Moving it to
+         * the start before this animation is rendered
+         * can place the death sprite outside the active
+         * room and camera.
+         */
+        movement.prepareForDeath();
+    }
+
+    private void respawnPlayerAtGameStart() {
+        respawnAfterDeathAnimation = false;
+        emergencyHealArmed = false;
 
         health.restoreFullHealth();
 
@@ -3560,9 +3594,8 @@ public class GameController {
         if (
             currentInput.isRevivePressed()
         ) {
-            combat.finishAttack();
-            cancelFocus();
-            movement.resetPlayer();
+            respawnPlayerAtGameStart();
+            return;
         }
 
         player.updateAnimationTime(delta);
@@ -3680,20 +3713,11 @@ public class GameController {
 
     private void handleActionInput() {
         if (currentInput.isDeathPressed()) {
-            combat.finishAttack();
-            cancelFocus();
-
-            player.setDead(true);
-
-            player.setMovementState(
-                PlayerMovementState.DEAD
-            );
-
-            player.setAnimation(
-                PlayerAnimationType.DEATH
-            );
-
-            movement.prepareForDeath();
+            /*
+             * The death-test cheat keeps the final
+             * frame until the revive key is pressed.
+             */
+            beginPlayerDeath(false);
             return;
         }
 
@@ -4224,7 +4248,11 @@ public class GameController {
             }
 
             case DEATH -> {
-                // Keep final death frame.
+                if (respawnAfterDeathAnimation) {
+                    respawnPlayerAtGameStart();
+                }
+                // Cheat deaths keep the final frame
+                // until the revive key is pressed.
             }
 
             case AIRBORNE,
@@ -4758,7 +4786,14 @@ public class GameController {
     }
 
     public boolean shouldDrawPlayer() {
-        return health.shouldDrawPlayer();
+        /*
+         * Damage invincibility normally blinks the
+         * Knight. A death animation must remain fully
+         * visible even though the final hit started the
+         * invincibility timer.
+         */
+        return player.isDead()
+            || health.shouldDrawPlayer();
     }
 
     public int getCurrentMasks() {

@@ -102,11 +102,12 @@ public final class PlayerMovement {
     }
 
     public void prepareForDeath() {
-        player.getPosition().set(
-            spawnX,
-            spawnY
-        );
-
+        /*
+         * Keep the Knight where the fatal hit occurred
+         * so the death animation is rendered by the
+         * current room's camera. Respawning happens only
+         * after that animation finishes.
+         */
         verticalVelocity = 0f;
 
         jumpsUsed = 0;
