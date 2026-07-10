@@ -124,7 +124,7 @@ public class GameController {
         ABILITY_SOUL_COST = PlayerSoul.FOCUS_COST;
 
     private static final float
-        SHADE_SOUL_CAST_DURATION = 0.10f;
+        SHADE_SOUL_CAST_DURATION = 0.28f;
 
     private static final float
         SHADE_SOUL_CAST_WIDTH = 118f;
@@ -133,7 +133,7 @@ public class GameController {
         SHADE_SOUL_CAST_HEIGHT = 88f;
 
     private static final float
-        SHADE_SOUL_END_DURATION = 0.12f;
+        SHADE_SOUL_END_DURATION = 0.24f;
 
     private static final float
         SHADE_SOUL_END_WIDTH = 118f;

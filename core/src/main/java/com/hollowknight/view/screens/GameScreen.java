@@ -242,9 +242,9 @@ public class GameScreen extends ScreenAdapter {
     private static final float WHITE_DASH_EFFECT_DRAW_HEIGHT = 100f;
 
     private static final float WHITE_DASH_EFFECT_ALPHA = 0.85f;
-    private static final float WHITE_DASH_EFFECT_DURATION = 0.11f;
+    private static final float WHITE_DASH_EFFECT_DURATION = 0.2f;
 
-    private static final int WHITE_DASH_EFFECT_FRAME_COUNT = 11;
+    private static final int WHITE_DASH_EFFECT_FRAME_COUNT = 8;
 
     private static final int BLAST_SOUL_FRAME_COUNT = 8;
 
@@ -256,7 +256,7 @@ public class GameScreen extends ScreenAdapter {
 
     private static final int SHADOW_BALL_END_FRAME_COUNT = 3;
 
-    private static final int SOUL_SCREAM_FRAME_COUNT = 14;
+    private static final int SOUL_SCREAM_FRAME_COUNT = 13;
 
     private static final int SHADOW_SCREAM_FRAME_COUNT = 14;
 
@@ -310,11 +310,11 @@ public class GameScreen extends ScreenAdapter {
      */
     private static final boolean SHARP_SHADOW_SOURCE_FACES_RIGHT = false;
 
-    private static final float SHADE_SOUL_CAST_EFFECT_HEIGHT = 112f;
+    private static final float SHADE_SOUL_CAST_EFFECT_HEIGHT = 185f;
 
     private static final float SHADE_SOUL_PROJECTILE_EFFECT_HEIGHT = 115f;
 
-    private static final float SHADE_SOUL_END_EFFECT_HEIGHT = 112f;
+    private static final float SHADE_SOUL_END_EFFECT_HEIGHT = 150f;
 
     private static final float ABYSS_SHRIEK_EFFECT_HEIGHT = 310f;
 
@@ -915,13 +915,13 @@ public class GameScreen extends ScreenAdapter {
             drawFalseKnightDebug();
         }
 
+        drawZote();
+        drawWhiteDashEffect();
+        drawKnight();
         drawShadeSoulCastEffect();
         drawShadeSoulProjectileEffect();
         drawShadeSoulEndEffect();
         drawAbyssShriekEffect();
-        drawZote();
-        drawWhiteDashEffect();
-        drawKnight();
         drawSlashEffect();
         drawActiveAttackHitbox();
         drawMapForeground();
@@ -2560,6 +2560,15 @@ public class GameScreen extends ScreenAdapter {
 
     private void drawShadeSoulProjectileEffect() {
         if (!controller.isVoidShadeSoulActive()) {
+            return;
+        }
+
+        /*
+         * Let the blast animation read clearly first.
+         * The projectile still exists in the controller, but it is not drawn
+         * over the blast during the short cast window.
+         */
+        if (controller.isShadeSoulCastActive()) {
             return;
         }
 
