@@ -106,6 +106,22 @@ public class GuideScreen extends ScreenAdapter {
 
         addControlRow(
             table,
+            controller.text("guide.lookUp"),
+            controller.keyName(
+                controller.getUpKey()
+            )
+        );
+
+        addControlRow(
+            table,
+            controller.text("guide.lookDown"),
+            controller.keyName(
+                controller.getDownKey()
+            )
+        );
+
+        addControlRow(
+            table,
             controller.text("guide.jump"),
             controller.keyName(
                 controller.getJumpKey()
@@ -125,6 +141,30 @@ public class GuideScreen extends ScreenAdapter {
             controller.text("guide.attack"),
             controller.keyName(
                 controller.getAttackKey()
+            )
+        );
+
+        addControlRow(
+            table,
+            controller.text("guide.focus"),
+            controller.keyName(
+                controller.getFocusKey()
+            )
+        );
+
+        addControlRow(
+            table,
+            controller.text("guide.fireball"),
+            controller.keyName(
+                controller.getFireballKey()
+            )
+        );
+
+        addControlRow(
+            table,
+            controller.text("guide.scream"),
+            controller.keyName(
+                controller.getScreamKey()
             )
         );
     }
@@ -158,6 +198,30 @@ public class GuideScreen extends ScreenAdapter {
             controller.text("guide.dashAbilityTitle"),
             controller.text("guide.dashAbilityDescription")
         );
+
+        addDescription(
+            table,
+            controller.text("guide.focusAbilityTitle"),
+            controller.text("guide.focusAbilityDescription")
+        );
+
+        addDescription(
+            table,
+            controller.text("guide.vengefulSpiritTitle"),
+            controller.text("guide.vengefulSpiritDescription")
+        );
+
+        addDescription(
+            table,
+            controller.text("guide.howlingWraithsTitle"),
+            controller.text("guide.howlingWraithsDescription")
+        );
+
+        addDescription(
+            table,
+            controller.text("guide.charmsTitle"),
+            controller.text("guide.charmsDescription")
+        );
     }
 
     private void createCheatCodesSection(Table table) {
@@ -168,26 +232,38 @@ public class GuideScreen extends ScreenAdapter {
 
         addDescription(
             table,
-            "FULLHEALTH",
-            controller.text("guide.fullHealthDescription")
+            "Left Ctrl + B",
+            controller.text("guide.cheatBossTeleport")
         );
 
         addDescription(
             table,
-            "FULLSOUL",
-            controller.text("guide.fullSoulDescription")
+            "Left Ctrl + F",
+            controller.text("guide.cheatNoclip")
         );
 
         addDescription(
             table,
-            "INVINCIBLE",
-            controller.text("guide.invincibleDescription")
+            "Left Ctrl + H",
+            controller.text("guide.cheatEmergencyHeal")
         );
 
         addDescription(
             table,
-            "FASTKNIGHT",
-            controller.text("guide.fastKnightDescription")
+            "Left Ctrl + S",
+            controller.text("guide.cheatSoul")
+        );
+
+        addDescription(
+            table,
+            "Left Ctrl + G",
+            controller.text("guide.cheatGodMode")
+        );
+
+        addDescription(
+            table,
+            "Left Ctrl + K",
+            controller.text("guide.cheatInstaKill")
         );
     }
 
@@ -215,11 +291,11 @@ public class GuideScreen extends ScreenAdapter {
         Label keyLabel = new Label(key, skin);
 
         table.add(actionLabel)
-            .width(300f)
+            .width(320f)
             .left();
 
         table.add(keyLabel)
-            .width(220f)
+            .width(260f)
             .left()
             .row();
     }
@@ -248,12 +324,12 @@ public class GuideScreen extends ScreenAdapter {
         );
 
         table.add(headingLabel)
-            .width(180f)
+            .width(220f)
             .left()
             .top();
 
         table.add(descriptionLabel)
-            .width(520f)
+            .width(540f)
             .left()
             .top()
             .row();

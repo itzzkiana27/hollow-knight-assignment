@@ -4560,15 +4560,6 @@ public class GameController {
     }
 
     public Rectangle getCurrentCameraBounds() {
-        if (noclipModeEnabled) {
-            return new Rectangle(
-                0f,
-                0f,
-                world.getMapWidth(),
-                world.getMapHeight()
-            );
-        }
-
         return world.getCameraBoundsForRoom(
             currentRoomId
         );

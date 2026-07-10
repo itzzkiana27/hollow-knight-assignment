@@ -1,0 +1,233 @@
+--- a/core/src/main/java/com/hollowknight/controller/GameController.java	2026-07-10 01:13:51.329065604 +0000
++++ b/core/src/main/java/com/hollowknight/controller/GameController.java	2026-07-10 01:45:39.140406960 +0000
+@@ -73,6 +73,9 @@
+         SPEEDRUN_LIMIT_SECONDS = 600f;
+ 
+     private static final float
++        END_GAME_SCREEN_DELAY_SECONDS = 2.25f;
++
++    private static final float
+         NOCLIP_SPEED = 650f;
+ 
+     private static final float
+@@ -240,7 +243,9 @@
+     private boolean falseKnightMaceHitConsumed;
+     private boolean falseKnightShockwaveHitConsumed;
+     private boolean falseKnightDefeated;
++    private boolean endGamePending;
+     private boolean endGameRequested;
++    private float endGameDelayRemaining;
+ 
+     private int deathCount;
+     private int totalEnemiesKilled;
+@@ -590,7 +595,9 @@
+             );
+ 
+         falseKnightDefeated = false;
++        endGamePending = false;
+         endGameRequested = false;
++        endGameDelayRemaining = 0f;
+         deathCount = 0;
+         totalEnemiesKilled = 0;
+         gameplayCameraShakeRequested = false;
+@@ -900,6 +907,8 @@
+                            }
+                    }
+ 
++        updateEndGameDelay(delta);
++
+         if (
+             pogoSpikeGraceTimeRemaining <= 0f
+         ) {
+@@ -915,6 +924,22 @@
+         }
+     }
+ 
++    private void updateEndGameDelay(float delta) {
++        if (!endGamePending) {
++            return;
++        }
++
++        endGameDelayRemaining -= delta;
++
++        if (endGameDelayRemaining > 0f) {
++            return;
++        }
++
++        endGameDelayRemaining = 0f;
++        endGamePending = false;
++        endGameRequested = true;
++    }
++
+     private void updateWorldObjects(
+         float delta
+     ) {
+@@ -4071,7 +4096,10 @@
+             );
+         }
+ 
+-        endGameRequested = true;
++        endGamePending = true;
++        endGameRequested = false;
++        endGameDelayRemaining =
++            END_GAME_SCREEN_DELAY_SECONDS;
+     }
+ 
+     private GameData createGameData() {
+@@ -4150,7 +4178,9 @@
+         totalEnemiesKilled =
+             Math.max(0, data.totalEnemiesKilled);
+ 
++        endGamePending = false;
+         endGameRequested = false;
++        endGameDelayRemaining = 0f;
+ 
+         configureCurrentRoomPhysics();
+ 
+@@ -4364,7 +4394,9 @@
+             return;
+         }
+ 
++        endGamePending = false;
+         endGameRequested = false;
++        endGameDelayRemaining = 0f;
+ 
+         game.showEndGameScreen(
+             new EndGameStats(
+--- a/core/src/main/java/com/hollowknight/view/screens/EndGameScreen.java	2026-07-10 01:44:32.409593078 +0000
++++ b/core/src/main/java/com/hollowknight/view/screens/EndGameScreen.java	2026-07-10 01:45:00.299177982 +0000
+@@ -52,22 +52,33 @@
+     }
+ 
+     private void createMenu() {
++        float contentWidth = Math.min(
++            560f,
++            Gdx.graphics.getWidth() * 0.82f
++        );
++
++        float buttonWidth = Math.min(
++            260f,
++            contentWidth * 0.62f
++        );
++
+         Table table = new Table();
+         table.setFillParent(true);
+         table.center();
+-        table.defaults().pad(7f);
++        table.pad(24f);
++        table.defaults().pad(5f);
+ 
+         Label title = new Label(
+             controller.text("end.title"),
+             skin
+         );
+ 
+-        title.setFontScale(1.8f);
++        title.setFontScale(1.35f);
+         title.setAlignment(Align.center);
+ 
+         table.add(title)
+-            .width(620f)
+-            .padBottom(22f)
++            .width(contentWidth)
++            .padBottom(16f)
+             .row();
+ 
+         EndGameStats stats =
+@@ -76,31 +87,36 @@
+         addStatLine(
+             table,
+             controller.text("end.deaths"),
+-            String.valueOf(stats.getDeathCount())
++            String.valueOf(stats.getDeathCount()),
++            contentWidth
+         );
+ 
+         addStatLine(
+             table,
+             controller.text("end.enemiesKilled"),
+-            String.valueOf(stats.getTotalEnemiesKilled())
++            String.valueOf(stats.getTotalEnemiesKilled()),
++            contentWidth
+         );
+ 
+         addStatLine(
+             table,
+             controller.text("end.totalTime"),
+-            controller.getFormattedTime()
++            controller.getFormattedTime(),
++            contentWidth
+         );
+ 
+         addButton(
+             table,
+             controller.text("end.restart"),
+-            controller::restartGame
++            controller::restartGame,
++            buttonWidth
+         );
+ 
+         addButton(
+             table,
+             controller.text("end.mainMenu"),
+-            controller::backToMainMenu
++            controller::backToMainMenu,
++            buttonWidth
+         );
+ 
+         stage.addActor(table);
+@@ -109,33 +125,35 @@
+     private void addStatLine(
+         Table table,
+         String label,
+-        String value
++        String value,
++        float contentWidth
+     ) {
+         Label stat = new Label(
+             label + ": " + value,
+             skin
+         );
+ 
+-        stat.setFontScale(1.15f);
++        stat.setFontScale(1.0f);
+         stat.setAlignment(Align.center);
+ 
+         table.add(stat)
+-            .width(560f)
+-            .height(34f)
++            .width(contentWidth)
++            .height(30f)
+             .row();
+     }
+ 
+     private void addButton(
+         Table table,
+         String text,
+-        Runnable action
++        Runnable action,
++        float buttonWidth
+     ) {
+         TextButton button = new TextButton(
+             text,
+             skin
+         );
+ 
+-        button.getLabel().setFontScale(1.1f);
++        button.getLabel().setFontScale(1.0f);
+ 
+         button.addListener(
+             new ChangeListener() {
+@@ -151,9 +169,9 @@
+         );
+ 
+         table.add(button)
+-            .width(310f)
+-            .height(54f)
+-            .padTop(8f)
++            .width(buttonWidth)
++            .height(44f)
++            .padTop(7f)
+             .row();
+     }
+ 

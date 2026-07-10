@@ -42,6 +42,26 @@ public class GuideController {
         return settings.getAttackKey();
     }
 
+    public int getUpKey() {
+        return com.hollowknight.model.input.KeyBindings.DEFAULT_UP;
+    }
+
+    public int getDownKey() {
+        return com.hollowknight.model.input.KeyBindings.DEFAULT_DOWN;
+    }
+
+    public int getFocusKey() {
+        return com.hollowknight.model.input.KeyBindings.DEFAULT_FOCUS;
+    }
+
+    public int getFireballKey() {
+        return com.hollowknight.model.input.KeyBindings.DEFAULT_FIREBALL_TEST;
+    }
+
+    public int getScreamKey() {
+        return com.hollowknight.model.input.KeyBindings.DEFAULT_SCREAM_TEST;
+    }
+
     public void backToMainMenu() {
         game.showMainMenu();
     }

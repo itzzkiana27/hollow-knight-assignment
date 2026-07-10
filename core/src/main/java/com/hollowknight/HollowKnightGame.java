@@ -4,6 +4,7 @@ import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Screen;
 import com.hollowknight.controller.AchievementsController;
 import com.hollowknight.controller.GuideController;
+import com.hollowknight.controller.EndGameController;
 import com.hollowknight.controller.MainMenuController;
 import com.hollowknight.controller.SettingsController;
 import com.hollowknight.controller.StartGameController;
@@ -11,6 +12,7 @@ import com.hollowknight.localization.LocalizationManager;
 import com.hollowknight.model.GameSettings;
 import com.hollowknight.model.save.SaveManager;
 import com.hollowknight.model.achievement.AchievementManager;
+import com.hollowknight.model.EndGameStats;
 import com.hollowknight.view.screens.*;
 import com.hollowknight.controller.GameController;
 
@@ -106,6 +108,19 @@ public class HollowKnightGame extends Game {
         changeScreen(
             new AchievementsScreen(
                 new AchievementsController(this)
+            )
+        );
+    }
+
+    public void showEndGameScreen(
+        EndGameStats stats
+    ) {
+        changeScreen(
+            new EndGameScreen(
+                new EndGameController(
+                    this,
+                    stats
+                )
             )
         );
     }

@@ -1,0 +1,12 @@
+diff -ruN project/core/src/main/java/com/hollowknight/view/screens/EndGameScreen.java project/core/src/main/java/com/hollowknight/view/screens/EndGameScreen.java
+--- project/core/src/main/java/com/hollowknight/view/screens/EndGameScreen.java	2026-07-10 01:34:26.926641562 +0000
++++ project/core/src/main/java/com/hollowknight/view/screens/EndGameScreen.java	2026-07-10 01:34:28.980801494 +0000
+@@ -102,6 +102,8 @@
+             controller.text("end.mainMenu"),
+             controller::backToMainMenu
+         );
++
++        stage.addActor(table);
+     }
+ 
+     private void addStatLine(

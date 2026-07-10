@@ -17,6 +17,8 @@ public class GameData {
     public boolean noclipModeEnabled = false;
 
     public float elapsedGameSeconds = 0f;
+    public int deathCount = 0;
+    public int totalEnemiesKilled = 0;
 
     public List<String> ownedCharms =
         new ArrayList<>();

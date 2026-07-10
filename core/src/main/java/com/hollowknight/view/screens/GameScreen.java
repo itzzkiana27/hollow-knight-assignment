@@ -789,6 +789,11 @@ public class GameScreen extends ScreenAdapter {
                 KNIGHT_DRAW_HEIGHT
             );
 
+            if (controller.shouldOpenEndGameScreen()) {
+                controller.openEndGameScreen();
+                return;
+            }
+
             updateWorldCamera(delta);
         }
 
@@ -914,6 +919,13 @@ public class GameScreen extends ScreenAdapter {
         ) {
             worldCamera.shake(
                 falseKnight.getPendingShakeIntensity()
+            );
+        }
+
+        if (controller.consumeGameplayCameraShakeRequest()) {
+            worldCamera.shake(
+                controller
+                    .getPendingGameplayCameraShakeIntensity()
             );
         }
 

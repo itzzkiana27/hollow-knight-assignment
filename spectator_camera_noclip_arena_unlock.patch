@@ -1,0 +1,18 @@
+--- a/core/src/main/java/com/hollowknight/controller/GameController.java
++++ b/core/src/main/java/com/hollowknight/controller/GameController.java
+@@ -4528,6 +4528,15 @@
+     }
+ 
+     public Rectangle getCurrentCameraBounds() {
++        if (noclipModeEnabled) {
++            return new Rectangle(
++                0f,
++                0f,
++                world.getMapWidth(),
++                world.getMapHeight()
++            );
++        }
++
+         return world.getCameraBoundsForRoom(
+             currentRoomId
+         );
