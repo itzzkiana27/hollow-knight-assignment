@@ -66,6 +66,12 @@ public final class WingedSentry
         RESPAWN_DISTANCE = 900f;
     private static final float KNOCKBACK_SPEED = 520f;
     private static final float KNOCKBACK_DURATION = 0.12f;
+    private static final float DEATH_SIDE_FALL_DISTANCE = 58f;
+    private static final float DEATH_SIDE_FALL_DURATION = 0.26f;
+    private static final float
+        DEATH_SIDE_FALL_SPEED =
+        DEATH_SIDE_FALL_DISTANCE
+            / DEATH_SIDE_FALL_DURATION;
 
     private static final float
         RESPAWN_DISTANCE_SQUARED =
@@ -90,6 +96,8 @@ public final class WingedSentry
     private float detectionCooldownRemaining;
     private float knockbackTimeRemaining;
     private int knockbackDirection;
+    private float deathSideFallRemaining;
+    private int deathSideFallDirection;
 
     /*
      * This is captured only once, at detection time.
@@ -512,6 +520,8 @@ public final class WingedSentry
     ) {
         stateTime += delta;
 
+        updateDeathSideFall(delta);
+
         float previousBottom =
             bounds.y;
 
@@ -556,6 +566,8 @@ public final class WingedSentry
     ) {
         stateTime += delta;
 
+        updateDeathSideFall(delta);
+
         if (
             stateTime < DEATH_LAND_DURATION
         ) {
@@ -568,6 +580,43 @@ public final class WingedSentry
          * Keep the final death-land frame visible.
          */
         stateTime = DEATH_LAND_DURATION;
+    }
+
+
+
+    private int getFacingDirection() {
+        return facingRight ? 1 : -1;
+    }
+
+    private void startDeathSideFall() {
+        deathSideFallDirection =
+            knockbackDirection != 0
+                ? knockbackDirection
+                : getFacingDirection();
+
+        deathSideFallRemaining =
+            DEATH_SIDE_FALL_DISTANCE;
+    }
+
+    private void updateDeathSideFall(
+        float delta
+    ) {
+        if (
+            deathSideFallRemaining <= 0f
+                || deathSideFallDirection == 0
+        ) {
+            return;
+        }
+
+        float amount = Math.min(
+            deathSideFallRemaining,
+            DEATH_SIDE_FALL_SPEED * delta
+        );
+
+        bounds.x +=
+            deathSideFallDirection * amount;
+
+        deathSideFallRemaining -= amount;
     }
 
     private void updateDetectionBounds() {
@@ -707,6 +756,8 @@ public final class WingedSentry
         deathVerticalVelocity = 0f;
         knockbackTimeRemaining = 0f;
         knockbackDirection = 0;
+        deathSideFallRemaining = 0f;
+        deathSideFallDirection = 0;
 
         updateDetectionBounds();
     }
@@ -751,6 +802,7 @@ public final class WingedSentry
             FLASH_DURATION;
 
         if (health == 0) {
+            startDeathSideFall();
             knockbackTimeRemaining = 0f;
 
             deathVerticalVelocity = 0f;

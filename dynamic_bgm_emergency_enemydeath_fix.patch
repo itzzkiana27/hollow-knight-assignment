@@ -1,0 +1,822 @@
+--- a/core/src/main/java/com/hollowknight/HollowKnightGame.java	2026-07-10 15:36:44.085286453 +0000
++++ b/core/src/main/java/com/hollowknight/HollowKnightGame.java	2026-07-10 17:05:14.918936141 +0000
+@@ -1,6 +1,7 @@
+ package com.hollowknight;
+ 
+ import com.badlogic.gdx.Game;
++import com.badlogic.gdx.Gdx;
+ import com.badlogic.gdx.Screen;
+ import com.hollowknight.controller.AchievementsController;
+ import com.hollowknight.controller.GuideController;
+@@ -183,6 +184,18 @@
+         }
+     }
+ 
++
++    @Override
++    public void render() {
++        super.render();
++
++        if (musicPlayer != null) {
++            musicPlayer.update(
++                Gdx.graphics.getDeltaTime()
++            );
++        }
++    }
++
+     @Override
+     public void dispose() {
+         Screen currentScreen = getScreen();
+--- a/core/src/main/java/com/hollowknight/audio/GameMusicPlayer.java	2026-07-10 15:36:13.362666551 +0000
++++ b/core/src/main/java/com/hollowknight/audio/GameMusicPlayer.java	2026-07-10 17:04:40.538885662 +0000
+@@ -26,10 +26,24 @@
+         }
+     }
+ 
++    private enum FadeMode {
++        NONE,
++        OUT_FOR_SWITCH,
++        IN
++    }
++
++    private static final float FADE_DURATION = 0.85f;
++
+     private final GameSettings settings;
+ 
+     private Music currentMusic;
+     private Track currentTrack;
++    private Track desiredTrack;
++    private Track queuedTrack;
++
++    private FadeMode fadeMode = FadeMode.NONE;
++    private float fadeTime;
++    private float fadeStartVolume;
+ 
+     public GameMusicPlayer(
+         GameSettings settings
+@@ -66,19 +80,72 @@
+     }
+ 
+     public void refreshSettings() {
+-        if (currentTrack == null) {
++        if (!settings.isMusicEnabled()) {
++            stopCurrentMusic();
++            queuedTrack = null;
++            fadeMode = FadeMode.NONE;
++            return;
++        }
++
++        if (
++            currentMusic == null
++                && desiredTrack != null
++        ) {
++            startTrack(
++                desiredTrack,
++                0f
++            );
++            startFadeIn();
+             return;
+         }
+ 
++        if (
++            currentMusic != null
++                && fadeMode == FadeMode.NONE
++        ) {
++            currentMusic.setVolume(
++                settings.getMusicVolume()
++            );
++
++            if (!currentMusic.isPlaying()) {
++                currentMusic.play();
++            }
++        }
++    }
++
++    public void update(
++        float delta
++    ) {
+         if (!settings.isMusicEnabled()) {
+-            stopCurrentMusic();
++            if (currentMusic != null) {
++                stopCurrentMusic();
++            }
+             return;
+         }
+ 
+         if (currentMusic == null) {
+-            Track requestedTrack = currentTrack;
+-            currentTrack = null;
+-            play(requestedTrack);
++            if (desiredTrack != null) {
++                startTrack(
++                    desiredTrack,
++                    0f
++                );
++                startFadeIn();
++            }
++            return;
++        }
++
++        float safeDelta = Math.min(
++            Math.max(delta, 0f),
++            1f / 15f
++        );
++
++        if (fadeMode == FadeMode.OUT_FOR_SWITCH) {
++            updateFadeOutForSwitch(safeDelta);
++            return;
++        }
++
++        if (fadeMode == FadeMode.IN) {
++            updateFadeIn(safeDelta);
+             return;
+         }
+ 
+@@ -98,19 +165,122 @@
+             return;
+         }
+ 
++        desiredTrack = track;
++
++        if (!settings.isMusicEnabled()) {
++            stopCurrentMusic();
++            queuedTrack = null;
++            fadeMode = FadeMode.NONE;
++            return;
++        }
++
+         if (
+             currentTrack == track
+                 && currentMusic != null
++                && fadeMode != FadeMode.OUT_FOR_SWITCH
+         ) {
+-            refreshSettings();
+             return;
+         }
+ 
+-        currentTrack = track;
++        if (
++            queuedTrack == track
++                && fadeMode == FadeMode.OUT_FOR_SWITCH
++        ) {
++            return;
++        }
++
++        queuedTrack = track;
++
++        if (currentMusic == null) {
++            startTrack(
++                queuedTrack,
++                0f
++            );
++            queuedTrack = null;
++            startFadeIn();
++            return;
++        }
++
++        fadeMode = FadeMode.OUT_FOR_SWITCH;
++        fadeTime = 0f;
++        fadeStartVolume = currentMusic.getVolume();
++    }
++
++    private void updateFadeOutForSwitch(
++        float delta
++    ) {
++        fadeTime += delta;
++
++        float progress = Math.min(
++            1f,
++            fadeTime / FADE_DURATION
++        );
++
++        currentMusic.setVolume(
++            fadeStartVolume * (1f - progress)
++        );
++
++        if (progress < 1f) {
++            return;
++        }
+ 
+         stopCurrentMusic();
+ 
+-        if (!settings.isMusicEnabled()) {
++        Track nextTrack = queuedTrack;
++        queuedTrack = null;
++
++        if (nextTrack == null) {
++            fadeMode = FadeMode.NONE;
++            return;
++        }
++
++        startTrack(
++            nextTrack,
++            0f
++        );
++        startFadeIn();
++    }
++
++    private void updateFadeIn(
++        float delta
++    ) {
++        fadeTime += delta;
++
++        float progress = Math.min(
++            1f,
++            fadeTime / FADE_DURATION
++        );
++
++        currentMusic.setVolume(
++            settings.getMusicVolume() * progress
++        );
++
++        if (progress < 1f) {
++            return;
++        }
++
++        fadeMode = FadeMode.NONE;
++        currentMusic.setVolume(
++            settings.getMusicVolume()
++        );
++    }
++
++    private void startFadeIn() {
++        if (currentMusic == null) {
++            fadeMode = FadeMode.NONE;
++            return;
++        }
++
++        fadeMode = FadeMode.IN;
++        fadeTime = 0f;
++        fadeStartVolume = 0f;
++    }
++
++    private void startTrack(
++        Track track,
++        float initialVolume
++    ) {
++        if (track == null) {
+             return;
+         }
+ 
+@@ -123,29 +293,35 @@
+                 "GameMusicPlayer",
+                 "Missing music file: " + track.getPath()
+             );
++            currentTrack = null;
+             return;
+         }
+ 
+         currentMusic = Gdx.audio.newMusic(file);
++        currentTrack = track;
+         currentMusic.setLooping(true);
+         currentMusic.setVolume(
+-            settings.getMusicVolume()
++            Math.max(0f, initialVolume)
+         );
+         currentMusic.play();
+     }
+ 
+     private void stopCurrentMusic() {
+         if (currentMusic == null) {
++            currentTrack = null;
+             return;
+         }
+ 
+         currentMusic.stop();
+         currentMusic.dispose();
+         currentMusic = null;
++        currentTrack = null;
+     }
+ 
+     @Override
+     public void dispose() {
+         stopCurrentMusic();
++        queuedTrack = null;
++        fadeMode = FadeMode.NONE;
+     }
+ }
+--- a/core/src/main/java/com/hollowknight/controller/GameController.java	2026-07-10 16:04:37.804396339 +0000
++++ b/core/src/main/java/com/hollowknight/controller/GameController.java	2026-07-10 17:07:58.877188308 +0000
+@@ -258,6 +258,7 @@
+ 
+     private boolean godModeEnabled;
+     private boolean noclipModeEnabled;
++    private boolean emergencyHealArmed;
+ 
+     private String cheatMessage;
+     private float cheatMessageTimeRemaining;
+@@ -609,6 +610,7 @@
+         gameplayCameraShakeIntensity = 0f;
+         godModeEnabled = false;
+         noclipModeEnabled = false;
++        emergencyHealArmed = false;
+         cheatMessage = "";
+         cheatMessageTimeRemaining = 0f;
+         elapsedGameSeconds = 0f;
+@@ -1260,16 +1262,39 @@
+     }
+ 
+     private void emergencyHeal() {
+-        if (player.isDead()) {
+-            player.setDead(false);
++        emergencyHealArmed = true;
++
++        if (
++            player.isDead()
++                || health.getCurrentMasks() <= 0
++        ) {
++            triggerEmergencyHeal();
++            return;
+         }
+ 
+-        health.heal(1);
++        setCheatMessage(
++            "Emergency heal armed: last mask will recharge."
++        );
++    }
+ 
+-        if (health.getCurrentMasks() <= 0) {
+-            health.setCurrentMasks(1);
++    private boolean tryTriggerEmergencyHealOnDefeat() {
++        if (!emergencyHealArmed) {
++            return false;
+         }
+ 
++        triggerEmergencyHeal();
++        return true;
++    }
++
++    private void triggerEmergencyHeal() {
++        emergencyHealArmed = false;
++
++        if (player.isDead()) {
++            player.setDead(false);
++        }
++
++        health.setCurrentMasks(1);
++
+         movement.respawnAt(
+             player.getPosition().x,
+             player.getPosition().y
+@@ -1284,7 +1309,7 @@
+         );
+ 
+         setCheatMessage(
+-            "Emergency heal: +1 mask."
++            "Emergency heal triggered: +1 mask."
+         );
+     }
+ 
+@@ -2719,6 +2744,10 @@
+                 == PlayerHealth
+                 .DamageResult.DEFEATED
+         ) {
++            if (tryTriggerEmergencyHealOnDefeat()) {
++                return true;
++            }
++
+             resetPlayerAfterDefeat();
+             return true;
+         }
+@@ -2980,6 +3009,10 @@
+                 == PlayerHealth
+                 .DamageResult.DEFEATED
+         ) {
++            if (tryTriggerEmergencyHealOnDefeat()) {
++                return true;
++            }
++
+             resetPlayerAfterDefeat();
+             return true;
+         }
+@@ -3229,6 +3262,10 @@
+                 == PlayerHealth
+                 .DamageResult.DEFEATED
+         ) {
++            if (tryTriggerEmergencyHealOnDefeat()) {
++                return true;
++            }
++
+             resetPlayerAfterDefeat();
+             return true;
+         }
+@@ -3255,6 +3292,8 @@
+     }
+ 
+     private void resetPlayerAfterDefeat() {
++        emergencyHealArmed = false;
++
+         deathCount++;
+ 
+         health.restoreFullHealth();
+@@ -3918,14 +3957,6 @@
+ 
+         combat.registerHit();
+ 
+-        damageable.takeDamage(
+-            getNailDamage()
+-        );
+-
+-        gameSfxPlayer.playEnemyDamage();
+-
+-        gainSoulFromNailHit();
+-
+         if (
+             !combat.isDownwardAttack()
+                 && damageable instanceof Knockbackable
+@@ -3941,6 +3972,14 @@
+             );
+         }
+ 
++        damageable.takeDamage(
++            getNailDamage()
++        );
++
++        gameSfxPlayer.playEnemyDamage();
++
++        gainSoulFromNailHit();
++
+         if (
+             combat.isDownwardAttack()
+                 && !movement.isOnGround()
+@@ -4499,7 +4538,9 @@
+         return "God Mode: "
+             + (godModeEnabled ? "ON" : "OFF")
+             + "   Flight/Noclip: "
+-            + (noclipModeEnabled ? "ON" : "OFF");
++            + (noclipModeEnabled ? "ON" : "OFF")
++            + "   Emergency Heal: "
++            + (emergencyHealArmed ? "ARMED" : "OFF");
+     }
+ 
+     public float getElapsedGameSeconds() {
+--- a/core/src/main/java/com/hollowknight/model/enemy/Crawlid.java	2026-07-08 16:25:31.000000000 +0000
++++ b/core/src/main/java/com/hollowknight/model/enemy/Crawlid.java	2026-07-10 17:08:37.239430924 +0000
+@@ -52,6 +52,12 @@
+     private static final float RESPAWN_DISTANCE = 900f;
+     private static final float KNOCKBACK_SPEED = 360f;
+     private static final float KNOCKBACK_DURATION = 0.13f;
++    private static final float DEATH_SIDE_FALL_DISTANCE = 44f;
++    private static final float DEATH_SIDE_FALL_DURATION = 0.22f;
++    private static final float
++        DEATH_SIDE_FALL_SPEED =
++        DEATH_SIDE_FALL_DISTANCE
++            / DEATH_SIDE_FALL_DURATION;
+ 
+     private static final float
+         RESPAWN_DISTANCE_SQUARED =
+@@ -72,6 +78,8 @@
+     private float flashTimeRemaining;
+     private float knockbackTimeRemaining;
+     private int knockbackDirection;
++    private float deathSideFallRemaining;
++    private int deathSideFallDirection;
+ 
+     private boolean facingRight;
+ 
+@@ -202,6 +210,8 @@
+     ) {
+         stateTime += delta;
+ 
++        updateDeathSideFall(delta);
++
+         if (
+             stateTime < DEATH_DURATION
+         ) {
+@@ -266,6 +276,38 @@
+         );
+     }
+ 
++
++    private void startDeathSideFall() {
++        deathSideFallDirection =
++            knockbackDirection != 0
++                ? knockbackDirection
++                : getFacingDirection();
++
++        deathSideFallRemaining =
++            DEATH_SIDE_FALL_DISTANCE;
++    }
++
++    private void updateDeathSideFall(
++        float delta
++    ) {
++        if (
++            deathSideFallRemaining <= 0f
++                || deathSideFallDirection == 0
++        ) {
++            return;
++        }
++
++        float amount = Math.min(
++            deathSideFallRemaining,
++            DEATH_SIDE_FALL_SPEED * delta
++        );
++
++        bounds.x +=
++            deathSideFallDirection * amount;
++
++        deathSideFallRemaining -= amount;
++    }
++
+     private void updateFlash(
+         float delta
+     ) {
+@@ -358,6 +400,8 @@
+         flashTimeRemaining = 0f;
+         knockbackTimeRemaining = 0f;
+         knockbackDirection = 0;
++        deathSideFallRemaining = 0f;
++        deathSideFallDirection = 0;
+     }
+ 
+     @Override
+@@ -380,6 +424,7 @@
+             FLASH_DURATION;
+ 
+         if (health == 0) {
++            startDeathSideFall();
+             state = CrawlidState.DYING;
+             stateTime = 0f;
+             knockbackTimeRemaining = 0f;
+--- a/core/src/main/java/com/hollowknight/model/enemy/HuskHornhead.java	2026-07-08 15:53:15.000000000 +0000
++++ b/core/src/main/java/com/hollowknight/model/enemy/HuskHornhead.java	2026-07-10 17:09:13.008533852 +0000
+@@ -48,6 +48,12 @@
+     private static final float KNOCKBACK_STEP = 4f;
+     private static final float KNOCKBACK_SPEED = 460f;
+     private static final float KNOCKBACK_DURATION = 0.14f;
++    private static final float DEATH_SIDE_FALL_DISTANCE = 56f;
++    private static final float DEATH_SIDE_FALL_DURATION = 0.24f;
++    private static final float
++        DEATH_SIDE_FALL_SPEED =
++        DEATH_SIDE_FALL_DISTANCE
++            / DEATH_SIDE_FALL_DURATION;
+ 
+     private static final float
+         RESPAWN_DISTANCE_SQUARED =
+@@ -71,6 +77,8 @@
+     private float flashTimeRemaining;
+     private float knockbackTimeRemaining;
+     private int knockbackDirection;
++    private float deathSideFallRemaining;
++    private int deathSideFallDirection;
+ 
+     private boolean facingRight;
+ 
+@@ -129,6 +137,8 @@
+         ) {
+             stateTime += safeDelta;
+ 
++            updateDeathSideFall(safeDelta);
++
+             if (
+                 stateTime >= DEATH_DURATION
+             ) {
+@@ -445,6 +455,38 @@
+         );
+     }
+ 
++
++    private void startDeathSideFall() {
++        deathSideFallDirection =
++            knockbackDirection != 0
++                ? knockbackDirection
++                : getFacingDirection();
++
++        deathSideFallRemaining =
++            DEATH_SIDE_FALL_DISTANCE;
++    }
++
++    private void updateDeathSideFall(
++        float delta
++    ) {
++        if (
++            deathSideFallRemaining <= 0f
++                || deathSideFallDirection == 0
++        ) {
++            return;
++        }
++
++        float amount = Math.min(
++            deathSideFallRemaining,
++            DEATH_SIDE_FALL_SPEED * delta
++        );
++
++        bounds.x +=
++            deathSideFallDirection * amount;
++
++        deathSideFallRemaining -= amount;
++    }
++
+     private void updateFlash(
+         float delta
+     ) {
+@@ -566,6 +608,8 @@
+         flashTimeRemaining = 0f;
+         knockbackTimeRemaining = 0f;
+         knockbackDirection = 0;
++        deathSideFallRemaining = 0f;
++        deathSideFallDirection = 0;
+ 
+         updateVisionBounds();
+     }
+@@ -590,6 +634,7 @@
+             FLASH_DURATION;
+ 
+         if (health == 0) {
++            startDeathSideFall();
+             knockbackTimeRemaining = 0f;
+             state =
+                 HuskHornheadState.DYING;
+--- a/core/src/main/java/com/hollowknight/model/enemy/CrystalGuardian.java	2026-07-08 16:12:16.000000000 +0000
++++ b/core/src/main/java/com/hollowknight/model/enemy/CrystalGuardian.java	2026-07-10 17:09:48.313336731 +0000
+@@ -56,6 +56,12 @@
+     private static final float RESPAWN_DISTANCE = 900f;
+     private static final float KNOCKBACK_SPEED = 420f;
+     private static final float KNOCKBACK_DURATION = 0.13f;
++    private static final float DEATH_SIDE_FALL_DISTANCE = 52f;
++    private static final float DEATH_SIDE_FALL_DURATION = 0.22f;
++    private static final float
++        DEATH_SIDE_FALL_SPEED =
++        DEATH_SIDE_FALL_DISTANCE
++            / DEATH_SIDE_FALL_DURATION;
+ 
+     private static final float
+         RESPAWN_DISTANCE_SQUARED =
+@@ -80,6 +86,8 @@
+     private float flashTimeRemaining;
+     private float knockbackTimeRemaining;
+     private int knockbackDirection;
++    private float deathSideFallRemaining;
++    private int deathSideFallDirection;
+ 
+ 
+     private boolean facingRight;
+@@ -431,6 +439,8 @@
+     ) {
+         stateTime += delta;
+ 
++        updateDeathSideFall(delta);
++
+         if (
+             stateTime < DEATH_DURATION
+         ) {
+@@ -447,6 +457,38 @@
+         stateTime = DEATH_DURATION;
+     }
+ 
++
++    private void startDeathSideFall() {
++        deathSideFallDirection =
++            knockbackDirection != 0
++                ? knockbackDirection
++                : getFacingDirection();
++
++        deathSideFallRemaining =
++            DEATH_SIDE_FALL_DISTANCE;
++    }
++
++    private void updateDeathSideFall(
++        float delta
++    ) {
++        if (
++            deathSideFallRemaining <= 0f
++                || deathSideFallDirection == 0
++        ) {
++            return;
++        }
++
++        float amount = Math.min(
++            deathSideFallRemaining,
++            DEATH_SIDE_FALL_SPEED * delta
++        );
++
++        bounds.x +=
++            deathSideFallDirection * amount;
++
++        deathSideFallRemaining -= amount;
++    }
++
+     private boolean canMoveForward(
+         int direction,
+         float speed,
+@@ -665,6 +707,8 @@
+         flashTimeRemaining = 0f;
+         knockbackTimeRemaining = 0f;
+         knockbackDirection = 0;
++        deathSideFallRemaining = 0f;
++        deathSideFallDirection = 0;
+ 
+         clearLaser();
+         updateVisionBounds();
+@@ -709,6 +753,7 @@
+             FLASH_DURATION;
+ 
+         if (health == 0) {
++            startDeathSideFall();
+             knockbackTimeRemaining = 0f;
+             clearLaser();
+ 
+--- a/core/src/main/java/com/hollowknight/model/enemy/WingedSentry.java	2026-07-08 16:21:59.000000000 +0000
++++ b/core/src/main/java/com/hollowknight/model/enemy/WingedSentry.java	2026-07-10 17:11:43.085366498 +0000
+@@ -66,6 +66,12 @@
+         RESPAWN_DISTANCE = 900f;
+     private static final float KNOCKBACK_SPEED = 520f;
+     private static final float KNOCKBACK_DURATION = 0.12f;
++    private static final float DEATH_SIDE_FALL_DISTANCE = 58f;
++    private static final float DEATH_SIDE_FALL_DURATION = 0.26f;
++    private static final float
++        DEATH_SIDE_FALL_SPEED =
++        DEATH_SIDE_FALL_DISTANCE
++            / DEATH_SIDE_FALL_DURATION;
+ 
+     private static final float
+         RESPAWN_DISTANCE_SQUARED =
+@@ -90,6 +96,8 @@
+     private float detectionCooldownRemaining;
+     private float knockbackTimeRemaining;
+     private int knockbackDirection;
++    private float deathSideFallRemaining;
++    private int deathSideFallDirection;
+ 
+     /*
+      * This is captured only once, at detection time.
+@@ -512,6 +520,8 @@
+     ) {
+         stateTime += delta;
+ 
++        updateDeathSideFall(delta);
++
+         float previousBottom =
+             bounds.y;
+ 
+@@ -556,6 +566,8 @@
+     ) {
+         stateTime += delta;
+ 
++        updateDeathSideFall(delta);
++
+         if (
+             stateTime < DEATH_LAND_DURATION
+         ) {
+@@ -570,6 +582,43 @@
+         stateTime = DEATH_LAND_DURATION;
+     }
+ 
++
++
++    private int getFacingDirection() {
++        return facingRight ? 1 : -1;
++    }
++
++    private void startDeathSideFall() {
++        deathSideFallDirection =
++            knockbackDirection != 0
++                ? knockbackDirection
++                : getFacingDirection();
++
++        deathSideFallRemaining =
++            DEATH_SIDE_FALL_DISTANCE;
++    }
++
++    private void updateDeathSideFall(
++        float delta
++    ) {
++        if (
++            deathSideFallRemaining <= 0f
++                || deathSideFallDirection == 0
++        ) {
++            return;
++        }
++
++        float amount = Math.min(
++            deathSideFallRemaining,
++            DEATH_SIDE_FALL_SPEED * delta
++        );
++
++        bounds.x +=
++            deathSideFallDirection * amount;
++
++        deathSideFallRemaining -= amount;
++    }
++
+     private void updateDetectionBounds() {
+         if (
+             !isAlive()
+@@ -707,6 +756,8 @@
+         deathVerticalVelocity = 0f;
+         knockbackTimeRemaining = 0f;
+         knockbackDirection = 0;
++        deathSideFallRemaining = 0f;
++        deathSideFallDirection = 0;
+ 
+         updateDetectionBounds();
+     }
+@@ -751,6 +802,7 @@
+             FLASH_DURATION;
+ 
+         if (health == 0) {
++            startDeathSideFall();
+             knockbackTimeRemaining = 0f;
+ 
+             deathVerticalVelocity = 0f;

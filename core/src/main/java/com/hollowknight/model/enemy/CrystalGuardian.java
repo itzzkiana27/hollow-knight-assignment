@@ -56,6 +56,12 @@ public final class CrystalGuardian
     private static final float RESPAWN_DISTANCE = 900f;
     private static final float KNOCKBACK_SPEED = 420f;
     private static final float KNOCKBACK_DURATION = 0.13f;
+    private static final float DEATH_SIDE_FALL_DISTANCE = 52f;
+    private static final float DEATH_SIDE_FALL_DURATION = 0.22f;
+    private static final float
+        DEATH_SIDE_FALL_SPEED =
+        DEATH_SIDE_FALL_DISTANCE
+            / DEATH_SIDE_FALL_DURATION;
 
     private static final float
         RESPAWN_DISTANCE_SQUARED =
@@ -80,6 +86,8 @@ public final class CrystalGuardian
     private float flashTimeRemaining;
     private float knockbackTimeRemaining;
     private int knockbackDirection;
+    private float deathSideFallRemaining;
+    private int deathSideFallDirection;
 
 
     private boolean facingRight;
@@ -431,6 +439,8 @@ public final class CrystalGuardian
     ) {
         stateTime += delta;
 
+        updateDeathSideFall(delta);
+
         if (
             stateTime < DEATH_DURATION
         ) {
@@ -445,6 +455,38 @@ public final class CrystalGuardian
          * keeps the last corpse frame visible.
          */
         stateTime = DEATH_DURATION;
+    }
+
+
+    private void startDeathSideFall() {
+        deathSideFallDirection =
+            knockbackDirection != 0
+                ? knockbackDirection
+                : getFacingDirection();
+
+        deathSideFallRemaining =
+            DEATH_SIDE_FALL_DISTANCE;
+    }
+
+    private void updateDeathSideFall(
+        float delta
+    ) {
+        if (
+            deathSideFallRemaining <= 0f
+                || deathSideFallDirection == 0
+        ) {
+            return;
+        }
+
+        float amount = Math.min(
+            deathSideFallRemaining,
+            DEATH_SIDE_FALL_SPEED * delta
+        );
+
+        bounds.x +=
+            deathSideFallDirection * amount;
+
+        deathSideFallRemaining -= amount;
     }
 
     private boolean canMoveForward(
@@ -665,6 +707,8 @@ public final class CrystalGuardian
         flashTimeRemaining = 0f;
         knockbackTimeRemaining = 0f;
         knockbackDirection = 0;
+        deathSideFallRemaining = 0f;
+        deathSideFallDirection = 0;
 
         clearLaser();
         updateVisionBounds();
@@ -709,6 +753,7 @@ public final class CrystalGuardian
             FLASH_DURATION;
 
         if (health == 0) {
+            startDeathSideFall();
             knockbackTimeRemaining = 0f;
             clearLaser();
 

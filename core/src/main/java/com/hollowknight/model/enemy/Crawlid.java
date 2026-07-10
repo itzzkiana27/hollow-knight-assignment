@@ -52,6 +52,12 @@ public final class Crawlid
     private static final float RESPAWN_DISTANCE = 900f;
     private static final float KNOCKBACK_SPEED = 360f;
     private static final float KNOCKBACK_DURATION = 0.13f;
+    private static final float DEATH_SIDE_FALL_DISTANCE = 44f;
+    private static final float DEATH_SIDE_FALL_DURATION = 0.22f;
+    private static final float
+        DEATH_SIDE_FALL_SPEED =
+        DEATH_SIDE_FALL_DISTANCE
+            / DEATH_SIDE_FALL_DURATION;
 
     private static final float
         RESPAWN_DISTANCE_SQUARED =
@@ -72,6 +78,8 @@ public final class Crawlid
     private float flashTimeRemaining;
     private float knockbackTimeRemaining;
     private int knockbackDirection;
+    private float deathSideFallRemaining;
+    private int deathSideFallDirection;
 
     private boolean facingRight;
 
@@ -202,6 +210,8 @@ public final class Crawlid
     ) {
         stateTime += delta;
 
+        updateDeathSideFall(delta);
+
         if (
             stateTime < DEATH_DURATION
         ) {
@@ -264,6 +274,38 @@ public final class Crawlid
             GROUND_LOOK_AHEAD,
             GROUND_PROBE_DEPTH
         );
+    }
+
+
+    private void startDeathSideFall() {
+        deathSideFallDirection =
+            knockbackDirection != 0
+                ? knockbackDirection
+                : getFacingDirection();
+
+        deathSideFallRemaining =
+            DEATH_SIDE_FALL_DISTANCE;
+    }
+
+    private void updateDeathSideFall(
+        float delta
+    ) {
+        if (
+            deathSideFallRemaining <= 0f
+                || deathSideFallDirection == 0
+        ) {
+            return;
+        }
+
+        float amount = Math.min(
+            deathSideFallRemaining,
+            DEATH_SIDE_FALL_SPEED * delta
+        );
+
+        bounds.x +=
+            deathSideFallDirection * amount;
+
+        deathSideFallRemaining -= amount;
     }
 
     private void updateFlash(
@@ -358,6 +400,8 @@ public final class Crawlid
         flashTimeRemaining = 0f;
         knockbackTimeRemaining = 0f;
         knockbackDirection = 0;
+        deathSideFallRemaining = 0f;
+        deathSideFallDirection = 0;
     }
 
     @Override
@@ -380,6 +424,7 @@ public final class Crawlid
             FLASH_DURATION;
 
         if (health == 0) {
+            startDeathSideFall();
             state = CrawlidState.DYING;
             stateTime = 0f;
             knockbackTimeRemaining = 0f;

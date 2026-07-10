@@ -48,6 +48,12 @@ public final class HuskHornhead
     private static final float KNOCKBACK_STEP = 4f;
     private static final float KNOCKBACK_SPEED = 460f;
     private static final float KNOCKBACK_DURATION = 0.14f;
+    private static final float DEATH_SIDE_FALL_DISTANCE = 56f;
+    private static final float DEATH_SIDE_FALL_DURATION = 0.24f;
+    private static final float
+        DEATH_SIDE_FALL_SPEED =
+        DEATH_SIDE_FALL_DISTANCE
+            / DEATH_SIDE_FALL_DURATION;
 
     private static final float
         RESPAWN_DISTANCE_SQUARED =
@@ -71,6 +77,8 @@ public final class HuskHornhead
     private float flashTimeRemaining;
     private float knockbackTimeRemaining;
     private int knockbackDirection;
+    private float deathSideFallRemaining;
+    private int deathSideFallDirection;
 
     private boolean facingRight;
 
@@ -128,6 +136,8 @@ public final class HuskHornhead
                 == HuskHornheadState.DYING
         ) {
             stateTime += safeDelta;
+
+            updateDeathSideFall(safeDelta);
 
             if (
                 stateTime >= DEATH_DURATION
@@ -445,6 +455,38 @@ public final class HuskHornhead
         );
     }
 
+
+    private void startDeathSideFall() {
+        deathSideFallDirection =
+            knockbackDirection != 0
+                ? knockbackDirection
+                : getFacingDirection();
+
+        deathSideFallRemaining =
+            DEATH_SIDE_FALL_DISTANCE;
+    }
+
+    private void updateDeathSideFall(
+        float delta
+    ) {
+        if (
+            deathSideFallRemaining <= 0f
+                || deathSideFallDirection == 0
+        ) {
+            return;
+        }
+
+        float amount = Math.min(
+            deathSideFallRemaining,
+            DEATH_SIDE_FALL_SPEED * delta
+        );
+
+        bounds.x +=
+            deathSideFallDirection * amount;
+
+        deathSideFallRemaining -= amount;
+    }
+
     private void updateFlash(
         float delta
     ) {
@@ -566,6 +608,8 @@ public final class HuskHornhead
         flashTimeRemaining = 0f;
         knockbackTimeRemaining = 0f;
         knockbackDirection = 0;
+        deathSideFallRemaining = 0f;
+        deathSideFallDirection = 0;
 
         updateVisionBounds();
     }
@@ -590,6 +634,7 @@ public final class HuskHornhead
             FLASH_DURATION;
 
         if (health == 0) {
+            startDeathSideFall();
             knockbackTimeRemaining = 0f;
             state =
                 HuskHornheadState.DYING;

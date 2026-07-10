@@ -258,6 +258,7 @@ public class GameController {
 
     private boolean godModeEnabled;
     private boolean noclipModeEnabled;
+    private boolean emergencyHealArmed;
 
     private String cheatMessage;
     private float cheatMessageTimeRemaining;
@@ -609,6 +610,7 @@ public class GameController {
         gameplayCameraShakeIntensity = 0f;
         godModeEnabled = false;
         noclipModeEnabled = false;
+        emergencyHealArmed = false;
         cheatMessage = "";
         cheatMessageTimeRemaining = 0f;
         elapsedGameSeconds = 0f;
@@ -1260,15 +1262,38 @@ public class GameController {
     }
 
     private void emergencyHeal() {
+        emergencyHealArmed = true;
+
+        if (
+            player.isDead()
+                || health.getCurrentMasks() <= 0
+        ) {
+            triggerEmergencyHeal();
+            return;
+        }
+
+        setCheatMessage(
+            "Emergency heal armed: last mask will recharge."
+        );
+    }
+
+    private boolean tryTriggerEmergencyHealOnDefeat() {
+        if (!emergencyHealArmed) {
+            return false;
+        }
+
+        triggerEmergencyHeal();
+        return true;
+    }
+
+    private void triggerEmergencyHeal() {
+        emergencyHealArmed = false;
+
         if (player.isDead()) {
             player.setDead(false);
         }
 
-        health.heal(1);
-
-        if (health.getCurrentMasks() <= 0) {
-            health.setCurrentMasks(1);
-        }
+        health.setCurrentMasks(1);
 
         movement.respawnAt(
             player.getPosition().x,
@@ -1284,7 +1309,7 @@ public class GameController {
         );
 
         setCheatMessage(
-            "Emergency heal: +1 mask."
+            "Emergency heal triggered: +1 mask."
         );
     }
 
@@ -2719,6 +2744,10 @@ public class GameController {
                 == PlayerHealth
                 .DamageResult.DEFEATED
         ) {
+            if (tryTriggerEmergencyHealOnDefeat()) {
+                return true;
+            }
+
             resetPlayerAfterDefeat();
             return true;
         }
@@ -2980,6 +3009,10 @@ public class GameController {
                 == PlayerHealth
                 .DamageResult.DEFEATED
         ) {
+            if (tryTriggerEmergencyHealOnDefeat()) {
+                return true;
+            }
+
             resetPlayerAfterDefeat();
             return true;
         }
@@ -3229,6 +3262,10 @@ public class GameController {
                 == PlayerHealth
                 .DamageResult.DEFEATED
         ) {
+            if (tryTriggerEmergencyHealOnDefeat()) {
+                return true;
+            }
+
             resetPlayerAfterDefeat();
             return true;
         }
@@ -3255,6 +3292,8 @@ public class GameController {
     }
 
     private void resetPlayerAfterDefeat() {
+        emergencyHealArmed = false;
+
         deathCount++;
 
         health.restoreFullHealth();
@@ -3918,14 +3957,6 @@ public class GameController {
 
         combat.registerHit();
 
-        damageable.takeDamage(
-            getNailDamage()
-        );
-
-        gameSfxPlayer.playEnemyDamage();
-
-        gainSoulFromNailHit();
-
         if (
             !combat.isDownwardAttack()
                 && damageable instanceof Knockbackable
@@ -3940,6 +3971,14 @@ public class GameController {
                 platformWorld
             );
         }
+
+        damageable.takeDamage(
+            getNailDamage()
+        );
+
+        gameSfxPlayer.playEnemyDamage();
+
+        gainSoulFromNailHit();
 
         if (
             combat.isDownwardAttack()
@@ -4499,7 +4538,9 @@ public class GameController {
         return "God Mode: "
             + (godModeEnabled ? "ON" : "OFF")
             + "   Flight/Noclip: "
-            + (noclipModeEnabled ? "ON" : "OFF");
+            + (noclipModeEnabled ? "ON" : "OFF")
+            + "   Emergency Heal: "
+            + (emergencyHealArmed ? "ARMED" : "OFF");
     }
 
     public float getElapsedGameSeconds() {

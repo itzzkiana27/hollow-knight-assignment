@@ -1,6 +1,7 @@
 package com.hollowknight;
 
 import com.badlogic.gdx.Game;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.hollowknight.controller.AchievementsController;
 import com.hollowknight.controller.GuideController;
@@ -180,6 +181,18 @@ public class HollowKnightGame extends Game {
 
         if (oldScreen != null) {
             oldScreen.dispose();
+        }
+    }
+
+
+    @Override
+    public void render() {
+        super.render();
+
+        if (musicPlayer != null) {
+            musicPlayer.update(
+                Gdx.graphics.getDeltaTime()
+            );
         }
     }
 

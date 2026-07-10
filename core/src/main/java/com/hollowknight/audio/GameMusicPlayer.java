@@ -26,10 +26,24 @@ public final class GameMusicPlayer implements Disposable {
         }
     }
 
+    private enum FadeMode {
+        NONE,
+        OUT_FOR_SWITCH,
+        IN
+    }
+
+    private static final float FADE_DURATION = 0.85f;
+
     private final GameSettings settings;
 
     private Music currentMusic;
     private Track currentTrack;
+    private Track desiredTrack;
+    private Track queuedTrack;
+
+    private FadeMode fadeMode = FadeMode.NONE;
+    private float fadeTime;
+    private float fadeStartVolume;
 
     public GameMusicPlayer(
         GameSettings settings
@@ -66,19 +80,72 @@ public final class GameMusicPlayer implements Disposable {
     }
 
     public void refreshSettings() {
-        if (currentTrack == null) {
+        if (!settings.isMusicEnabled()) {
+            stopCurrentMusic();
+            queuedTrack = null;
+            fadeMode = FadeMode.NONE;
             return;
         }
 
+        if (
+            currentMusic == null
+                && desiredTrack != null
+        ) {
+            startTrack(
+                desiredTrack,
+                0f
+            );
+            startFadeIn();
+            return;
+        }
+
+        if (
+            currentMusic != null
+                && fadeMode == FadeMode.NONE
+        ) {
+            currentMusic.setVolume(
+                settings.getMusicVolume()
+            );
+
+            if (!currentMusic.isPlaying()) {
+                currentMusic.play();
+            }
+        }
+    }
+
+    public void update(
+        float delta
+    ) {
         if (!settings.isMusicEnabled()) {
-            stopCurrentMusic();
+            if (currentMusic != null) {
+                stopCurrentMusic();
+            }
             return;
         }
 
         if (currentMusic == null) {
-            Track requestedTrack = currentTrack;
-            currentTrack = null;
-            play(requestedTrack);
+            if (desiredTrack != null) {
+                startTrack(
+                    desiredTrack,
+                    0f
+                );
+                startFadeIn();
+            }
+            return;
+        }
+
+        float safeDelta = Math.min(
+            Math.max(delta, 0f),
+            1f / 15f
+        );
+
+        if (fadeMode == FadeMode.OUT_FOR_SWITCH) {
+            updateFadeOutForSwitch(safeDelta);
+            return;
+        }
+
+        if (fadeMode == FadeMode.IN) {
+            updateFadeIn(safeDelta);
             return;
         }
 
@@ -98,19 +165,122 @@ public final class GameMusicPlayer implements Disposable {
             return;
         }
 
-        if (
-            currentTrack == track
-                && currentMusic != null
-        ) {
-            refreshSettings();
+        desiredTrack = track;
+
+        if (!settings.isMusicEnabled()) {
+            stopCurrentMusic();
+            queuedTrack = null;
+            fadeMode = FadeMode.NONE;
             return;
         }
 
-        currentTrack = track;
+        if (
+            currentTrack == track
+                && currentMusic != null
+                && fadeMode != FadeMode.OUT_FOR_SWITCH
+        ) {
+            return;
+        }
+
+        if (
+            queuedTrack == track
+                && fadeMode == FadeMode.OUT_FOR_SWITCH
+        ) {
+            return;
+        }
+
+        queuedTrack = track;
+
+        if (currentMusic == null) {
+            startTrack(
+                queuedTrack,
+                0f
+            );
+            queuedTrack = null;
+            startFadeIn();
+            return;
+        }
+
+        fadeMode = FadeMode.OUT_FOR_SWITCH;
+        fadeTime = 0f;
+        fadeStartVolume = currentMusic.getVolume();
+    }
+
+    private void updateFadeOutForSwitch(
+        float delta
+    ) {
+        fadeTime += delta;
+
+        float progress = Math.min(
+            1f,
+            fadeTime / FADE_DURATION
+        );
+
+        currentMusic.setVolume(
+            fadeStartVolume * (1f - progress)
+        );
+
+        if (progress < 1f) {
+            return;
+        }
 
         stopCurrentMusic();
 
-        if (!settings.isMusicEnabled()) {
+        Track nextTrack = queuedTrack;
+        queuedTrack = null;
+
+        if (nextTrack == null) {
+            fadeMode = FadeMode.NONE;
+            return;
+        }
+
+        startTrack(
+            nextTrack,
+            0f
+        );
+        startFadeIn();
+    }
+
+    private void updateFadeIn(
+        float delta
+    ) {
+        fadeTime += delta;
+
+        float progress = Math.min(
+            1f,
+            fadeTime / FADE_DURATION
+        );
+
+        currentMusic.setVolume(
+            settings.getMusicVolume() * progress
+        );
+
+        if (progress < 1f) {
+            return;
+        }
+
+        fadeMode = FadeMode.NONE;
+        currentMusic.setVolume(
+            settings.getMusicVolume()
+        );
+    }
+
+    private void startFadeIn() {
+        if (currentMusic == null) {
+            fadeMode = FadeMode.NONE;
+            return;
+        }
+
+        fadeMode = FadeMode.IN;
+        fadeTime = 0f;
+        fadeStartVolume = 0f;
+    }
+
+    private void startTrack(
+        Track track,
+        float initialVolume
+    ) {
+        if (track == null) {
             return;
         }
 
@@ -123,29 +293,35 @@ public final class GameMusicPlayer implements Disposable {
                 "GameMusicPlayer",
                 "Missing music file: " + track.getPath()
             );
+            currentTrack = null;
             return;
         }
 
         currentMusic = Gdx.audio.newMusic(file);
+        currentTrack = track;
         currentMusic.setLooping(true);
         currentMusic.setVolume(
-            settings.getMusicVolume()
+            Math.max(0f, initialVolume)
         );
         currentMusic.play();
     }
 
     private void stopCurrentMusic() {
         if (currentMusic == null) {
+            currentTrack = null;
             return;
         }
 
         currentMusic.stop();
         currentMusic.dispose();
         currentMusic = null;
+        currentTrack = null;
     }
 
     @Override
     public void dispose() {
         stopCurrentMusic();
+        queuedTrack = null;
+        fadeMode = FadeMode.NONE;
     }
 }
