@@ -13,6 +13,7 @@ import com.hollowknight.model.GameSettings;
 import com.hollowknight.model.save.SaveManager;
 import com.hollowknight.model.achievement.AchievementManager;
 import com.hollowknight.model.EndGameStats;
+import com.hollowknight.audio.GameMusicPlayer;
 import com.hollowknight.view.screens.*;
 import com.hollowknight.controller.GameController;
 
@@ -21,6 +22,7 @@ public class HollowKnightGame extends Game {
     private GameSettings settings;
     private LocalizationManager localization;
     private AchievementManager achievementManager;
+    private GameMusicPlayer musicPlayer;
     private int activeSaveSlot;
 
     @Override
@@ -33,6 +35,10 @@ public class HollowKnightGame extends Game {
 
         achievementManager =
             new AchievementManager();
+
+        musicPlayer = new GameMusicPlayer(
+            settings
+        );
 
         activeSaveSlot =
             SaveManager.DEFAULT_SLOT;
@@ -50,6 +56,24 @@ public class HollowKnightGame extends Game {
 
     public AchievementManager getAchievementManager() {
         return achievementManager;
+    }
+
+    public void refreshMusicSettings() {
+        if (musicPlayer != null) {
+            musicPlayer.refreshSettings();
+        }
+    }
+
+    public void playGameplayMusic(
+        String roomId,
+        boolean falseKnightActive
+    ) {
+        if (musicPlayer != null) {
+            musicPlayer.playForRoom(
+                roomId,
+                falseKnightActive
+            );
+        }
     }
 
     public int getActiveSaveSlot() {
@@ -73,6 +97,10 @@ public class HollowKnightGame extends Game {
     }
 
     public void showMainMenu() {
+        if (musicPlayer != null) {
+            musicPlayer.playMenuTheme();
+        }
+
         changeScreen(
             new MainMenuScreen(
                 new MainMenuController(this)
@@ -81,6 +109,10 @@ public class HollowKnightGame extends Game {
     }
 
     public void showStartGameMenu() {
+        if (musicPlayer != null) {
+            musicPlayer.playMenuTheme();
+        }
+
         changeScreen(
             new StartGameScreen(
                 new StartGameController(this)
@@ -89,6 +121,10 @@ public class HollowKnightGame extends Game {
     }
 
     public void showSettingsMenu() {
+        if (musicPlayer != null) {
+            musicPlayer.playMenuTheme();
+        }
+
         changeScreen(
             new SettingsScreen(
                 new SettingsController(this)
@@ -97,6 +133,10 @@ public class HollowKnightGame extends Game {
     }
 
     public void showGuideMenu() {
+        if (musicPlayer != null) {
+            musicPlayer.playMenuTheme();
+        }
+
         changeScreen(
             new GuideScreen(
                 new GuideController(this)
@@ -105,6 +145,10 @@ public class HollowKnightGame extends Game {
     }
 
     public void showAchievementsMenu() {
+        if (musicPlayer != null) {
+            musicPlayer.playMenuTheme();
+        }
+
         changeScreen(
             new AchievementsScreen(
                 new AchievementsController(this)
@@ -115,6 +159,10 @@ public class HollowKnightGame extends Game {
     public void showEndGameScreen(
         EndGameStats stats
     ) {
+        if (musicPlayer != null) {
+            musicPlayer.playVictoryTheme();
+        }
+
         changeScreen(
             new EndGameScreen(
                 new EndGameController(
@@ -141,6 +189,10 @@ public class HollowKnightGame extends Game {
 
         if (currentScreen != null) {
             currentScreen.dispose();
+        }
+
+        if (musicPlayer != null) {
+            musicPlayer.dispose();
         }
     }
     public void showGameScreen() {

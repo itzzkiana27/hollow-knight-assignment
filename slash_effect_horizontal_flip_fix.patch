@@ -1,0 +1,27 @@
+diff -ruN slash_flip_work/core/src/main/java/com/hollowknight/view/screens/GameScreen.java slash_flip_new/core/src/main/java/com/hollowknight/view/screens/GameScreen.java
+--- slash_flip_work/core/src/main/java/com/hollowknight/view/screens/GameScreen.java	2026-07-10 16:09:28.000000000 +0000
++++ slash_flip_new/core/src/main/java/com/hollowknight/view/screens/GameScreen.java	2026-07-10 16:36:17.149454841 +0000
+@@ -272,7 +272,11 @@
+ 
+     private static final float SLASH_EFFECT_ALPHA = 0.92f;
+ 
+-    private static final boolean SLASH_EFFECT_HORIZONTAL_SOURCE_FACES_RIGHT = true;
++    /*
++     * The horizontal slash source image is drawn facing left.
++     * Keep this false so right-facing attacks are mirrored in code.
++     */
++    private static final boolean SLASH_EFFECT_HORIZONTAL_SOURCE_FACES_RIGHT = false;
+ 
+     /*
+      * Distance between the delayed shadow copies.
+@@ -2423,7 +2427,9 @@
+ 
+         boolean shouldFlip =
+             direction == AttackDirection.LEFT
+-                && SLASH_EFFECT_HORIZONTAL_SOURCE_FACES_RIGHT;
++                ? SLASH_EFFECT_HORIZONTAL_SOURCE_FACES_RIGHT
++                : direction == AttackDirection.RIGHT
++                    && !SLASH_EFFECT_HORIZONTAL_SOURCE_FACES_RIGHT;
+ 
+         batch.setProjectionMatrix(
+             worldCamera.getCombined()

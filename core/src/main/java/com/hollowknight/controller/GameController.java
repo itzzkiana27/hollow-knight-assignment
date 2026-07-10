@@ -10,6 +10,7 @@ import com.badlogic.gdx.utils.Array;
 import com.hollowknight.HollowKnightGame;
 import com.hollowknight.audio.GameSfxPlayer;
 import com.hollowknight.model.GameSettings;
+import com.hollowknight.model.combat.AttackDirection;
 import com.hollowknight.model.combat.PlayerCombat;
 import com.hollowknight.model.combat.SpikeHazard;
 import com.hollowknight.model.enemy.Crawlid;
@@ -618,6 +619,8 @@ public class GameController {
             loadGame();
         }
 
+        updateBackgroundMusic();
+
         currentInput =
             PlayerInput.empty();
 
@@ -1209,6 +1212,7 @@ public class GameController {
         spawnZoteForCurrentRoom();
         spawnFalseKnightForCurrentRoom();
         endZoteDialogue();
+        updateBackgroundMusic();
 
         combat.finishAttack();
         cancelFocus();
@@ -2639,6 +2643,7 @@ public class GameController {
         spawnZoteForCurrentRoom();
         spawnFalseKnightForCurrentRoom();
         endZoteDialogue();
+        updateBackgroundMusic();
 
         combat.finishAttack();
         cancelFocus();
@@ -4259,6 +4264,7 @@ public class GameController {
         spawnZoteForCurrentRoom();
         spawnFalseKnightForCurrentRoom();
         endZoteDialogue();
+        updateBackgroundMusic();
 
         movement.respawnAt(
             data.playerX,
@@ -4346,6 +4352,15 @@ public class GameController {
         }
 
         charmInventory.setEquippedCharms(equipped);
+    }
+
+
+    private void updateBackgroundMusic() {
+        game.playGameplayMusic(
+            currentRoomId,
+            falseKnight != null
+                && falseKnight.isAlive()
+        );
     }
 
     public String saveGame() {
@@ -4596,6 +4611,18 @@ public class GameController {
 
     public Rectangle getAttackHitbox() {
         return combat.getAttackHitbox();
+    }
+
+    public boolean isNailSlashActive() {
+        return combat.isAttacking();
+    }
+
+    public AttackDirection getCurrentAttackDirection() {
+        return combat.getAttackDirection();
+    }
+
+    public float getCurrentAttackTime() {
+        return combat.getAttackTime();
     }
 
     public Array<SpikeHazard> getSpikeHazards() {

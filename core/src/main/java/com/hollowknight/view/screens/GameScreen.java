@@ -47,9 +47,9 @@ import com.hollowknight.view.effects.RainEffect;
 import com.hollowknight.model.boss.FalseKnight;
 import com.hollowknight.model.charm.CharmType;
 import com.hollowknight.model.achievement.Achievement;
+import com.hollowknight.model.combat.AttackDirection;
 import com.hollowknight.view.actors.AchievementPopupObserver;
 import com.hollowknight.view.animation.FalseKnightAnimationManager;
-import com.hollowknight.view.theme.MenuThemeSkin;
 
 import java.util.EnumMap;
 
@@ -250,6 +250,34 @@ public class GameScreen extends ScreenAdapter {
      */
     private static final boolean WHITE_DASH_EFFECT_SOURCE_FACES_RIGHT = true;
 
+    private static final int SLASH_EFFECT_FRAME_COUNT = 4;
+
+    private static final float SLASH_EFFECT_FRAME_DURATION = 0.045f;
+
+    private static final float SLASH_EFFECT_DURATION =
+        SLASH_EFFECT_FRAME_COUNT * SLASH_EFFECT_FRAME_DURATION;
+
+    private static final String SLASH_EFFECT_HORIZONTAL_PATH_FORMAT =
+        "sprites/effects/slash/slash_horizontal_%d.png";
+
+    private static final String SLASH_EFFECT_UP_PATH_FORMAT =
+        "sprites/effects/slash/slash_up_%d.png";
+
+    private static final String SLASH_EFFECT_DOWN_PATH_FORMAT =
+        "sprites/effects/slash/slash_down_%d.png";
+
+    private static final float SLASH_EFFECT_HORIZONTAL_DRAW_HEIGHT = 105f;
+
+    private static final float SLASH_EFFECT_VERTICAL_DRAW_HEIGHT = 145f;
+
+    private static final float SLASH_EFFECT_ALPHA = 0.92f;
+
+    /*
+     * The horizontal slash source image is drawn facing left.
+     * Keep this false so right-facing attacks are mirrored in code.
+     */
+    private static final boolean SLASH_EFFECT_HORIZONTAL_SOURCE_FACES_RIGHT = false;
+
     /*
      * Distance between the delayed shadow copies.
      * Higher = more spaced/paced trail.
@@ -281,7 +309,6 @@ public class GameScreen extends ScreenAdapter {
 
     private Stage stage;
     private Skin skin;
-    private MenuThemeSkin menuTheme;
 
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
@@ -303,6 +330,10 @@ public class GameScreen extends ScreenAdapter {
     private TextureRegion[] sharpShadowDashFrames;
     private Texture whiteDashEffectTexture;
     private TextureRegion whiteDashEffectFrame;
+    private Texture[] slashEffectTextures;
+    private TextureRegion[] slashHorizontalEffectFrames;
+    private TextureRegion[] slashUpEffectFrames;
+    private TextureRegion[] slashDownEffectFrames;
     private Texture blastSoulTexture;
     private Texture soulBallTexture;
     private Texture soulBallEndTexture;
@@ -339,8 +370,11 @@ public class GameScreen extends ScreenAdapter {
             new ScreenViewport()
         );
 
-        menuTheme = MenuThemeSkin.fromSettings();
-        skin = menuTheme.getSkin();
+        skin = new Skin(
+            Gdx.files.internal(
+                "ui/uiskin.json"
+            )
+        );
 
         batch = new SpriteBatch();
 
@@ -373,6 +407,7 @@ public class GameScreen extends ScreenAdapter {
 
         loadSharpShadowDashFrames();
         loadWhiteDashEffect();
+        loadSlashEffects();
         loadAbilityEffectTextures();
 
         worldCamera = new GameCamera(
@@ -485,7 +520,6 @@ public class GameScreen extends ScreenAdapter {
         window.setMovable(false);
         window.setResizable(false);
         window.pad(22f);
-        window.setColor(1f, 1f, 1f, 0.94f);
 
         pauseContent = new Table();
         pauseContent.defaults().pad(6f);
@@ -535,8 +569,9 @@ public class GameScreen extends ScreenAdapter {
 
         pauseContent.clear();
 
-        Label title = menuTheme.createTitleLabel(
-            "Game Paused"
+        Label title = new Label(
+            "Game Paused",
+            skin
         );
 
         title.setFontScale(1.45f);
@@ -625,8 +660,9 @@ public class GameScreen extends ScreenAdapter {
         String text,
         Runnable action
     ) {
-        TextButton button = menuTheme.createMenuButton(
-            text
+        TextButton button = new TextButton(
+            text,
+            skin
         );
 
         button.getLabel().setFontScale(1.05f);
@@ -662,8 +698,9 @@ public class GameScreen extends ScreenAdapter {
     private void showCheatCodesPanel() {
         pauseContent.clear();
 
-        Label title = menuTheme.createTitleLabel(
-            "Cheat Codes"
+        Label title = new Label(
+            "Cheat Codes",
+            skin
         );
 
         title.setFontScale(1.35f);
@@ -699,8 +736,9 @@ public class GameScreen extends ScreenAdapter {
     private void showAchievementsPanel() {
         pauseContent.clear();
 
-        Label title = menuTheme.createTitleLabel(
-            "Achievements"
+        Label title = new Label(
+            "Achievements",
+            skin
         );
 
         title.setFontScale(1.35f);
@@ -857,6 +895,7 @@ public class GameScreen extends ScreenAdapter {
         drawZote();
         drawWhiteDashEffect();
         drawKnight();
+        drawSlashEffect();
         drawActiveAttackHitbox();
         drawMapForeground();
         drawZotePrompt();
@@ -2302,11 +2341,161 @@ public class GameScreen extends ScreenAdapter {
             );
         }
 
-        batch.setColor(
-            Color.WHITE
+        batch.setColor(Color.WHITE);
+        batch.end();
+    }
+
+    private void drawSlashEffect() {
+        if (!controller.isNailSlashActive()) {
+            return;
+        }
+
+        float attackTime =
+            controller.getCurrentAttackTime();
+
+        if (attackTime > SLASH_EFFECT_DURATION) {
+            return;
+        }
+
+        AttackDirection direction =
+            controller.getCurrentAttackDirection();
+
+        TextureRegion frame =
+            getSlashEffectFrame(
+                attackTime,
+                direction
+            );
+
+        if (frame == null) {
+            return;
+        }
+
+        Rectangle hitbox =
+            controller.getAttackHitbox();
+
+        if (
+            hitbox.width <= 0f
+                || hitbox.height <= 0f
+        ) {
+            return;
+        }
+
+        boolean vertical =
+            direction == AttackDirection.UP
+                || direction == AttackDirection.DOWN;
+
+        float requestedDrawHeight =
+            vertical
+                ? SLASH_EFFECT_VERTICAL_DRAW_HEIGHT
+                : SLASH_EFFECT_HORIZONTAL_DRAW_HEIGHT;
+
+        float scale =
+            requestedDrawHeight
+                / frame.getRegionHeight();
+
+        float drawWidth =
+            frame.getRegionWidth()
+                * scale;
+
+        float drawHeight =
+            frame.getRegionHeight()
+                * scale;
+
+        float drawX =
+            hitbox.x
+                + hitbox.width / 2f
+                - drawWidth / 2f;
+
+        float drawY =
+            hitbox.y
+                + hitbox.height / 2f
+                - drawHeight / 2f;
+
+        if (direction == AttackDirection.RIGHT) {
+            drawX += 8f;
+        } else if (direction == AttackDirection.LEFT) {
+            drawX -= 8f;
+        } else if (direction == AttackDirection.UP) {
+            drawY += 10f;
+        } else if (direction == AttackDirection.DOWN) {
+            drawY -= 10f;
+        }
+
+        float slashAlpha =
+            SLASH_EFFECT_ALPHA
+                * (1f - attackTime / SLASH_EFFECT_DURATION);
+
+        boolean shouldFlip =
+            direction == AttackDirection.LEFT
+                ? SLASH_EFFECT_HORIZONTAL_SOURCE_FACES_RIGHT
+                : direction == AttackDirection.RIGHT
+                    && !SLASH_EFFECT_HORIZONTAL_SOURCE_FACES_RIGHT;
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
         );
 
+        batch.begin();
+
+        batch.setColor(
+            1f,
+            1f,
+            1f,
+            slashAlpha
+        );
+
+        if (shouldFlip) {
+            batch.draw(
+                frame,
+                drawX + drawWidth,
+                drawY,
+                -drawWidth,
+                drawHeight
+            );
+        } else {
+            batch.draw(
+                frame,
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight
+            );
+        }
+
+        batch.setColor(Color.WHITE);
         batch.end();
+    }
+
+    private TextureRegion getSlashEffectFrame(
+        float attackTime,
+        AttackDirection direction
+    ) {
+        TextureRegion[] frames;
+
+        if (direction == AttackDirection.UP) {
+            frames = slashUpEffectFrames;
+        } else if (direction == AttackDirection.DOWN) {
+            frames = slashDownEffectFrames;
+        } else {
+            frames = slashHorizontalEffectFrames;
+        }
+
+        if (
+            frames == null
+                || frames.length == 0
+        ) {
+            return null;
+        }
+
+        int frameIndex = Math.min(
+            frames.length - 1,
+            Math.max(
+                0,
+                (int)(attackTime / SLASH_EFFECT_FRAME_DURATION)
+            )
+        );
+
+        return frames[frameIndex];
     }
 
 
@@ -2745,6 +2934,70 @@ public class GameScreen extends ScreenAdapter {
             new TextureRegion(
                 whiteDashEffectTexture
             );
+    }
+
+    private void loadSlashEffects() {
+        slashEffectTextures =
+            new Texture[
+                SLASH_EFFECT_FRAME_COUNT * 3
+            ];
+
+        slashHorizontalEffectFrames =
+            loadSlashEffectFrames(
+                SLASH_EFFECT_HORIZONTAL_PATH_FORMAT,
+                0
+            );
+
+        slashUpEffectFrames =
+            loadSlashEffectFrames(
+                SLASH_EFFECT_UP_PATH_FORMAT,
+                SLASH_EFFECT_FRAME_COUNT
+            );
+
+        slashDownEffectFrames =
+            loadSlashEffectFrames(
+                SLASH_EFFECT_DOWN_PATH_FORMAT,
+                SLASH_EFFECT_FRAME_COUNT * 2
+            );
+    }
+
+    private TextureRegion[] loadSlashEffectFrames(
+        String pathFormat,
+        int textureOffset
+    ) {
+        TextureRegion[] frames =
+            new TextureRegion[
+                SLASH_EFFECT_FRAME_COUNT
+            ];
+
+        for (
+            int index = 0;
+            index < SLASH_EFFECT_FRAME_COUNT;
+            index++
+        ) {
+            Texture texture =
+                new Texture(
+                    Gdx.files.internal(
+                        String.format(
+                            pathFormat,
+                            index
+                        )
+                    )
+                );
+
+            texture.setFilter(
+                Texture.TextureFilter.Linear,
+                Texture.TextureFilter.Linear
+            );
+
+            slashEffectTextures[textureOffset + index] =
+                texture;
+
+            frames[index] =
+                new TextureRegion(texture);
+        }
+
+        return frames;
     }
 
     private TextureRegion getSharpShadowDashFrame(
@@ -3872,69 +4125,6 @@ public class GameScreen extends ScreenAdapter {
         );
 
         shapeRenderer.end();
-
-        drawSoulHudIcon(
-            vesselCenterX,
-            vesselCenterY,
-            vesselOuterRadius,
-            soulRatio
-        );
-    }
-
-    private void drawSoulHudIcon(
-        float centerX,
-        float centerY,
-        float radius,
-        float soulRatio
-    ) {
-        if (
-            menuTheme == null
-                || menuTheme.getSoulOrbTexture() == null
-        ) {
-            return;
-        }
-
-        batch.setProjectionMatrix(
-            stage.getCamera().combined
-        );
-
-        batch.begin();
-
-        float glowSize = radius * 3.4f;
-        float orbSize = radius * 2.35f;
-
-        batch.setColor(
-            1f,
-            1f,
-            1f,
-            0.18f + soulRatio * 0.55f
-        );
-
-        batch.draw(
-            menuTheme.getSoulGlowTexture(),
-            centerX - glowSize / 2f,
-            centerY - glowSize / 2f,
-            glowSize,
-            glowSize
-        );
-
-        batch.setColor(
-            1f,
-            1f,
-            1f,
-            0.72f + soulRatio * 0.28f
-        );
-
-        batch.draw(
-            menuTheme.getSoulOrbTexture(),
-            centerX - orbSize / 2f,
-            centerY - orbSize / 2f,
-            orbSize,
-            orbSize
-        );
-
-        batch.setColor(Color.WHITE);
-        batch.end();
     }
 
     private void finishAnimationIfNecessary() {
@@ -4047,8 +4237,8 @@ public class GameScreen extends ScreenAdapter {
             stage.dispose();
         }
 
-        if (menuTheme != null) {
-            menuTheme.dispose();
+        if (skin != null) {
+            skin.dispose();
         }
 
         if (
@@ -4090,6 +4280,21 @@ public class GameScreen extends ScreenAdapter {
 
         if (whiteDashEffectTexture != null) {
             whiteDashEffectTexture.dispose();
+            whiteDashEffectTexture = null;
+            whiteDashEffectFrame = null;
+        }
+
+        if (slashEffectTextures != null) {
+            for (Texture texture : slashEffectTextures) {
+                if (texture != null) {
+                    texture.dispose();
+                }
+            }
+
+            slashEffectTextures = null;
+            slashHorizontalEffectFrames = null;
+            slashUpEffectFrames = null;
+            slashDownEffectFrames = null;
         }
 
         if (sharpShadowDashTextures != null) {

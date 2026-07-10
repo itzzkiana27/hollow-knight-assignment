@@ -22,6 +22,7 @@ public class SettingsController {
 
     public void setMusicEnabled(boolean enabled) {
         settings.setMusicEnabled(enabled);
+        game.refreshMusicSettings();
     }
 
     public float getMusicVolume() {
@@ -30,6 +31,7 @@ public class SettingsController {
 
     public void setMusicVolume(float volume) {
         settings.setMusicVolume(volume);
+        game.refreshMusicSettings();
     }
 
     public boolean isSoundEffectsEnabled() {
@@ -107,6 +109,7 @@ public class SettingsController {
     }
     public void resetAudio() {
         settings.resetAudio();
+        game.refreshMusicSettings();
     }
     public void resetAllSettings() {
         settings.resetAll();
@@ -114,6 +117,8 @@ public class SettingsController {
         game.getLocalization().setLanguage(
             settings.getLanguage()
         );
+
+        game.refreshMusicSettings();
 
         Gdx.app.postRunnable(
             game::showSettingsMenu

@@ -211,6 +211,14 @@ public final class PlayerCombat {
             == AttackDirection.DOWN;
     }
 
+    public AttackDirection getAttackDirection() {
+        return attackDirection;
+    }
+
+    public float getAttackTime() {
+        return attackTime;
+    }
+
     public int getDamage() {
         return NAIL_DAMAGE;
     }
