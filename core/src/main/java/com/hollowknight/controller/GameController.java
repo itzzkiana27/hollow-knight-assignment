@@ -8,6 +8,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 import com.hollowknight.HollowKnightGame;
+import com.hollowknight.audio.GameSfxPlayer;
 import com.hollowknight.model.GameSettings;
 import com.hollowknight.model.combat.PlayerCombat;
 import com.hollowknight.model.combat.SpikeHazard;
@@ -225,6 +226,7 @@ public class GameController {
     private final Rectangle shadeSoulEndBounds;
     private final Rectangle voidAbyssShriekBounds;
     private final KeyBindings keyBindings;
+    private final GameSfxPlayer gameSfxPlayer;
 
     private final Sound[] zoteVoiceSounds;
     private final Sound zoteBattleAttackSound;
@@ -494,6 +496,8 @@ public class GameController {
             settings.getDashKey(),
             settings.getAttackKey()
         );
+
+        gameSfxPlayer = new GameSfxPlayer(settings);
 
         zoteVoiceSounds = new Sound[] {
             Gdx.audio.newSound(
@@ -1207,7 +1211,7 @@ public class GameController {
         endZoteDialogue();
 
         combat.finishAttack();
-        focus.cancel();
+        cancelFocus();
 
         movement.respawnAt(
             currentRoomSpawnX,
@@ -1234,7 +1238,7 @@ public class GameController {
         noclipModeEnabled = !noclipModeEnabled;
 
         combat.finishAttack();
-        focus.cancel();
+        cancelFocus();
         movement.respawnAt(
             player.getPosition().x,
             player.getPosition().y
@@ -1446,7 +1450,7 @@ public class GameController {
                 + charmInventory.getNotchCapacity();
 
         combat.finishAttack();
-        focus.cancel();
+        cancelFocus();
     }
 
     private void closeCharmInventory() {
@@ -1566,6 +1570,8 @@ public class GameController {
                 PlayerSoul.NAIL_HIT_GAIN
             )
         );
+
+        gameSfxPlayer.playSoulGain();
     }
 
     private float getDashCooldownUpdateDelta(
@@ -2077,6 +2083,7 @@ public class GameController {
         ) {
             shadeSoulHitHuskHornhead = true;
             huskHornhead.takeDamage(damage);
+            gameSfxPlayer.playEnemyDamage();
             if (!huskHornhead.isAlive()) {
                 registerEnemyKill(
                     EnemyKillType.HUSK_HORNHEAD
@@ -2094,6 +2101,7 @@ public class GameController {
         ) {
             shadeSoulHitCrawlid = true;
             crawlid.takeDamage(damage);
+            gameSfxPlayer.playEnemyDamage();
             if (!crawlid.isAlive()) {
                 registerEnemyKill(
                     EnemyKillType.CRAWLID
@@ -2111,6 +2119,7 @@ public class GameController {
         ) {
             shadeSoulHitCrystalGuardian = true;
             crystalGuardian.takeDamage(damage);
+            gameSfxPlayer.playEnemyDamage();
             if (!crystalGuardian.isAlive()) {
                 registerEnemyKill(
                     EnemyKillType.CRYSTAL_GUARDIAN
@@ -2128,6 +2137,7 @@ public class GameController {
         ) {
             shadeSoulHitWingedSentry = true;
             wingedSentry.takeDamage(damage);
+            gameSfxPlayer.playEnemyDamage();
             if (!wingedSentry.isAlive()) {
                 registerEnemyKill(
                     EnemyKillType.WINGED_SENTRY
@@ -2159,6 +2169,7 @@ public class GameController {
         ) {
             abyssShriekHitHuskHornhead = true;
             huskHornhead.takeDamage(damage);
+            gameSfxPlayer.playEnemyDamage();
             if (!huskHornhead.isAlive()) {
                 registerEnemyKill(
                     EnemyKillType.HUSK_HORNHEAD
@@ -2176,6 +2187,7 @@ public class GameController {
         ) {
             abyssShriekHitCrawlid = true;
             crawlid.takeDamage(damage);
+            gameSfxPlayer.playEnemyDamage();
             if (!crawlid.isAlive()) {
                 registerEnemyKill(
                     EnemyKillType.CRAWLID
@@ -2193,6 +2205,7 @@ public class GameController {
         ) {
             abyssShriekHitCrystalGuardian = true;
             crystalGuardian.takeDamage(damage);
+            gameSfxPlayer.playEnemyDamage();
             if (!crystalGuardian.isAlive()) {
                 registerEnemyKill(
                     EnemyKillType.CRYSTAL_GUARDIAN
@@ -2210,6 +2223,7 @@ public class GameController {
         ) {
             abyssShriekHitWingedSentry = true;
             wingedSentry.takeDamage(damage);
+            gameSfxPlayer.playEnemyDamage();
             if (!wingedSentry.isAlive()) {
                 registerEnemyKill(
                     EnemyKillType.WINGED_SENTRY
@@ -2299,6 +2313,8 @@ public class GameController {
                 == PlayerFocus
                 .UpdateResult.CANCELLED
         ) {
+            gameSfxPlayer.stopFocusCharging();
+
             if (
                 player.getAnimationType()
                     == PlayerAnimationType.FOCUS
@@ -2319,9 +2335,21 @@ public class GameController {
                 == PlayerFocus
                 .UpdateResult.HEALED
         ) {
+            gameSfxPlayer.playFocusHeal();
+
             player.setAnimation(
                 PlayerAnimationType.FOCUS_GET
             );
+        }
+    }
+
+    private void cancelFocus() {
+        boolean wasActive = focus.isActive();
+
+        focus.cancel();
+
+        if (wasActive) {
+            gameSfxPlayer.stopFocusCharging();
         }
     }
 
@@ -2613,7 +2641,7 @@ public class GameController {
         endZoteDialogue();
 
         combat.finishAttack();
-        focus.cancel();
+        cancelFocus();
 
         movement.respawnAt(
             spawn.x,
@@ -2671,13 +2699,15 @@ public class GameController {
             );
 
         if (result != PlayerHealth.DamageResult.IGNORED) {
+            gameSfxPlayer.playPlayerDamage();
+
             requestGameplayCameraShake(
                 CAMERA_SHAKE_PLAYER_DAMAGE
             );
         }
 
         combat.finishAttack();
-        focus.cancel();
+        cancelFocus();
 
         if (
             result
@@ -2775,6 +2805,8 @@ public class GameController {
             )
         );
 
+        gameSfxPlayer.playEnemyDamage();
+
         if (!huskHornhead.isAlive()) {
             registerEnemyKill(
                 EnemyKillType.HUSK_HORNHEAD
@@ -2798,6 +2830,8 @@ public class GameController {
                 combat.getDamage()
             )
         );
+
+        gameSfxPlayer.playEnemyDamage();
 
         if (!crawlid.isAlive()) {
             registerEnemyKill(
@@ -2823,6 +2857,8 @@ public class GameController {
             )
         );
 
+        gameSfxPlayer.playEnemyDamage();
+
         if (!crystalGuardian.isAlive()) {
             registerEnemyKill(
                 EnemyKillType.CRYSTAL_GUARDIAN
@@ -2846,6 +2882,8 @@ public class GameController {
                 combat.getDamage()
             )
         );
+
+        gameSfxPlayer.playEnemyDamage();
 
         if (!wingedSentry.isAlive()) {
             registerEnemyKill(
@@ -2914,6 +2952,8 @@ public class GameController {
             );
 
         if (result != PlayerHealth.DamageResult.IGNORED) {
+            gameSfxPlayer.playPlayerDamage();
+
             requestGameplayCameraShake(
                 CAMERA_SHAKE_PLAYER_DAMAGE
             );
@@ -2928,7 +2968,7 @@ public class GameController {
         }
 
         combat.finishAttack();
-        focus.cancel();
+        cancelFocus();
 
         if (
             result
@@ -3161,6 +3201,8 @@ public class GameController {
             health.takeDamage(damage);
 
         if (result != PlayerHealth.DamageResult.IGNORED) {
+            gameSfxPlayer.playPlayerDamage();
+
             requestGameplayCameraShake(
                 CAMERA_SHAKE_PLAYER_DAMAGE
             );
@@ -3175,7 +3217,7 @@ public class GameController {
         }
 
         combat.finishAttack();
-        focus.cancel();
+        cancelFocus();
 
         if (
             result
@@ -3346,7 +3388,7 @@ public class GameController {
             currentInput.isRevivePressed()
         ) {
             combat.finishAttack();
-            focus.cancel();
+            cancelFocus();
             movement.resetPlayer();
         }
 
@@ -3466,7 +3508,7 @@ public class GameController {
     private void handleActionInput() {
         if (currentInput.isDeathPressed()) {
             combat.finishAttack();
-            focus.cancel();
+            cancelFocus();
 
             player.setDead(true);
 
@@ -3511,6 +3553,7 @@ public class GameController {
             currentInput.isSoulGainPressed()
         ) {
             soul.gainFromNailHit();
+            gameSfxPlayer.playSoulGain();
 
             player.setAnimation(
                 PlayerAnimationType.FOCUS_GET
@@ -3549,6 +3592,8 @@ public class GameController {
                 );
 
             if (started) {
+                gameSfxPlayer.playFocusStart();
+
                 player.setAnimation(
                     PlayerAnimationType.FOCUS_START
                 );
@@ -3557,10 +3602,14 @@ public class GameController {
             return;
         }
 
-        combat.tryStartAttack(
-            currentInput,
-            player
-        );
+        if (
+            combat.tryStartAttack(
+                currentInput,
+                player
+            )
+        ) {
+            gameSfxPlayer.playNailSlash();
+        }
     }
 
     private void resolveCombatHits() {
@@ -3867,6 +3916,8 @@ public class GameController {
         damageable.takeDamage(
             getNailDamage()
         );
+
+        gameSfxPlayer.playEnemyDamage();
 
         gainSoulFromNailHit();
 
@@ -4248,7 +4299,7 @@ public class GameController {
         );
 
         combat.finishAttack();
-        focus.cancel();
+        cancelFocus();
     }
 
     private void applySavedCharms(
@@ -4636,6 +4687,8 @@ public class GameController {
         if (falseKnightRollSound != null) {
             falseKnightRollSound.dispose();
         }
+
+        gameSfxPlayer.dispose();
 
         world.dispose();
     }

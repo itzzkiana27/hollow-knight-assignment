@@ -1,0 +1,579 @@
+diff -ruN sfx_base/assets/assets.txt sfx_new/assets/assets.txt
+--- sfx_base/assets/assets.txt	2026-07-10 15:05:53.118037140 +0000
++++ sfx_new/assets/assets.txt	2026-07-10 15:05:53.165275293 +0000
+@@ -683,3 +683,21 @@
+ ui/uiskin.atlas
+ ui/uiskin.json
+ ui/uiskin.png
++audio/sfx/focus_health_charging.wav
++audio/sfx/focus_health_heal.wav
++audio/sfx/focus_ready.wav
++audio/sfx/hero_damage.wav
++audio/sfx/hero_damage_less_harsh.wav
++audio/sfx/soul_pickup_1.wav
++audio/sfx/soul_pickup_2.wav
++audio/sfx/soul_pickup_3.wav
++audio/sfx/soul_pickup_4.wav
++audio/sfx/soul_pickup_5.wav
++audio/sfx/soul_pickup_6.wav
++audio/sfx/soul_pickup_7.wav
++audio/sfx/sword_1.wav
++audio/sfx/sword_2.wav
++audio/sfx/sword_3.wav
++audio/sfx/sword_4.wav
++audio/sfx/sword_5.wav
++audio/sfx/sword_hit_reject.wav
+diff -ruN sfx_base/core/src/main/java/com/hollowknight/audio/GameSfxPlayer.java sfx_new/core/src/main/java/com/hollowknight/audio/GameSfxPlayer.java
+--- sfx_base/core/src/main/java/com/hollowknight/audio/GameSfxPlayer.java	1970-01-01 00:00:00.000000000 +0000
++++ sfx_new/core/src/main/java/com/hollowknight/audio/GameSfxPlayer.java	2026-07-10 15:03:52.699365568 +0000
+@@ -0,0 +1,209 @@
++package com.hollowknight.audio;
++
++import com.badlogic.gdx.Gdx;
++import com.badlogic.gdx.audio.Sound;
++import com.badlogic.gdx.files.FileHandle;
++import com.badlogic.gdx.math.MathUtils;
++import com.hollowknight.model.GameSettings;
++
++/**
++ * Central event-based short SFX player for gameplay events.
++ *
++ * The class reads the current sound-effects settings every time it plays,
++ * so changing the SFX volume or mute option in Settings affects new sounds
++ * without recreating the game screen.
++ */
++public final class GameSfxPlayer {
++
++    private static final String BASE_PATH = "audio/sfx/";
++
++    private final GameSettings settings;
++
++    private final Sound[] nailSlashSounds;
++    private final Sound[] playerDamageSounds;
++    private final Sound[] soulGainSounds;
++
++    private final Sound enemyDamageSound;
++    private final Sound focusReadySound;
++    private final Sound focusChargingSound;
++    private final Sound focusHealSound;
++
++    private long focusChargingSoundId = -1L;
++
++    public GameSfxPlayer(GameSettings settings) {
++        this.settings = settings;
++
++        nailSlashSounds = loadMany(
++            "sword_1.wav",
++            "sword_2.wav",
++            "sword_3.wav",
++            "sword_4.wav",
++            "sword_5.wav"
++        );
++
++        playerDamageSounds = loadMany(
++            "hero_damage.wav",
++            "hero_damage_less_harsh.wav"
++        );
++
++        soulGainSounds = loadMany(
++            "soul_pickup_1.wav",
++            "soul_pickup_2.wav",
++            "soul_pickup_3.wav",
++            "soul_pickup_4.wav",
++            "soul_pickup_5.wav",
++            "soul_pickup_6.wav",
++            "soul_pickup_7.wav"
++        );
++
++        enemyDamageSound = load("sword_hit_reject.wav");
++        focusReadySound = load("focus_ready.wav");
++        focusChargingSound = load("focus_health_charging.wav");
++        focusHealSound = load("focus_health_heal.wav");
++    }
++
++    public void playNailSlash() {
++        playRandom(nailSlashSounds, 0.62f);
++    }
++
++    public void playPlayerDamage() {
++        playRandom(playerDamageSounds, 0.78f);
++    }
++
++    public void playEnemyDamage() {
++        play(enemyDamageSound, 0.42f);
++    }
++
++    public void playSoulGain() {
++        playRandom(soulGainSounds, 0.55f);
++    }
++
++    public void playFocusStart() {
++        play(focusReadySound, 0.70f);
++        startFocusCharging();
++    }
++
++    public void playFocusHeal() {
++        stopFocusCharging();
++        play(focusHealSound, 0.82f);
++    }
++
++    public void startFocusCharging() {
++        if (
++            focusChargingSound == null
++                || focusChargingSoundId != -1L
++                || !canPlay()
++        ) {
++            return;
++        }
++
++        focusChargingSoundId = focusChargingSound.loop(
++            scaledVolume(0.42f)
++        );
++    }
++
++    public void stopFocusCharging() {
++        if (
++            focusChargingSound == null
++                || focusChargingSoundId == -1L
++        ) {
++            return;
++        }
++
++        focusChargingSound.stop(focusChargingSoundId);
++        focusChargingSoundId = -1L;
++    }
++
++    public void dispose() {
++        stopFocusCharging();
++
++        disposeAll(nailSlashSounds);
++        disposeAll(playerDamageSounds);
++        disposeAll(soulGainSounds);
++
++        dispose(enemyDamageSound);
++        dispose(focusReadySound);
++        dispose(focusChargingSound);
++        dispose(focusHealSound);
++    }
++
++    private Sound[] loadMany(String... filenames) {
++        Sound[] sounds = new Sound[filenames.length];
++
++        for (int index = 0; index < filenames.length; index++) {
++            sounds[index] = load(filenames[index]);
++        }
++
++        return sounds;
++    }
++
++    private Sound load(String filename) {
++        FileHandle file = Gdx.files.internal(
++            BASE_PATH + filename
++        );
++
++        if (!file.exists()) {
++            return null;
++        }
++
++        return Gdx.audio.newSound(file);
++    }
++
++    private void playRandom(Sound[] sounds, float volume) {
++        if (sounds == null || sounds.length == 0) {
++            return;
++        }
++
++        int startIndex = MathUtils.random(
++            sounds.length - 1
++        );
++
++        for (int offset = 0; offset < sounds.length; offset++) {
++            Sound sound = sounds[
++                (startIndex + offset) % sounds.length
++            ];
++
++            if (sound != null) {
++                play(sound, volume);
++                return;
++            }
++        }
++    }
++
++    private void play(Sound sound, float volume) {
++        if (sound == null || !canPlay()) {
++            return;
++        }
++
++        sound.play(scaledVolume(volume));
++    }
++
++    private boolean canPlay() {
++        return settings.isSoundEffectsEnabled()
++            && settings.getSoundEffectsVolume() > 0f;
++    }
++
++    private float scaledVolume(float volume) {
++        return MathUtils.clamp(
++            volume * settings.getSoundEffectsVolume(),
++            0f,
++            1f
++        );
++    }
++
++    private void disposeAll(Sound[] sounds) {
++        if (sounds == null) {
++            return;
++        }
++
++        for (Sound sound : sounds) {
++            dispose(sound);
++        }
++    }
++
++    private void dispose(Sound sound) {
++        if (sound != null) {
++            sound.dispose();
++        }
++    }
++}
+diff -ruN sfx_base/core/src/main/java/com/hollowknight/controller/GameController.java sfx_new/core/src/main/java/com/hollowknight/controller/GameController.java
+--- sfx_base/core/src/main/java/com/hollowknight/controller/GameController.java	2026-07-10 15:02:06.417109906 +0000
++++ sfx_new/core/src/main/java/com/hollowknight/controller/GameController.java	2026-07-10 15:02:52.885138671 +0000
+@@ -8,6 +8,7 @@
+ import com.badlogic.gdx.math.MathUtils;
+ import com.badlogic.gdx.utils.Array;
+ import com.hollowknight.HollowKnightGame;
++import com.hollowknight.audio.GameSfxPlayer;
+ import com.hollowknight.model.GameSettings;
+ import com.hollowknight.model.combat.PlayerCombat;
+ import com.hollowknight.model.combat.SpikeHazard;
+@@ -225,6 +226,7 @@
+     private final Rectangle shadeSoulEndBounds;
+     private final Rectangle voidAbyssShriekBounds;
+     private final KeyBindings keyBindings;
++    private final GameSfxPlayer gameSfxPlayer;
+ 
+     private final Sound[] zoteVoiceSounds;
+     private final Sound zoteBattleAttackSound;
+@@ -495,6 +497,8 @@
+             settings.getAttackKey()
+         );
+ 
++        gameSfxPlayer = new GameSfxPlayer(settings);
++
+         zoteVoiceSounds = new Sound[] {
+             Gdx.audio.newSound(
+                 Gdx.files.internal(
+@@ -1207,7 +1211,7 @@
+         endZoteDialogue();
+ 
+         combat.finishAttack();
+-        focus.cancel();
++        cancelFocus();
+ 
+         movement.respawnAt(
+             currentRoomSpawnX,
+@@ -1234,7 +1238,7 @@
+         noclipModeEnabled = !noclipModeEnabled;
+ 
+         combat.finishAttack();
+-        focus.cancel();
++        cancelFocus();
+         movement.respawnAt(
+             player.getPosition().x,
+             player.getPosition().y
+@@ -1446,7 +1450,7 @@
+                 + charmInventory.getNotchCapacity();
+ 
+         combat.finishAttack();
+-        focus.cancel();
++        cancelFocus();
+     }
+ 
+     private void closeCharmInventory() {
+@@ -1566,6 +1570,8 @@
+                 PlayerSoul.NAIL_HIT_GAIN
+             )
+         );
++
++        gameSfxPlayer.playSoulGain();
+     }
+ 
+     private float getDashCooldownUpdateDelta(
+@@ -2077,6 +2083,7 @@
+         ) {
+             shadeSoulHitHuskHornhead = true;
+             huskHornhead.takeDamage(damage);
++            gameSfxPlayer.playEnemyDamage();
+             if (!huskHornhead.isAlive()) {
+                 registerEnemyKill(
+                     EnemyKillType.HUSK_HORNHEAD
+@@ -2094,6 +2101,7 @@
+         ) {
+             shadeSoulHitCrawlid = true;
+             crawlid.takeDamage(damage);
++            gameSfxPlayer.playEnemyDamage();
+             if (!crawlid.isAlive()) {
+                 registerEnemyKill(
+                     EnemyKillType.CRAWLID
+@@ -2111,6 +2119,7 @@
+         ) {
+             shadeSoulHitCrystalGuardian = true;
+             crystalGuardian.takeDamage(damage);
++            gameSfxPlayer.playEnemyDamage();
+             if (!crystalGuardian.isAlive()) {
+                 registerEnemyKill(
+                     EnemyKillType.CRYSTAL_GUARDIAN
+@@ -2128,6 +2137,7 @@
+         ) {
+             shadeSoulHitWingedSentry = true;
+             wingedSentry.takeDamage(damage);
++            gameSfxPlayer.playEnemyDamage();
+             if (!wingedSentry.isAlive()) {
+                 registerEnemyKill(
+                     EnemyKillType.WINGED_SENTRY
+@@ -2159,6 +2169,7 @@
+         ) {
+             abyssShriekHitHuskHornhead = true;
+             huskHornhead.takeDamage(damage);
++            gameSfxPlayer.playEnemyDamage();
+             if (!huskHornhead.isAlive()) {
+                 registerEnemyKill(
+                     EnemyKillType.HUSK_HORNHEAD
+@@ -2176,6 +2187,7 @@
+         ) {
+             abyssShriekHitCrawlid = true;
+             crawlid.takeDamage(damage);
++            gameSfxPlayer.playEnemyDamage();
+             if (!crawlid.isAlive()) {
+                 registerEnemyKill(
+                     EnemyKillType.CRAWLID
+@@ -2193,6 +2205,7 @@
+         ) {
+             abyssShriekHitCrystalGuardian = true;
+             crystalGuardian.takeDamage(damage);
++            gameSfxPlayer.playEnemyDamage();
+             if (!crystalGuardian.isAlive()) {
+                 registerEnemyKill(
+                     EnemyKillType.CRYSTAL_GUARDIAN
+@@ -2210,6 +2223,7 @@
+         ) {
+             abyssShriekHitWingedSentry = true;
+             wingedSentry.takeDamage(damage);
++            gameSfxPlayer.playEnemyDamage();
+             if (!wingedSentry.isAlive()) {
+                 registerEnemyKill(
+                     EnemyKillType.WINGED_SENTRY
+@@ -2299,6 +2313,8 @@
+                 == PlayerFocus
+                 .UpdateResult.CANCELLED
+         ) {
++            gameSfxPlayer.stopFocusCharging();
++
+             if (
+                 player.getAnimationType()
+                     == PlayerAnimationType.FOCUS
+@@ -2319,12 +2335,24 @@
+                 == PlayerFocus
+                 .UpdateResult.HEALED
+         ) {
++            gameSfxPlayer.playFocusHeal();
++
+             player.setAnimation(
+                 PlayerAnimationType.FOCUS_GET
+             );
+         }
+     }
+ 
++    private void cancelFocus() {
++        boolean wasActive = focus.isActive();
++
++        focus.cancel();
++
++        if (wasActive) {
++            gameSfxPlayer.stopFocusCharging();
++        }
++    }
++
+     private void finishGameplayFrame(
+         float delta,
+         float knightDrawWidth,
+@@ -2613,7 +2641,7 @@
+         endZoteDialogue();
+ 
+         combat.finishAttack();
+-        focus.cancel();
++        cancelFocus();
+ 
+         movement.respawnAt(
+             spawn.x,
+@@ -2671,13 +2699,15 @@
+             );
+ 
+         if (result != PlayerHealth.DamageResult.IGNORED) {
++            gameSfxPlayer.playPlayerDamage();
++
+             requestGameplayCameraShake(
+                 CAMERA_SHAKE_PLAYER_DAMAGE
+             );
+         }
+ 
+         combat.finishAttack();
+-        focus.cancel();
++        cancelFocus();
+ 
+         if (
+             result
+@@ -2775,6 +2805,8 @@
+             )
+         );
+ 
++        gameSfxPlayer.playEnemyDamage();
++
+         if (!huskHornhead.isAlive()) {
+             registerEnemyKill(
+                 EnemyKillType.HUSK_HORNHEAD
+@@ -2799,6 +2831,8 @@
+             )
+         );
+ 
++        gameSfxPlayer.playEnemyDamage();
++
+         if (!crawlid.isAlive()) {
+             registerEnemyKill(
+                 EnemyKillType.CRAWLID
+@@ -2823,6 +2857,8 @@
+             )
+         );
+ 
++        gameSfxPlayer.playEnemyDamage();
++
+         if (!crystalGuardian.isAlive()) {
+             registerEnemyKill(
+                 EnemyKillType.CRYSTAL_GUARDIAN
+@@ -2847,6 +2883,8 @@
+             )
+         );
+ 
++        gameSfxPlayer.playEnemyDamage();
++
+         if (!wingedSentry.isAlive()) {
+             registerEnemyKill(
+                 EnemyKillType.WINGED_SENTRY
+@@ -2914,6 +2952,8 @@
+             );
+ 
+         if (result != PlayerHealth.DamageResult.IGNORED) {
++            gameSfxPlayer.playPlayerDamage();
++
+             requestGameplayCameraShake(
+                 CAMERA_SHAKE_PLAYER_DAMAGE
+             );
+@@ -2928,7 +2968,7 @@
+         }
+ 
+         combat.finishAttack();
+-        focus.cancel();
++        cancelFocus();
+ 
+         if (
+             result
+@@ -3161,6 +3201,8 @@
+             health.takeDamage(damage);
+ 
+         if (result != PlayerHealth.DamageResult.IGNORED) {
++            gameSfxPlayer.playPlayerDamage();
++
+             requestGameplayCameraShake(
+                 CAMERA_SHAKE_PLAYER_DAMAGE
+             );
+@@ -3175,7 +3217,7 @@
+         }
+ 
+         combat.finishAttack();
+-        focus.cancel();
++        cancelFocus();
+ 
+         if (
+             result
+@@ -3346,7 +3388,7 @@
+             currentInput.isRevivePressed()
+         ) {
+             combat.finishAttack();
+-            focus.cancel();
++            cancelFocus();
+             movement.resetPlayer();
+         }
+ 
+@@ -3466,7 +3508,7 @@
+     private void handleActionInput() {
+         if (currentInput.isDeathPressed()) {
+             combat.finishAttack();
+-            focus.cancel();
++            cancelFocus();
+ 
+             player.setDead(true);
+ 
+@@ -3511,6 +3553,7 @@
+             currentInput.isSoulGainPressed()
+         ) {
+             soul.gainFromNailHit();
++            gameSfxPlayer.playSoulGain();
+ 
+             player.setAnimation(
+                 PlayerAnimationType.FOCUS_GET
+@@ -3549,6 +3592,8 @@
+                 );
+ 
+             if (started) {
++                gameSfxPlayer.playFocusStart();
++
+                 player.setAnimation(
+                     PlayerAnimationType.FOCUS_START
+                 );
+@@ -3557,10 +3602,14 @@
+             return;
+         }
+ 
+-        combat.tryStartAttack(
+-            currentInput,
+-            player
+-        );
++        if (
++            combat.tryStartAttack(
++                currentInput,
++                player
++            )
++        ) {
++            gameSfxPlayer.playNailSlash();
++        }
+     }
+ 
+     private void resolveCombatHits() {
+@@ -3868,6 +3917,8 @@
+             getNailDamage()
+         );
+ 
++        gameSfxPlayer.playEnemyDamage();
++
+         gainSoulFromNailHit();
+ 
+         if (
+@@ -4248,7 +4299,7 @@
+         );
+ 
+         combat.finishAttack();
+-        focus.cancel();
++        cancelFocus();
+     }
+ 
+     private void applySavedCharms(
+@@ -4637,6 +4688,8 @@
+             falseKnightRollSound.dispose();
+         }
+ 
++        gameSfxPlayer.dispose();
++
+         world.dispose();
+     }
+ 

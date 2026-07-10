@@ -469,45 +469,96 @@ public final class MenuThemeSkin implements Disposable {
             return;
         }
 
-        cursorLoaded = true;
+        FileHandle cursorFile = findCursorFile();
 
-        FileHandle cursorFile = Gdx.files.internal(
-            BASE_PATH + "common/cursor.png"
-        );
-
-        if (!cursorFile.exists()) {
+        if (cursorFile == null) {
             return;
         }
 
+        Pixmap sourcePixmap = null;
         Pixmap cursorPixmap = null;
 
         try {
-            cursorPixmap = new Pixmap(cursorFile);
-
-            int hotspotX = Math.min(
-                8,
-                Math.max(0, cursorPixmap.getWidth() / 6)
-            );
-
-            int hotspotY = Math.min(
-                8,
-                Math.max(0, cursorPixmap.getHeight() / 6)
-            );
+            sourcePixmap = new Pixmap(cursorFile);
+            cursorPixmap = makeCursorPixmap(sourcePixmap);
 
             sharedCursor = Gdx.graphics.newCursor(
                 cursorPixmap,
-                hotspotX,
-                hotspotY
+                2,
+                0
             );
 
+            cursorLoaded = true;
             Gdx.graphics.setCursor(sharedCursor);
         } catch (GdxRuntimeException exception) {
             sharedCursor = null;
+            cursorLoaded = false;
+            Gdx.app.error(
+                "MenuThemeSkin",
+                "Could not load custom menu cursor from "
+                    + cursorFile.path(),
+                exception
+            );
         } finally {
             if (cursorPixmap != null) {
                 cursorPixmap.dispose();
             }
+
+            if (sourcePixmap != null) {
+                sourcePixmap.dispose();
+            }
         }
+    }
+
+    private static FileHandle findCursorFile() {
+        String[] candidates = {
+            BASE_PATH + "common/cursor_runtime.png",
+            BASE_PATH + "common/cursor.png",
+            BASE_PATH + "common/Cursor.png",
+            "ui/menu/Cursor.png",
+            "ui/Cursor.png",
+            "Cursor.png"
+        };
+
+        for (String candidate : candidates) {
+            FileHandle file = Gdx.files.internal(candidate);
+
+            if (file.exists()) {
+                return file;
+            }
+        }
+
+        return null;
+    }
+
+    private static Pixmap makeCursorPixmap(
+        Pixmap sourcePixmap
+    ) {
+        final int cursorCanvasSize = 64;
+        final int cursorVisibleSize = 24;
+
+        Pixmap cursorPixmap = new Pixmap(
+            cursorCanvasSize,
+            cursorCanvasSize,
+            Pixmap.Format.RGBA8888
+        );
+
+        cursorPixmap.setColor(0f, 0f, 0f, 0f);
+        cursorPixmap.fill();
+        cursorPixmap.setBlending(Pixmap.Blending.SourceOver);
+        cursorPixmap.drawPixmap(
+            sourcePixmap,
+            0,
+            0,
+            sourcePixmap.getWidth(),
+            sourcePixmap.getHeight(),
+            0,
+            0,
+            cursorVisibleSize,
+            cursorVisibleSize
+        );
+
+        return cursorPixmap;
     }
 
     private Texture load(String path) {
