@@ -19,6 +19,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.hollowknight.controller.SettingsController;
+import com.hollowknight.model.GameSettings;
 import com.hollowknight.view.theme.MenuThemeSkin;
 
 import java.util.EnumMap;
@@ -274,8 +275,8 @@ public class SettingsScreen extends ScreenAdapter {
             .left();
 
         brightnessSlider = new Slider(
-            0.3f,
-            1f,
+            GameSettings.MIN_BRIGHTNESS,
+            GameSettings.MAX_BRIGHTNESS,
             0.05f,
             false,
             skin

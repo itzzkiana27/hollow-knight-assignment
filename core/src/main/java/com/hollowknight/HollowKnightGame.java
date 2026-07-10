@@ -3,6 +3,9 @@ package com.hollowknight;
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Matrix4;
 import com.hollowknight.controller.AchievementsController;
 import com.hollowknight.controller.GuideController;
 import com.hollowknight.controller.EndGameController;
@@ -24,6 +27,8 @@ public class HollowKnightGame extends Game {
     private LocalizationManager localization;
     private AchievementManager achievementManager;
     private GameMusicPlayer musicPlayer;
+    private ShapeRenderer brightnessRenderer;
+    private Matrix4 brightnessProjection;
     private int activeSaveSlot;
     private GameController suspendedGameController;
 
@@ -41,6 +46,9 @@ public class HollowKnightGame extends Game {
         musicPlayer = new GameMusicPlayer(
             settings
         );
+
+        brightnessRenderer = new ShapeRenderer();
+        brightnessProjection = new Matrix4();
 
         activeSaveSlot =
             SaveManager.DEFAULT_SLOT;
@@ -234,11 +242,66 @@ public class HollowKnightGame extends Game {
     public void render() {
         super.render();
 
+        drawBrightnessOverlay();
+
         if (musicPlayer != null) {
             musicPlayer.update(
                 Gdx.graphics.getDeltaTime()
             );
         }
+    }
+
+    private void drawBrightnessOverlay() {
+        if (
+            settings == null
+                || brightnessRenderer == null
+        ) {
+            return;
+        }
+
+        float darkness = 1f - settings.getBrightness();
+
+        if (darkness <= 0f) {
+            return;
+        }
+
+        int width = Gdx.graphics.getWidth();
+        int height = Gdx.graphics.getHeight();
+
+        brightnessProjection.setToOrtho2D(
+            0f,
+            0f,
+            width,
+            height
+        );
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(
+            GL20.GL_SRC_ALPHA,
+            GL20.GL_ONE_MINUS_SRC_ALPHA
+        );
+
+        brightnessRenderer.setProjectionMatrix(
+            brightnessProjection
+        );
+        brightnessRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+        brightnessRenderer.setColor(
+            0f,
+            0f,
+            0f,
+            darkness
+        );
+        brightnessRenderer.rect(
+            0f,
+            0f,
+            width,
+            height
+        );
+        brightnessRenderer.end();
+
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     @Override
@@ -256,6 +319,10 @@ public class HollowKnightGame extends Game {
 
         if (musicPlayer != null) {
             musicPlayer.dispose();
+        }
+
+        if (brightnessRenderer != null) {
+            brightnessRenderer.dispose();
         }
     }
     public void showGameScreen() {

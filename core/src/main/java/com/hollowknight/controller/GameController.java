@@ -187,6 +187,7 @@ public class GameController {
     private Rectangle currentRoomBounds;
     private float currentRoomSpawnX;
     private float currentRoomSpawnY;
+    private boolean roomTransitionBlockedUntilExit;
 
     private final Player player;
     private final PlayerBody playerBody;
@@ -378,6 +379,7 @@ public class GameController {
         );
         currentRoomSpawnX = spawnX;
         currentRoomSpawnY = spawnY;
+        roomTransitionBlockedUntilExit = false;
 
         crackedWall = world.getCrackedWall();
 
@@ -2672,6 +2674,14 @@ public class GameController {
         float knightDrawWidth,
         float knightDrawHeight
     ) {
+        if (roomTransitionBlockedUntilExit) {
+            if (isOverlappingCurrentRoomTransition()) {
+                return false;
+            }
+
+            roomTransitionBlockedUntilExit = false;
+        }
+
         for (
             TiledWorld.RoomTransition transition
             : world.getRoomTransitions()
@@ -2702,6 +2712,28 @@ public class GameController {
             );
 
             return true;
+        }
+
+        return false;
+    }
+
+    private boolean isOverlappingCurrentRoomTransition() {
+        for (
+            TiledWorld.RoomTransition transition
+            : world.getRoomTransitions()
+        ) {
+            if (
+                currentRoomId.equals(
+                    transition.getFromRoom()
+                )
+                    && playerBody
+                    .getBounds()
+                    .overlaps(
+                        transition.getBounds()
+                    )
+            ) {
+                return true;
+            }
         }
 
         return false;
@@ -2761,6 +2793,8 @@ public class GameController {
             knightDrawWidth,
             knightDrawHeight
         );
+
+        roomTransitionBlockedUntilExit = true;
     }
 
     private boolean handleSpikeContact(
@@ -3371,6 +3405,26 @@ public class GameController {
 
         health.restoreFullHealth();
 
+        currentRoomId = "forgotten_crossroads";
+        currentRoomSpawnX = spawnX;
+        currentRoomSpawnY = spawnY;
+
+        configureCurrentRoomPhysics();
+
+        spikeHazards =
+            world.getSpikeHazardsForRoom(
+                currentRoomId
+            );
+
+        spawnEnemiesForCurrentRoom();
+        spawnZoteForCurrentRoom();
+        spawnFalseKnightForCurrentRoom();
+        endZoteDialogue();
+        updateBackgroundMusic();
+
+        combat.finishAttack();
+        cancelFocus();
+
         checkpoint.save(
             currentRoomSpawnX,
             currentRoomSpawnY
@@ -3380,6 +3434,8 @@ public class GameController {
             currentRoomSpawnX,
             currentRoomSpawnY
         );
+
+        roomTransitionBlockedUntilExit = false;
 
         player.setAnimation(
             PlayerAnimationType.IDLE_HURT

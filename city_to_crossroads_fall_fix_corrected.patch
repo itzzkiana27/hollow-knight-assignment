@@ -1,0 +1,12 @@
+diff --git a/assets/maps/world.tmx b/assets/maps/world.tmx
+--- a/assets/maps/world.tmx
++++ b/assets/maps/world.tmx
+@@ -8264,7 +8264,7 @@
+     <property name="spawnId" value="crossroads_start"/>
+    </properties>
+   </object>
+-  <object id="89" name="crossroads_return_from_city" type="PlayerSpawn" x="3760" y="1370.52" width="32" height="64">
++  <object id="89" name="crossroads_return_from_city" type="PlayerSpawn" x="3600" y="1377.386" width="32" height="64">
+    <properties>
+     <property name="roomId" value="forgotten_crossroads"/>
+     <property name="spawnId" value="crossroads_return_from_city"/>

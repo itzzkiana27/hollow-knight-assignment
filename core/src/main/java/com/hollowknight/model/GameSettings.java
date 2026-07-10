@@ -15,6 +15,19 @@ public class GameSettings {
 
     private static final int CURRENT_CONTROLS_VERSION = 2;
 
+    private static final String SLIDER_DEFAULTS_VERSION_KEY =
+        "sliderDefaultsVersion";
+
+    private static final int CURRENT_SLIDER_DEFAULTS_VERSION = 1;
+
+    private static final float DEFAULT_MUSIC_VOLUME = 0.5f;
+    private static final float DEFAULT_SOUND_EFFECTS_VOLUME = 0.5f;
+
+    public static final float MIN_BRIGHTNESS = 0.3f;
+    public static final float MAX_BRIGHTNESS = 1f;
+    public static final float DEFAULT_BRIGHTNESS =
+        (MIN_BRIGHTNESS + MAX_BRIGHTNESS) / 2f;
+
     private final Preferences preferences;
 
     private boolean musicEnabled;
@@ -47,13 +60,22 @@ public class GameSettings {
             preferences.getBoolean("soundEffectsEnabled", true);
 
         musicVolume =
-            preferences.getFloat("musicVolume", 0.8f);
+            preferences.getFloat(
+                "musicVolume",
+                DEFAULT_MUSIC_VOLUME
+            );
 
         soundEffectsVolume =
-            preferences.getFloat("soundEffectsVolume", 0.8f);
+            preferences.getFloat(
+                "soundEffectsVolume",
+                DEFAULT_SOUND_EFFECTS_VOLUME
+            );
 
         brightness =
-            preferences.getFloat("brightness", 1f);
+            preferences.getFloat(
+                "brightness",
+                DEFAULT_BRIGHTNESS
+            );
 
         musicStyle =
             preferences.getString("musicStyle", "Original");
@@ -102,6 +124,62 @@ public class GameSettings {
                 KeyBindings.DEFAULT_ATTACK
             );
         }
+
+        migrateLegacySliderDefaults();
+    }
+
+    private void migrateLegacySliderDefaults() {
+        int defaultsVersion = preferences.getInteger(
+            SLIDER_DEFAULTS_VERSION_KEY,
+            0
+        );
+
+        if (
+            defaultsVersion
+                >= CURRENT_SLIDER_DEFAULTS_VERSION
+        ) {
+            return;
+        }
+
+        /*
+         * Preserve values the player deliberately changed, but move the
+         * old 80%, 80%, 100% defaults to the new centered positions.
+         */
+        if (
+            !preferences.contains("musicVolume")
+                || isApproximately(musicVolume, 0.8f)
+        ) {
+            musicVolume = DEFAULT_MUSIC_VOLUME;
+        }
+
+        if (
+            !preferences.contains("soundEffectsVolume")
+                || isApproximately(soundEffectsVolume, 0.8f)
+        ) {
+            soundEffectsVolume =
+                DEFAULT_SOUND_EFFECTS_VOLUME;
+        }
+
+        if (
+            !preferences.contains("brightness")
+                || isApproximately(brightness, 1f)
+        ) {
+            brightness = DEFAULT_BRIGHTNESS;
+        }
+
+        preferences.putInteger(
+            SLIDER_DEFAULTS_VERSION_KEY,
+            CURRENT_SLIDER_DEFAULTS_VERSION
+        );
+
+        save();
+    }
+
+    private boolean isApproximately(
+        float first,
+        float second
+    ) {
+        return Math.abs(first - second) < 0.0001f;
     }
 
     public void save() {
@@ -195,8 +273,9 @@ public class GameSettings {
         musicEnabled = true;
         soundEffectsEnabled = true;
 
-        musicVolume = 0.8f;
-        soundEffectsVolume = 0.8f;
+        musicVolume = DEFAULT_MUSIC_VOLUME;
+        soundEffectsVolume =
+            DEFAULT_SOUND_EFFECTS_VOLUME;
 
         musicStyle = "Original";
 
@@ -247,7 +326,11 @@ public class GameSettings {
 
     public void setBrightness(float brightness) {
         this.brightness =
-            MathUtils.clamp(brightness, 0.3f, 1f);
+            MathUtils.clamp(
+                brightness,
+                MIN_BRIGHTNESS,
+                MAX_BRIGHTNESS
+            );
     }
 
     public String getMusicStyle() {
@@ -281,10 +364,11 @@ public class GameSettings {
         musicEnabled = true;
         soundEffectsEnabled = true;
 
-        musicVolume = 0.8f;
-        soundEffectsVolume = 0.8f;
+        musicVolume = DEFAULT_MUSIC_VOLUME;
+        soundEffectsVolume =
+            DEFAULT_SOUND_EFFECTS_VOLUME;
 
-        brightness = 1f;
+        brightness = DEFAULT_BRIGHTNESS;
         musicStyle = "Original";
         language = "en";
         menuTheme = "voidheart";
