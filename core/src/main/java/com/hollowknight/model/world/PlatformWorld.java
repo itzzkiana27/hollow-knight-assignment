@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.Array;
 import com.hollowknight.model.input.PlayerInput;
 import com.hollowknight.model.player.Player;
 import com.hollowknight.model.player.PlayerBody;
+import com.hollowknight.model.player.PlayerMovementState;
 
 public final class PlatformWorld {
 
@@ -18,26 +19,59 @@ public final class PlatformWorld {
     private static final float COLLISION_TOLERANCE = 3f;
 
     /*
-     * Ignore tiny top/bottom corner contacts while resolving sideways
-     * movement. Without this inset, brushing a platform corner by one
-     * pixel can be treated as a full wall and make the Knight stick.
+     * Treat the Knight's side profile like a softly bevelled capsule rather
+     * than a perfectly square box. Small contacts at the feet or head slide
+     * past platform corners instead of stopping horizontal movement.
      */
-    private static final float HORIZONTAL_CORNER_INSET = 6f;
+    private static final float SIDE_COLLISION_BOTTOM_INSET = 15f;
+    private static final float SIDE_COLLISION_TOP_INSET = 9f;
 
     /*
-     * Likewise, require a useful amount of horizontal overlap before
-     * a platform can catch the Knight vertically. This keeps jump arcs
-     * smooth when only the edge of the body grazes a platform.
+     * A landing or ceiling hit needs more than a one-pixel horizontal
+     * graze. This prevents edge touches from stealing the jump arc.
      */
-    private static final float VERTICAL_CORNER_INSET = 3f;
+    private static final float MIN_VERTICAL_BLOCK_OVERLAP = 4f;
 
-    private static final float GROUND_SUPPORT_DISTANCE = 4f;
+    /*
+     * Small map seams and shallow lips should be walked over instead of
+     * behaving like full-height walls.
+     */
+    private static final float MAX_STEP_HEIGHT = 14f;
+
+    /*
+     * Keep a grounded Knight attached across tiny downward seams, while
+     * still allowing real platform edges to be walked off normally.
+     */
+    private static final float GROUND_SNAP_DISTANCE = 10f;
+
+    /*
+     * A tiny horizontal extension bridges narrow seams between neighbouring
+     * collision rectangles. On a real ledge it only adds a few pixels of
+     * forgiveness, so the Knight still leaves the platform naturally.
+     */
+    private static final float GROUND_EDGE_GRACE = 4f;
+
+    /*
+     * Small downward floor changes are followed over two or three frames
+     * instead of producing a visible one-frame drop. Upward corrections stay
+     * immediate so the physical body never enters a platform.
+     */
+    private static final float GROUND_FOLLOW_SPEED = 180f;
+
+    /*
+     * When the Knight clips the very corner of a ceiling, shift sideways
+     * by a few pixels rather than cancelling all upward momentum.
+     */
+    private static final float CEILING_CORNER_CORRECTION = 10f;
+
+    private static final float COLLISION_SKIN = 0.25f;
 
     private final Array<Platform> platforms;
 
     private final Rectangle groundProbe;
     private final Rectangle leftWallProbe;
     private final Rectangle rightWallProbe;
+    private final Rectangle candidateBody;
 
     private float worldMinX;
     private float worldMaxX;
@@ -49,6 +83,7 @@ public final class PlatformWorld {
         groundProbe = new Rectangle();
         leftWallProbe = new Rectangle();
         rightWallProbe = new Rectangle();
+        candidateBody = new Rectangle();
 
         worldMinX = 0f;
         worldMaxX = 0f;
@@ -129,17 +164,47 @@ public final class PlatformWorld {
         float previousBodyRight =
             previousBodyLeft + body.width;
 
+        /*
+         * First try to walk onto a tiny lip. This is deliberately limited
+         * to a few pixels, so normal walls and tall ledges still block.
+         */
+        if (
+            canUseStepCorrection(
+                player,
+                body
+            )
+                && tryStepUp(
+                    player,
+                    playerBody,
+                    previousBodyLeft,
+                    previousBodyRight,
+                    direction,
+                    drawWidth,
+                    drawHeight
+                )
+        ) {
+            body = playerBody.getBounds();
+        }
+
         float currentBodyLeft = body.x;
         float currentBodyRight =
             body.x + body.width;
 
-        float collisionBottom =
-            body.y + HORIZONTAL_CORNER_INSET;
+        float bottomInset = Math.min(
+            SIDE_COLLISION_BOTTOM_INSET,
+            body.height * 0.28f
+        );
 
-        float collisionTop =
-            body.y
-                + body.height
-                - HORIZONTAL_CORNER_INSET;
+        float topInset = Math.min(
+            SIDE_COLLISION_TOP_INSET,
+            body.height * 0.20f
+        );
+
+        float sideProfileBottom =
+            body.y + bottomInset;
+
+        float sideProfileTop =
+            body.y + body.height - topInset;
 
         Rectangle blockingBounds = null;
 
@@ -152,15 +217,16 @@ public final class PlatformWorld {
             Rectangle platformBounds =
                 platform.getBounds();
 
-            if (
-                !rangesOverlap(
-                    collisionBottom,
-                    collisionTop,
+            float verticalOverlap =
+                overlapAmount(
+                    sideProfileBottom,
+                    sideProfileTop,
                     platformBounds.y,
                     platformBounds.y
                         + platformBounds.height
-                )
-            ) {
+                );
+
+            if (verticalOverlap <= COLLISION_SKIN) {
                 continue;
             }
 
@@ -249,8 +315,8 @@ public final class PlatformWorld {
         );
 
         /*
-         * Prevent rare cases where invalid map geometry
-         * would move the Knight across the whole room.
+         * Prevent invalid map geometry from moving the Knight across an
+         * entire room during one collision correction.
          */
         if (
             Math.abs(
@@ -288,18 +354,6 @@ public final class PlatformWorld {
         float bodyOffsetY =
             body.y - player.getPosition().y;
 
-        float collisionLeft =
-            body.x + VERTICAL_CORNER_INSET;
-
-        float collisionRight =
-            body.x
-                + body.width
-                - VERTICAL_CORNER_INSET;
-
-        float currentBottom = body.y;
-        float currentTop =
-            body.y + body.height;
-
         if (verticalVelocity <= 0f) {
             float highestSurface =
                 Float.NEGATIVE_INFINITY;
@@ -308,14 +362,18 @@ public final class PlatformWorld {
                 Rectangle platformBounds =
                     platform.getBounds();
 
-                if (
-                    !rangesOverlap(
-                        collisionLeft,
-                        collisionRight,
+                float horizontalOverlap =
+                    overlapAmount(
+                        body.x,
+                        body.x + body.width,
                         platformBounds.x,
                         platformBounds.x
                             + platformBounds.width
-                    )
+                    );
+
+                if (
+                    horizontalOverlap
+                        < MIN_VERTICAL_BLOCK_OVERLAP
                 ) {
                     continue;
                 }
@@ -328,7 +386,7 @@ public final class PlatformWorld {
                     previousBottom
                         >= platformTop
                         - COLLISION_TOLERANCE
-                        && currentBottom
+                        && body.y
                         <= platformTop
                         + COLLISION_TOLERANCE;
 
@@ -358,50 +416,81 @@ public final class PlatformWorld {
                 return VerticalCollision.LANDED;
             }
         } else {
-            float lowestCeiling =
-                Float.POSITIVE_INFINITY;
+            for (int attempt = 0; attempt < 2; attempt++) {
+                body = playerBody.getBounds();
 
-            for (Platform platform : platforms) {
-                Rectangle platformBounds =
-                    platform.getBounds();
+                Rectangle ceilingBounds = null;
+                float lowestCeiling =
+                    Float.POSITIVE_INFINITY;
+
+                for (Platform platform : platforms) {
+                    Rectangle platformBounds =
+                        platform.getBounds();
+
+                    float horizontalOverlap =
+                        overlapAmount(
+                            body.x,
+                            body.x + body.width,
+                            platformBounds.x,
+                            platformBounds.x
+                                + platformBounds.width
+                        );
+
+                    if (
+                        horizontalOverlap
+                            < MIN_VERTICAL_BLOCK_OVERLAP
+                    ) {
+                        continue;
+                    }
+
+                    float platformBottom =
+                        platformBounds.y;
+
+                    boolean crossedSurface =
+                        previousTop
+                            <= platformBottom
+                            + COLLISION_TOLERANCE
+                            && body.y + body.height
+                            >= platformBottom
+                            - COLLISION_TOLERANCE;
+
+                    if (
+                        crossedSurface
+                            && platformBottom
+                            < lowestCeiling
+                    ) {
+                        lowestCeiling =
+                            platformBottom;
+                        ceilingBounds =
+                            platformBounds;
+                    }
+                }
+
+                if (ceilingBounds == null) {
+                    return VerticalCollision.NONE;
+                }
 
                 if (
-                    !rangesOverlap(
-                        collisionLeft,
-                        collisionRight,
-                        platformBounds.x,
-                        platformBounds.x
-                            + platformBounds.width
-                    )
+                    attempt == 0
+                        && tryCeilingCornerCorrection(
+                            player,
+                            playerBody,
+                            ceilingBounds,
+                            drawWidth,
+                            drawHeight
+                        )
                 ) {
+                    /*
+                     * The body moved sideways out from under the corner.
+                     * Recheck once in case another ceiling is adjacent.
+                     */
                     continue;
                 }
 
-                float platformBottom =
-                    platformBounds.y;
+                body = playerBody.getBounds();
+                bodyOffsetY =
+                    body.y - player.getPosition().y;
 
-                boolean crossedSurface =
-                    previousTop
-                        <= platformBottom
-                        + COLLISION_TOLERANCE
-                        && currentTop
-                        >= platformBottom
-                        - COLLISION_TOLERANCE;
-
-                if (
-                    crossedSurface
-                        && platformBottom
-                        < lowestCeiling
-                ) {
-                    lowestCeiling =
-                        platformBottom;
-                }
-            }
-
-            if (
-                lowestCeiling
-                    != Float.POSITIVE_INFINITY
-            ) {
                 player.getPosition().y =
                     lowestCeiling
                         - body.height
@@ -423,49 +512,74 @@ public final class PlatformWorld {
     public boolean hasGroundSupport(
         Rectangle body
     ) {
-        float supportLeft =
-            body.x + VERTICAL_CORNER_INSET;
+        return findGroundSurface(
+            body,
+            GROUND_SNAP_DISTANCE
+        ) != Float.NEGATIVE_INFINITY;
+    }
 
-        float supportRight =
-            body.x
-                + body.width
-                - VERTICAL_CORNER_INSET;
+    /**
+     * Keeps an already-grounded Knight attached across tiny platform seams
+     * and shallow downward steps. Real ledges remain unaffected because the
+     * search distance is intentionally small.
+     */
+    public boolean snapToGround(
+        Player player,
+        PlayerBody playerBody,
+        float delta,
+        float drawWidth,
+        float drawHeight
+    ) {
+        Rectangle body =
+            playerBody.getBounds();
 
-        float bodyBottom = body.y;
+        float surface =
+            findGroundSurface(
+                body,
+                GROUND_SNAP_DISTANCE
+            );
 
-        for (Platform platform : platforms) {
-            Rectangle platformBounds =
-                platform.getBounds();
+        if (
+            surface
+                == Float.NEGATIVE_INFINITY
+        ) {
+            return false;
+        }
 
-            if (
-                !rangesOverlap(
-                    supportLeft,
-                    supportRight,
-                    platformBounds.x,
-                    platformBounds.x
-                        + platformBounds.width
-                )
-            ) {
-                continue;
-            }
+        float correction =
+            surface - body.y;
 
-            float platformTop =
-                platformBounds.y
-                    + platformBounds.height;
+        if (
+            Math.abs(correction)
+                > GROUND_SNAP_DISTANCE
+                    + COLLISION_TOLERANCE
+        ) {
+            return false;
+        }
 
-            if (
-                bodyBottom
-                    >= platformTop
-                    - COLLISION_TOLERANCE
-                    && bodyBottom
-                    <= platformTop
-                    + GROUND_SUPPORT_DISTANCE
-            ) {
-                return true;
+        if (correction < 0f) {
+            float maximumFollow =
+                GROUND_FOLLOW_SPEED
+                    * Math.max(0f, delta);
+
+            if (maximumFollow > 0f) {
+                correction = Math.max(
+                    correction,
+                    -maximumFollow
+                );
             }
         }
 
-        return false;
+        player.getPosition().y +=
+            correction;
+
+        playerBody.update(
+            player,
+            drawWidth,
+            drawHeight
+        );
+
+        return true;
     }
 
     public int getHeldWallSide(
@@ -683,11 +797,18 @@ public final class PlatformWorld {
             float solidRight =
                 solid.x + solid.width;
 
-            boolean horizontalOverlap =
-                bodyRight > solidLeft
-                    && bodyLeft < solidRight;
+            float horizontalOverlap =
+                overlapAmount(
+                    bodyLeft,
+                    bodyRight,
+                    solidLeft,
+                    solidRight
+                );
 
-            if (!horizontalOverlap) {
+            if (
+                horizontalOverlap
+                    < MIN_VERTICAL_BLOCK_OVERLAP
+            ) {
                 continue;
             }
 
@@ -720,14 +841,261 @@ public final class PlatformWorld {
         return highestSurface;
     }
 
-    private boolean rangesOverlap(
+    private boolean canUseStepCorrection(
+        Player player,
+        Rectangle body
+    ) {
+        PlayerMovementState state =
+            player.getMovementState();
+
+        if (
+            state == PlayerMovementState.GROUNDED
+                || state
+                == PlayerMovementState.FALLING
+        ) {
+            return true;
+        }
+
+        /*
+         * A ground dash may cross a tiny seam too, but an airborne dash
+         * should never gain height merely by touching a platform side.
+         */
+        return state
+            == PlayerMovementState.DASHING
+            && hasGroundSupport(body);
+    }
+
+    private boolean tryStepUp(
+        Player player,
+        PlayerBody playerBody,
+        float previousBodyLeft,
+        float previousBodyRight,
+        int direction,
+        float drawWidth,
+        float drawHeight
+    ) {
+        Rectangle body =
+            playerBody.getBounds();
+
+        Rectangle bestPlatform = null;
+        float bestCorrection =
+            Float.POSITIVE_INFINITY;
+
+        for (Platform platform : platforms) {
+            Rectangle solid =
+                platform.getBounds();
+
+            float solidTop =
+                solid.y + solid.height;
+
+            float correction =
+                solidTop - body.y;
+
+            if (
+                correction <= COLLISION_SKIN
+                    || correction
+                    > MAX_STEP_HEIGHT
+            ) {
+                continue;
+            }
+
+            boolean crossedSide;
+
+            if (direction > 0) {
+                crossedSide =
+                    previousBodyRight
+                        <= solid.x
+                        + COLLISION_TOLERANCE
+                        && body.x + body.width
+                        > solid.x;
+            } else {
+                float solidRight =
+                    solid.x + solid.width;
+
+                crossedSide =
+                    previousBodyLeft
+                        >= solidRight
+                        - COLLISION_TOLERANCE
+                        && body.x < solidRight;
+            }
+
+            if (!crossedSide) {
+                continue;
+            }
+
+            candidateBody.set(body);
+            candidateBody.y +=
+                correction + COLLISION_SKIN;
+
+            if (
+                candidateBody.x < worldMinX
+                    || candidateBody.x
+                        + candidateBody.width
+                        > worldMaxX
+                    || overlapsAnyPlatform(
+                        candidateBody
+                    )
+            ) {
+                continue;
+            }
+
+            if (correction < bestCorrection) {
+                bestCorrection = correction;
+                bestPlatform = solid;
+            }
+        }
+
+        if (bestPlatform == null) {
+            return false;
+        }
+
+        player.getPosition().y +=
+            bestCorrection
+                + COLLISION_SKIN;
+
+        playerBody.update(
+            player,
+            drawWidth,
+            drawHeight
+        );
+
+        return true;
+    }
+
+    private boolean tryCeilingCornerCorrection(
+        Player player,
+        PlayerBody playerBody,
+        Rectangle ceiling,
+        float drawWidth,
+        float drawHeight
+    ) {
+        Rectangle body =
+            playerBody.getBounds();
+
+        float leftCornerOverlap =
+            body.x + body.width
+                - ceiling.x;
+
+        float rightCornerOverlap =
+            ceiling.x + ceiling.width
+                - body.x;
+
+        float correction = 0f;
+
+        if (
+            leftCornerOverlap > 0f
+                && leftCornerOverlap
+                <= CEILING_CORNER_CORRECTION
+        ) {
+            correction =
+                -leftCornerOverlap
+                    - COLLISION_SKIN;
+        }
+
+        if (
+            rightCornerOverlap > 0f
+                && rightCornerOverlap
+                <= CEILING_CORNER_CORRECTION
+                && (
+                    correction == 0f
+                        || rightCornerOverlap
+                        < Math.abs(correction)
+                )
+        ) {
+            correction =
+                rightCornerOverlap
+                    + COLLISION_SKIN;
+        }
+
+        if (correction == 0f) {
+            return false;
+        }
+
+        candidateBody.set(body);
+        candidateBody.x += correction;
+
+        if (
+            candidateBody.x < worldMinX
+                || candidateBody.x
+                    + candidateBody.width
+                    > worldMaxX
+                || overlapsAnyPlatform(
+                    candidateBody
+                )
+        ) {
+            return false;
+        }
+
+        player.getPosition().x +=
+            correction;
+
+        playerBody.update(
+            player,
+            drawWidth,
+            drawHeight
+        );
+
+        return true;
+    }
+
+    private float findGroundSurface(
+        Rectangle body,
+        float maximumDistance
+    ) {
+        float highestSurface =
+            Float.NEGATIVE_INFINITY;
+
+        for (Platform platform : platforms) {
+            Rectangle solid =
+                platform.getBounds();
+
+            float horizontalOverlap =
+                overlapAmount(
+                    body.x - GROUND_EDGE_GRACE,
+                    body.x + body.width
+                        + GROUND_EDGE_GRACE,
+                    solid.x,
+                    solid.x + solid.width
+                );
+
+            if (
+                horizontalOverlap
+                    < MIN_VERTICAL_BLOCK_OVERLAP
+            ) {
+                continue;
+            }
+
+            float surface =
+                solid.y + solid.height;
+
+            float distance =
+                body.y - surface;
+
+            if (
+                distance
+                    >= -COLLISION_TOLERANCE
+                    && distance
+                    <= maximumDistance
+                    && surface > highestSurface
+            ) {
+                highestSurface = surface;
+            }
+        }
+
+        return highestSurface;
+    }
+
+    private float overlapAmount(
         float firstMin,
         float firstMax,
         float secondMin,
         float secondMax
     ) {
-        return firstMax > secondMin
-            && firstMin < secondMax;
+        return Math.max(
+            0f,
+            Math.min(firstMax, secondMax)
+                - Math.max(firstMin, secondMin)
+        );
     }
 
     private boolean overlapsAnyPlatform(

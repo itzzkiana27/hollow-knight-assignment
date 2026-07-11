@@ -19,6 +19,13 @@ public final class PlayerMovement {
 
     private static final float WALL_SLIDE_SPEED = -170f;
 
+    /*
+     * Lets a jump pressed just after walking off a platform still behave
+     * like a normal ground jump. This removes the harsh "missed the edge"
+     * feeling without changing the actual platform collision.
+     */
+    private static final float COYOTE_TIME = 0.10f;
+
     private static final float WALL_JUMP_VERTICAL_SPEED = 680f;
     private static final float WALL_JUMP_HORIZONTAL_SPEED = 340f;
     private static final float WALL_JUMP_PUSH_DURATION = 0.18f;
@@ -40,6 +47,7 @@ public final class PlayerMovement {
     private int jumpsUsed;
     private boolean onGround;
     private boolean airDashUsed;
+    private float coyoteTimeRemaining;
 
     private float dashTimeRemaining;
     private float dashCooldownRemaining;
@@ -89,6 +97,7 @@ public final class PlayerMovement {
         jumpCutAvailable = false;
         onGround = true;
         airDashUsed = false;
+        coyoteTimeRemaining = COYOTE_TIME;
 
         dashTimeRemaining = 0f;
         dashCooldownRemaining = 0f;
@@ -114,6 +123,7 @@ public final class PlayerMovement {
         jumpCutAvailable = false;
         onGround = true;
         airDashUsed = false;
+        coyoteTimeRemaining = 0f;
 
         dashTimeRemaining = 0f;
         wallJumpPushTimeRemaining = 0f;
@@ -280,8 +290,12 @@ public final class PlayerMovement {
             return true;
         }
 
-        if (onGround) {
+        if (
+            onGround
+                || coyoteTimeRemaining > 0f
+        ) {
             onGround = false;
+            coyoteTimeRemaining = 0f;
             jumpsUsed = 1;
             airDashUsed = false;
             jumpCutAvailable = true;
@@ -301,6 +315,7 @@ public final class PlayerMovement {
         }
 
         if (jumpsUsed < 2) {
+            coyoteTimeRemaining = 0f;
             jumpsUsed = 2;
             jumpCutAvailable = true;
 
@@ -369,6 +384,7 @@ public final class PlayerMovement {
         wallJumpPushTimeRemaining = 0f;
 
         onGround = false;
+        coyoteTimeRemaining = 0f;
         jumpCutAvailable = false;
 
         verticalVelocity =
@@ -455,6 +471,7 @@ public final class PlayerMovement {
         jumpCutAvailable = true;
 
         onGround = false;
+        coyoteTimeRemaining = 0f;
         jumpsUsed = 1;
 
         player.getPosition().x +=
@@ -578,9 +595,15 @@ public final class PlayerMovement {
         float drawHeight
     ) {
         if (onGround) {
+            coyoteTimeRemaining = COYOTE_TIME;
+
             if (
-                platformWorld.hasGroundSupport(
-                    playerBody.getBounds()
+                platformWorld.snapToGround(
+                    player,
+                    playerBody,
+                    delta,
+                    drawWidth,
+                    drawHeight
                 )
             ) {
                 verticalVelocity = 0f;
@@ -588,9 +611,15 @@ public final class PlayerMovement {
             }
 
             /*
-             * The Knight walked off a platform.
+             * The Knight walked off a platform. Keep a very short grace
+             * window so an edge jump still counts as the first jump.
              */
             onGround = false;
+        } else if (coyoteTimeRemaining > 0f) {
+            coyoteTimeRemaining = Math.max(
+                0f,
+                coyoteTimeRemaining - delta
+            );
         }
 
         verticalVelocity +=
@@ -645,6 +674,7 @@ public final class PlayerMovement {
             jumpsUsed = 0;
             onGround = true;
             airDashUsed = false;
+            coyoteTimeRemaining = COYOTE_TIME;
             jumpCutAvailable = false;
 
             wallJumpPushTimeRemaining = 0f;
@@ -835,6 +865,7 @@ public final class PlayerMovement {
 
     public void pogoBounce() {
         onGround = false;
+        coyoteTimeRemaining = 0f;
 
         verticalVelocity =
             JUMP_SPEED;
