@@ -44,11 +44,11 @@ public class GuideScreen extends ScreenAdapter {
         Table contentTable = new Table();
 
         contentTable.top();
-        contentTable.pad(34f);
+        contentTable.pad(30f);
         contentTable.defaults()
             .pad(7f)
-            .padLeft(18f)
-            .padRight(18f);
+            .padLeft(12f)
+            .padRight(12f);
         contentTable.setBackground(
             menuTheme.panelDrawable(0.60f)
         );
@@ -89,8 +89,8 @@ public class GuideScreen extends ScreenAdapter {
         rootTable.center();
 
         rootTable.add(scrollPane)
-            .width(Math.min(780f, Gdx.graphics.getWidth() * 0.86f))
-            .height(Math.min(690f, Gdx.graphics.getHeight() * 0.90f));
+            .width(Math.min(920f, Gdx.graphics.getWidth() * 0.92f))
+            .height(Math.min(700f, Gdx.graphics.getHeight() * 0.92f));
 
         stage.addActor(rootTable);
     }
@@ -307,7 +307,7 @@ public class GuideScreen extends ScreenAdapter {
 
         table.add(menuTheme.createMagicOrbIcon(18f))
             .size(18f)
-            .padLeft(18f)
+            .padLeft(8f)
             .padRight(10f);
 
         table.add(actionLabel)
@@ -338,7 +338,7 @@ public class GuideScreen extends ScreenAdapter {
 
         table.add(icon)
             .size(38f)
-            .padLeft(18f)
+            .padLeft(8f)
             .padRight(10f)
             .top();
 
@@ -356,7 +356,7 @@ public class GuideScreen extends ScreenAdapter {
     ) {
         table.add(menuTheme.createMagicOrbIcon(18f))
             .size(18f)
-            .padLeft(18f)
+            .padLeft(8f)
             .padRight(10f)
             .top();
 

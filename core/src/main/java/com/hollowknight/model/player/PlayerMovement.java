@@ -13,8 +13,12 @@ public final class PlayerMovement {
     private static final float JUMP_CUTOFF_MULTIPLIER = 0.40f;
     private static final float MAX_FALL_SPEED = -850f;
 
-    private static final float DASH_DURATION = 0.54f;
-    private static final float DASH_SPEED = 390f;
+    /*
+     * A shorter, faster dash keeps approximately the same base distance
+     * while making the movement feel immediate and responsive.
+     */
+    private static final float DASH_DURATION = 0.2f;
+    private static final float DASH_SPEED = 700f;
     private static final float DASH_COOLDOWN = 0.30f;
 
     private static final float WALL_SLIDE_SPEED = -170f;
@@ -153,6 +157,13 @@ public final class PlayerMovement {
     public void startDash(
         PlayerInput input
     ) {
+        startDash(input, 1f);
+    }
+
+    public void startDash(
+        PlayerInput input,
+        float dashLengthMultiplier
+    ) {
         int requestedDirection =
             input.getHorizontalDirection();
 
@@ -164,10 +175,17 @@ public final class PlayerMovement {
         }
 
         dashDirection = requestedDirection;
-        dashTimeRemaining = DASH_DURATION;
+
+        float safeLengthMultiplier = Math.max(
+            1f,
+            Math.min(1.5f, dashLengthMultiplier)
+        );
+
+        dashTimeRemaining =
+            DASH_DURATION * safeLengthMultiplier;
 
         dashCooldownRemaining =
-            DASH_DURATION + DASH_COOLDOWN;
+            dashTimeRemaining + DASH_COOLDOWN;
 
         if (!onGround) {
             airDashUsed = true;

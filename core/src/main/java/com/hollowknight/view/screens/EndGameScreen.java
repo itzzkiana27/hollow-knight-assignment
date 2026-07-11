@@ -79,7 +79,7 @@ public final class EndGameScreen extends ScreenAdapter {
             controller.text("end.title")
         );
 
-        title.setFontScale(1.75f);
+        title.setFontScale(2.20f);
         title.setAlignment(Align.center);
 
         panel.add(title)
@@ -147,7 +147,7 @@ public final class EndGameScreen extends ScreenAdapter {
             label + ": " + value
         );
 
-        stat.setFontScale(1.05f);
+        stat.setFontScale(1.12f);
         stat.setAlignment(Align.center);
 
         table.add(stat)
@@ -166,7 +166,7 @@ public final class EndGameScreen extends ScreenAdapter {
             text
         );
 
-        button.getLabel().setFontScale(1.05f);
+        button.getLabel().setFontScale(1.12f);
 
         button.addListener(
             new ChangeListener() {

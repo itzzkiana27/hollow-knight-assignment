@@ -2381,11 +2381,29 @@ public class GameController {
             hitVulnerableBody
         );
 
+        playFalseKnightDamageFeedback(
+            hitVulnerableBody
+        );
+
         if (wasAlive && !falseKnight.isAlive()) {
             registerFalseKnightDefeatedIfNeeded();
         }
 
         return true;
+    }
+
+    private void playFalseKnightDamageFeedback(
+        boolean hitVulnerableBody
+    ) {
+        gameSfxPlayer.playEnemyDamage();
+
+        if (hitVulnerableBody) {
+            if (falseKnightHeadDamageSound != null) {
+                falseKnightHeadDamageSound.play(0.75f);
+            }
+        } else if (falseKnightDamageArmourSound != null) {
+            falseKnightDamageArmourSound.play(0.65f);
+        }
     }
 
     private void updateActiveFocus(
@@ -3064,8 +3082,12 @@ public class GameController {
 
         falseKnight.takeDamage(
             charmEffects.getSharpShadowDamage(
-                combat.getDamage()
+                getNailDamage()
             ),
+            hitVulnerableBody
+        );
+
+        playFalseKnightDamageFeedback(
             hitVulnerableBody
         );
 
@@ -3274,8 +3296,13 @@ public class GameController {
             playerBody.getBounds();
 
         if (isSharpShadowDashActive()) {
+            /*
+             * Use the complete shadow trail instead of only the Knight body.
+             * This prevents a faster dash from skipping over the boss between
+             * frames and also lets the trail reach the exposed creature.
+             */
             applySharpShadowDamageToFalseKnight(
-                playerBounds
+                getSharpShadowDashVisualBounds()
             );
 
             return false;
@@ -3738,7 +3765,8 @@ public class GameController {
                 && movement.canStartDash()
         ) {
             movement.startDash(
-                currentInput
+                currentInput,
+                getDashLengthMultiplier()
             );
 
             resetSharpShadowDashHits();
@@ -4037,15 +4065,9 @@ public class GameController {
             applySuccessfulPogo();
         }
 
-        if (hitVulnerableBody) {
-            if (falseKnightHeadDamageSound != null) {
-                falseKnightHeadDamageSound.play(0.75f);
-            }
-        } else {
-            if (falseKnightDamageArmourSound != null) {
-                falseKnightDamageArmourSound.play(0.65f);
-            }
-        }
+        playFalseKnightDamageFeedback(
+            hitVulnerableBody
+        );
 
         return true;
     }

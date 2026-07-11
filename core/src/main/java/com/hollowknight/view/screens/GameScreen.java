@@ -39,6 +39,7 @@ import com.hollowknight.model.enemy.CrystalGuardian;
 import com.hollowknight.view.animation.CrystalGuardianAnimationManager;
 import com.hollowknight.view.effects.CrystalGuardianLaserRenderer;
 import com.hollowknight.view.effects.CrackedWallRenderer;
+import com.hollowknight.view.effects.CrossroadsDustEffect;
 import com.hollowknight.model.world.CrackedWall;
 import com.hollowknight.model.world.TiledWorld;
 import com.hollowknight.model.enemy.WingedSentry;
@@ -336,6 +337,7 @@ public class GameScreen extends ScreenAdapter {
     private CrackedWallRenderer crackedWallRenderer;
     private Texture hiddenRoomCoverTexture;
     private RainEffect rainEffect;
+    private CrossroadsDustEffect crossroadsDustEffect;
 
     private KnightAnimationManager knightAnimationManager;
     private HuskHornheadAnimationManager huskAnimationManager;
@@ -444,6 +446,7 @@ public class GameScreen extends ScreenAdapter {
         );
 
         rainEffect = new RainEffect();
+        crossroadsDustEffect = new CrossroadsDustEffect();
 
         knightAnimationManager = new KnightAnimationManager();
         huskAnimationManager = new HuskHornheadAnimationManager();
@@ -629,7 +632,7 @@ public class GameScreen extends ScreenAdapter {
             skin
         );
 
-        title.setFontScale(1.45f);
+        title.setFontScale(2.0f);
 
         pauseContent.add(title)
             .padBottom(12f)
@@ -720,7 +723,7 @@ public class GameScreen extends ScreenAdapter {
             skin
         );
 
-        button.getLabel().setFontScale(1.05f);
+        button.getLabel().setFontScale(1.12f);
 
         button.addListener(
             new ChangeListener() {
@@ -758,7 +761,7 @@ public class GameScreen extends ScreenAdapter {
             skin
         );
 
-        title.setFontScale(1.35f);
+        title.setFontScale(1.90f);
 
         pauseContent.add(title)
             .padBottom(12f)
@@ -796,7 +799,7 @@ public class GameScreen extends ScreenAdapter {
             skin
         );
 
-        title.setFontScale(1.35f);
+        title.setFontScale(1.90f);
 
         pauseContent.add(title)
             .padBottom(12f)
@@ -904,6 +907,7 @@ public class GameScreen extends ScreenAdapter {
         worldCamera.apply();
 
         drawMapBackground();
+
         drawHiddenRoomCover();
         drawCrackedWall();
         drawVoidHeartRewardCharm();
@@ -953,6 +957,11 @@ public class GameScreen extends ScreenAdapter {
         drawSlashEffect();
         drawActiveAttackHitbox();
         drawMapForeground();
+
+        if (controller.isCurrentRoom("forgotten_crossroads")) {
+            drawCrossroadsDust(delta);
+        }
+
         drawZotePrompt();
 
         stage.act(
@@ -1172,6 +1181,46 @@ public class GameScreen extends ScreenAdapter {
                            );
 
             batch.end();
+    }
+
+    private void drawCrossroadsDust(float delta) {
+        if (crossroadsDustEffect == null) {
+            return;
+        }
+
+        Player player = controller.getPlayer();
+
+        float playerCenterX =
+            player.getPosition().x
+                + KNIGHT_DRAW_WIDTH / 2f;
+
+        float playerCenterY =
+            player.getPosition().y
+                + KNIGHT_DRAW_HEIGHT / 2f;
+
+        crossroadsDustEffect.update(
+            pauseMenuOpen ? 0f : delta,
+            worldCamera.getCamera(),
+            playerCenterX,
+            playerCenterY,
+            player.getAnimationType()
+                == PlayerAnimationType.DASH,
+            player.isFacingRight()
+        );
+
+        batch.setProjectionMatrix(
+            worldCamera.getCombined()
+        );
+
+        batch.enableBlending();
+        batch.setBlendFunction(
+            GL20.GL_SRC_ALPHA,
+            GL20.GL_ONE_MINUS_SRC_ALPHA
+        );
+
+        batch.begin();
+        crossroadsDustEffect.draw(batch);
+        batch.end();
     }
 
     private void drawRain() {
@@ -4505,6 +4554,10 @@ public class GameScreen extends ScreenAdapter {
 
         if (rainEffect != null) {
             rainEffect.dispose();
+        }
+
+        if (crossroadsDustEffect != null) {
+            crossroadsDustEffect.dispose();
         }
 
         if (charmIconTextures != null) {

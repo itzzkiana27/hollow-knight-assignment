@@ -1,0 +1,109 @@
+--- a/core/src/main/java/com/hollowknight/view/effects/CrossroadsDustEffect.java
++++ b/core/src/main/java/com/hollowknight/view/effects/CrossroadsDustEffect.java
+@@ -15,9 +15,9 @@
+  */
+ public final class CrossroadsDustEffect {
+ 
+-    private static final int BACKGROUND_COUNT = 58;
+-    private static final int MIDGROUND_COUNT = 36;
+-    private static final int FOREGROUND_COUNT = 16;
++    private static final int BACKGROUND_COUNT = 72;
++    private static final int MIDGROUND_COUNT = 54;
++    private static final int FOREGROUND_COUNT = 28;
+     private static final int PARTICLE_COUNT =
+         BACKGROUND_COUNT + MIDGROUND_COUNT + FOREGROUND_COUNT;
+ 
+@@ -154,14 +154,17 @@
+ 
+         for (DustParticle particle : particles) {
+             float pulse =
+-                0.76f
+-                    + 0.24f * MathUtils.sin(
++                0.90f
++                    + 0.10f * MathUtils.sin(
+                     effectTime * particle.pulseSpeed
+                         + particle.phase
+                 );
+ 
+-            float alpha =
+-                particle.baseAlpha * pulse;
++            float alpha = MathUtils.clamp(
++                particle.baseAlpha * pulse * 1.25f,
++                0f,
++                0.82f
++            );
+ 
+             batch.setColor(
+                 particle.red,
+@@ -315,7 +318,7 @@
+                     1f
+                 );
+ 
+-                alpha = alpha * alpha * 0.90f;
++                alpha = alpha * alpha;
+ 
+                 pixmap.setColor(1f, 1f, 1f, alpha);
+                 pixmap.drawPixel(x, y);
+@@ -358,44 +361,44 @@
+             rotation = MathUtils.random(0f, 360f);
+ 
+             if (layer == 0) {
+-                width = MathUtils.random(4f, 7f);
+-                height = width * MathUtils.random(0.70f, 1.35f);
++                width = MathUtils.random(5.5f, 9f);
++                height = width * MathUtils.random(0.65f, 1.35f);
+                 horizontalSpeed = MathUtils.random(-5f, 5f);
+                 fallSpeed = MathUtils.random(4f, 10f);
+                 swayAmount = MathUtils.random(2f, 5f);
+                 swaySpeed = MathUtils.random(0.35f, 0.75f);
+                 rotationSpeed = MathUtils.random(-7f, 7f);
+-                baseAlpha = MathUtils.random(0.16f, 0.28f);
++                baseAlpha = MathUtils.random(0.25f, 0.40f);
+                 pulseSpeed = MathUtils.random(0.45f, 0.85f);
+-                red = 0.66f;
+-                green = 0.76f;
+-                blue = 0.82f;
++                red = 0.76f;
++                green = 0.84f;
++                blue = 0.90f;
+             } else if (layer == 1) {
+-                width = MathUtils.random(7f, 12f);
+-                height = width * MathUtils.random(0.60f, 1.30f);
++                width = MathUtils.random(9f, 15f);
++                height = width * MathUtils.random(0.55f, 1.30f);
+                 horizontalSpeed = MathUtils.random(-8f, 8f);
+                 fallSpeed = MathUtils.random(8f, 17f);
+                 swayAmount = MathUtils.random(4f, 9f);
+                 swaySpeed = MathUtils.random(0.55f, 1.05f);
+                 rotationSpeed = MathUtils.random(-12f, 12f);
+-                baseAlpha = MathUtils.random(0.22f, 0.38f);
++                baseAlpha = MathUtils.random(0.32f, 0.52f);
+                 pulseSpeed = MathUtils.random(0.65f, 1.20f);
+-                red = 0.72f;
+-                green = 0.82f;
+-                blue = 0.88f;
++                red = 0.82f;
++                green = 0.89f;
++                blue = 0.95f;
+             } else {
+-                width = MathUtils.random(10f, 17f);
+-                height = width * MathUtils.random(0.55f, 1.25f);
++                width = MathUtils.random(14f, 23f);
++                height = width * MathUtils.random(0.50f, 1.20f);
+                 horizontalSpeed = MathUtils.random(-12f, 12f);
+                 fallSpeed = MathUtils.random(12f, 25f);
+                 swayAmount = MathUtils.random(7f, 14f);
+                 swaySpeed = MathUtils.random(0.75f, 1.35f);
+                 rotationSpeed = MathUtils.random(-18f, 18f);
+-                baseAlpha = MathUtils.random(0.18f, 0.32f);
++                baseAlpha = MathUtils.random(0.28f, 0.48f);
+                 pulseSpeed = MathUtils.random(0.80f, 1.45f);
+-                red = 0.78f;
+-                green = 0.86f;
+-                blue = 0.91f;
++                red = 0.88f;
++                green = 0.94f;
++                blue = 1.00f;
+             }
+         }
+     }

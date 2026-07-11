@@ -685,7 +685,7 @@ public class SettingsScreen extends ScreenAdapter {
             controller.text("common.back")
         );
 
-        backButton.getLabel().setFontScale(1.15f);
+        backButton.getLabel().setFontScale(1.22f);
 
         backButton.addListener(
             new ChangeListener() {

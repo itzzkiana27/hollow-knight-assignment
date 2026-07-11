@@ -46,18 +46,18 @@ public class MainMenuScreen extends ScreenAdapter {
 
         table.setFillParent(true);
         table.center();
-        table.defaults().pad(7f);
+        table.defaults().pad(3f);
 
-        table.add(menuTheme.createTitleLogo(420f))
-            .width(420f)
-            .height(160f)
-            .padBottom(8f)
+        table.add(menuTheme.createTitleLogo(520f))
+            .width(520f)
+            .height(196f)
+            .padBottom(6f)
             .row();
 
-        table.add(menuTheme.createOrnament(260f))
-            .width(260f)
-            .height(30f)
-            .padBottom(92f)
+        table.add(menuTheme.createOrnament(320f))
+            .width(320f)
+            .height(36f)
+            .padBottom(48f)
             .row();
 
         addButton(
@@ -93,7 +93,7 @@ public class MainMenuScreen extends ScreenAdapter {
         TextButton themeButton = menuTheme.createMenuButton(
             "Theme: " + controller.getMenuThemeDisplayName()
         );
-        themeButton.getLabel().setFontScale(0.82f);
+        themeButton.getLabel().setFontScale(1.15f);
         themeButton.getLabel().setAlignment(Align.center);
         themeButton.getLabel().setColor(0.55f, 0.62f, 0.70f, 0.82f);
 
@@ -108,9 +108,9 @@ public class MainMenuScreen extends ScreenAdapter {
         });
 
         table.add(themeButton)
-            .width(300f)
-            .height(36f)
-            .padTop(28f)
+            .width(400f)
+            .height(46f)
+            .padTop(22f)
             .row();
 
         stage.addActor(table);
@@ -123,7 +123,7 @@ public class MainMenuScreen extends ScreenAdapter {
     ) {
         TextButton button = menuTheme.createMenuButton(text);
 
-        button.getLabel().setFontScale(1.45f);
+        button.getLabel().setFontScale(3.44f);
         button.getLabel().setAlignment(Align.center);
 
         button.addListener(new ChangeListener() {
@@ -137,8 +137,11 @@ public class MainMenuScreen extends ScreenAdapter {
         });
 
         table.add(button)
-            .width(360f)
-            .height(48f)
+            .width(Math.min(
+                620f,
+                Gdx.graphics.getWidth() * 0.82f
+            ))
+            .height(80f)
             .row();
     }
 

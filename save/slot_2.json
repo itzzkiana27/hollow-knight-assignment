@@ -1,0 +1,31 @@
+{
+"currentRoomId": "forgotten_crossroads",
+"playerX": 3418.4548,
+"playerY": 6558.6143,
+"currentMasks": 4,
+"currentSoul": 0,
+"crackedWallDestroyed": false,
+"falseKnightDefeated": false,
+"godModeEnabled": false,
+"noclipModeEnabled": false,
+"elapsedGameSeconds": 56.28508,
+"deathCount": 0,
+"totalEnemiesKilled": 0,
+"ownedCharms": [
+	"SOUL_CATCHER",
+	"DASHMASTER",
+	"UNBREAKABLE_STRENGTH",
+	"QUICK_SLASH",
+	"QUICK_FOCUS",
+	"HEAVY_BLOW",
+	"SHARP_SHADOW"
+],
+"equippedCharms": [],
+"unlockedAchievements": [
+	"COMPLETION",
+	"SPEEDRUN",
+	"DEFEAT_FALSE_KNIGHT",
+	"KILL_TWO_ENEMIES_10_SECONDS"
+],
+"killedEnemyTypes": []
+}

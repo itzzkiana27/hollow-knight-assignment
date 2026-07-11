@@ -440,7 +440,7 @@ public final class MenuThemeSkin implements Disposable {
             skin
         );
 
-        button.getLabel().setFontScale(1.0f);
+        button.getLabel().setFontScale(1.08f);
         button.getLabel().setColor(bodyColor());
         return button;
     }
@@ -448,20 +448,21 @@ public final class MenuThemeSkin implements Disposable {
     public Label createTitleLabel(String text) {
         Label label = new Label(text, skin);
         label.setColor(titleColor());
-        label.setFontScale(1.55f);
+        label.setFontScale(2.15f);
         return label;
     }
 
     public Label createSectionLabel(String text) {
         Label label = new Label(text, skin);
         label.setColor(highlightColor());
-        label.setFontScale(1.15f);
+        label.setFontScale(1.26f);
         return label;
     }
 
     public Label createBodyLabel(String text) {
         Label label = new Label(text, skin);
         label.setColor(bodyColor());
+        label.setFontScale(1.08f);
         return label;
     }
 

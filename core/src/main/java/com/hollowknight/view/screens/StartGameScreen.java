@@ -68,7 +68,7 @@ public class StartGameScreen extends ScreenAdapter {
         TextButton newGame = menuTheme.createMenuButton(
             controller.text("start.newGame")
         );
-        newGame.getLabel().setFontScale(1.18f);
+        newGame.getLabel().setFontScale(1.25f);
         newGame.addListener(new ChangeListener() {
             @Override
             public void changed(
@@ -192,7 +192,7 @@ public class StartGameScreen extends ScreenAdapter {
     ) {
         TextButton button = menuTheme.createMenuButton(text);
 
-        button.getLabel().setFontScale(1.12f);
+        button.getLabel().setFontScale(1.18f);
 
         button.addListener(new ChangeListener() {
             @Override
