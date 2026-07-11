@@ -507,26 +507,29 @@ public class FalseKnight {
             return 0f;
         }
 
+        // Strong anti-spam:
+        // Never allow the same move twice consecutively.
+        if (move == lastMove) {
+            return 0f;
+        }
+
         float weight = baseWeight;
 
-        if (move == lastMove) {
-            if (consecutiveMoveCount >= 2) {
-                return 0f;
-            }
-
-            weight *= SAME_MOVE_REPEAT_WEIGHT;
-        } else if (move == previousMove) {
+        // Discourage A → B → A patterns without completely blocking them.
+        if (move == previousMove) {
             weight *= TWO_MOVES_AGO_WEIGHT;
         }
 
+        // Discourage consecutive aerial attacks such as
+        // Offensive Leap → Power Mace Slam.
         if (
             isAerialMove(move)
                 && isAerialMove(lastMove)
-                && move != lastMove
         ) {
             weight *= SAME_AERIAL_FAMILY_WEIGHT;
         }
 
+        // Keep the final choice unpredictable.
         return weight * MathUtils.random(
             1f - DECISION_RANDOM_VARIANCE,
             1f + DECISION_RANDOM_VARIANCE
