@@ -5,6 +5,7 @@ public enum CrystalGuardianState {
     SHOOTING,
     ENRAGED_CHARGING,
     RETURNING_HOME,
+    TURNING_TO_PLAYER,
     TURNING_HOME,
     DYING,
     CORPSE

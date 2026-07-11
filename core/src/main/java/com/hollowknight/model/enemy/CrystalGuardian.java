@@ -81,6 +81,7 @@ public final class CrystalGuardian
 
     private int health;
     private int attackDirection;
+    private boolean turnTargetFacingRight;
 
     private float stateTime;
     private float flashTimeRemaining;
@@ -189,6 +190,9 @@ public final class CrystalGuardian
                     platformWorld
                 );
 
+            case TURNING_TO_PLAYER ->
+                updateTurningToPlayer();
+
             case TURNING_HOME ->
                 updateTurningHome();
 
@@ -208,17 +212,78 @@ public final class CrystalGuardian
         if (
             !playerAlive
                 || playerBounds == null
+                || !isPlayerWithinBidirectionalVision(
+                    playerBounds
+                )
         ) {
             return;
         }
 
-        if (
-            visionBounds.overlaps(
-                playerBounds
-            )
-        ) {
-            beginShooting();
+        boolean playerIsToTheRight =
+            isPlayerToTheRight(playerBounds);
+
+        if (playerIsToTheRight != facingRight) {
+            turnTargetFacingRight =
+                playerIsToTheRight;
+
+            changeState(
+                CrystalGuardianState
+                    .TURNING_TO_PLAYER
+            );
+            return;
         }
+
+        beginShooting();
+    }
+
+    private boolean isPlayerWithinBidirectionalVision(
+        Rectangle playerBounds
+    ) {
+        float visionBottom =
+            bounds.y + VISION_Y_OFFSET;
+
+        float visionTop =
+            visionBottom + VISION_HEIGHT;
+
+        boolean overlapsVertically =
+            playerBounds.y < visionTop
+                && playerBounds.y
+                + playerBounds.height
+                > visionBottom;
+
+        if (!overlapsVertically) {
+            return false;
+        }
+
+        float detectionLeft =
+            bounds.x - VISION_WIDTH;
+
+        float detectionRight =
+            bounds.x
+                + bounds.width
+                + VISION_WIDTH;
+
+        return playerBounds.x < detectionRight
+            && playerBounds.x
+            + playerBounds.width
+            > detectionLeft;
+    }
+
+    private boolean isPlayerToTheRight(
+        Rectangle playerBounds
+    ) {
+        float guardianCenterX =
+            bounds.x + bounds.width / 2f;
+
+        float playerCenterX =
+            playerBounds.x
+                + playerBounds.width / 2f;
+
+        if (Math.abs(playerCenterX - guardianCenterX) < 1f) {
+            return facingRight;
+        }
+
+        return playerCenterX > guardianCenterX;
     }
 
     private void beginShooting() {
@@ -413,6 +478,20 @@ public final class CrystalGuardian
                     .IDLE_WATCHING
             );
         }
+    }
+
+    private void updateTurningToPlayer() {
+        if (stateTime < TURN_DURATION) {
+            return;
+        }
+
+        facingRight =
+            turnTargetFacingRight;
+
+        attackDirection =
+            getFacingDirection();
+
+        beginShooting();
     }
 
     private void updateTurningHome() {
@@ -699,6 +778,9 @@ public final class CrystalGuardian
         attackDirection =
             getFacingDirection();
 
+        turnTargetFacingRight =
+            facingRight;
+
         state =
             CrystalGuardianState
                 .IDLE_WATCHING;
@@ -816,7 +898,7 @@ public final class CrystalGuardian
             case RETURNING_HOME ->
                 CrystalGuardianAnimationType.EVADE;
 
-            case TURNING_HOME ->
+            case TURNING_TO_PLAYER, TURNING_HOME ->
                 CrystalGuardianAnimationType.TURN;
 
             case DYING, CORPSE ->
