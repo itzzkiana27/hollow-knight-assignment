@@ -881,7 +881,19 @@ public final class PlatformWorld {
         float bestCorrection =
             Float.POSITIVE_INFINITY;
 
-        for (Platform platform : platforms) {
+        /*
+         * LibGDX Array reuses iterator instances and rejects nested
+         * enhanced-for loops. This method calls overlapsAnyPlatform()
+         * while scanning the same array, so use an index loop here.
+         */
+        for (
+            int platformIndex = 0;
+            platformIndex < platforms.size;
+            platformIndex++
+        ) {
+            Platform platform =
+                platforms.get(platformIndex);
+
             Rectangle solid =
                 platform.getBounds();
 
@@ -1101,7 +1113,18 @@ public final class PlatformWorld {
     private boolean overlapsAnyPlatform(
         Rectangle rectangle
     ) {
-        for (Platform platform : platforms) {
+        /*
+         * Keep this index-based as well because it can be called from
+         * another platform scan. LibGDX Array iterators are not nestable.
+         */
+        for (
+            int platformIndex = 0;
+            platformIndex < platforms.size;
+            platformIndex++
+        ) {
+            Platform platform =
+                platforms.get(platformIndex);
+
             if (
                 rectangle.overlaps(
                     platform.getBounds()
