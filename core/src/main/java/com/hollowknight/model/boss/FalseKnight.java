@@ -49,7 +49,7 @@ public class FalseKnight {
         POWER_MACE_SLAM
     }
 
-    private static final int MAX_HEALTH = 80;
+    private static final int MAX_HEALTH = 60;
     private static final int STUN_HEALTH_THRESHOLD = MAX_HEALTH / 2;
 
     private static final float GRAVITY = -1800f;
@@ -88,19 +88,28 @@ public class FalseKnight {
     private static final float STUN_DURATION = 3.5f;
 
     private static final float HEAVY_DAMAGE_WINDOW = 1.3f;
-    private static final int HEAVY_DAMAGE_TRIGGER = 3;
 
     /*
-     * Defensive Leap remains a random reaction to sustained pressure, but a
-     * cooldown and distance-scaled chance stop repeated hits from forcing the
-     * boss into the same escape over and over.
+     * Pressure is accumulated by repeated hits and decays over time.  The boss
+     * only gets one defensive-reaction roll when the pressure threshold is
+     * crossed, instead of rerolling on every following hit.
      */
-    private static final float DEFENSIVE_LEAP_CHANCE_CLOSE = 0.55f;
-    private static final float DEFENSIVE_LEAP_CHANCE_FAR = 0.18f;
-    private static final float DEFENSIVE_LEAP_COOLDOWN_PHASE_ONE = 4.25f;
-    private static final float DEFENSIVE_LEAP_COOLDOWN_PHASE_TWO = 3.50f;
+    private static final float DEFENSIVE_PRESSURE_THRESHOLD = 4.0f;
+    private static final float DEFENSIVE_PRESSURE_DECAY = 0.78f;
+    private static final float DEFENSIVE_REACTION_LOCKOUT = 1.35f;
+    private static final float DEFENSIVE_MIN_ESCAPE_SPACE = 175f;
+    private static final float DEFENSIVE_LEAP_COOLDOWN_PHASE_ONE = 4.75f;
+    private static final float DEFENSIVE_LEAP_COOLDOWN_PHASE_TWO = 4.00f;
 
-    private static final float RECENT_MOVE_REPEAT_WEIGHT = 0.24f;
+    /*
+     * Anti-spam is deliberately soft.  A useful move may repeat once at a low
+     * probability, but a third identical move is forbidden and A-B-A loops are
+     * discouraged.  This feels less scripted than hard-blocking every repeat.
+     */
+    private static final float SAME_MOVE_REPEAT_WEIGHT = 0.18f;
+    private static final float TWO_MOVES_AGO_WEIGHT = 0.52f;
+    private static final float SAME_AERIAL_FAMILY_WEIGHT = 0.58f;
+    private static final float DECISION_RANDOM_VARIANCE = 0.16f;
 
     private static final float MACE_SLAM_ANTIC_TIME = 0.51f;
     private static final float MACE_SLAM_IMPACT_TIME = 0.20f;
@@ -154,6 +163,7 @@ public class FalseKnight {
     private State state = State.IDLE;
     private Move lastMove = null;
     private Move previousMove = null;
+    private int consecutiveMoveCount;
 
     private int health = MAX_HEALTH;
 
@@ -171,8 +181,16 @@ public class FalseKnight {
 
     private float heavyDamageTimer;
     private int recentHits;
+    private float damagePressure;
     private float defensiveLeapCooldown;
+    private float defensiveReactionLockout;
+
     private float lastPlayerDistance = FAR_DISTANCE;
+    private float playerDistanceVelocity;
+    private float lastPlayerCenterX;
+    private float playerHorizontalVelocity;
+    private float playerAirborneTime;
+    private boolean lastPlayerOnRight;
 
     private float stunGroundTimer;
 
@@ -214,6 +232,7 @@ public class FalseKnight {
         this.shockwaveHitbox = new Rectangle();
 
         aiTimer = 1.0f;
+        lastPlayerCenterX = getCenterX();
 
         updateHitboxes();
     }
@@ -241,10 +260,21 @@ public class FalseKnight {
             );
         }
 
-        lastPlayerDistance = horizontalDistanceTo(playerBounds);
+        if (defensiveReactionLockout > 0f) {
+            defensiveReactionLockout = Math.max(
+                0f,
+                defensiveReactionLockout - delta
+            );
+        }
+
+        observePlayer(delta, playerBounds);
 
         if (state != State.DEAD) {
             updateHeavyDamageTimer(delta);
+            damagePressure = Math.max(
+                0f,
+                damagePressure - DEFENSIVE_PRESSURE_DECAY * delta
+            );
         }
 
         switch (state) {
@@ -315,12 +345,22 @@ public class FalseKnight {
          * far away. Everything else (closing gaps) is the job of Charge Run and
          * the leaps, which keeps the real distance varied for the AI below.
          */
-        if (distance < MIN_STANDOFF) {
+        if (
+            distance < MIN_STANDOFF
+                && getDefensiveEscapeSpace() > 42f
+        ) {
             float away = isPlayerOnRight(playerBounds) ? -1f : 1f;
             bounds.x += away * currentWalkSpeed() * delta;
-        } else if (distance > IDLE_ADVANCE_DISTANCE) {
+        } else if (
+            distance > IDLE_ADVANCE_DISTANCE
+                || (distance > CLOSE_DISTANCE * 1.35f
+                && playerDistanceVelocity > 55f)
+        ) {
             float toward = isPlayerOnRight(playerBounds) ? 1f : -1f;
-            bounds.x += toward * currentWalkSpeed() * 0.7f * delta;
+            float pursuitScale = playerDistanceVelocity > 110f
+                ? 0.82f
+                : 0.62f;
+            bounds.x += toward * currentWalkSpeed() * pursuitScale * delta;
         }
 
         aiTimer -= delta;
@@ -336,52 +376,99 @@ public class FalseKnight {
         Rectangle playerBounds
     ) {
         float distance = horizontalDistanceTo(playerBounds);
+        float distanceAlpha = MathUtils.clamp(
+            (distance - CLOSE_DISTANCE)
+                / (FAR_DISTANCE - CLOSE_DISTANCE),
+            0f,
+            1f
+        );
+        float closeFactor = 1f - distanceAlpha;
+        float farFactor = distanceAlpha;
+        float middleFactor = 1f - Math.abs(distanceAlpha * 2f - 1f);
 
-        float maceWeight;
-        float chargeWeight;
-        float offensiveLeapWeight;
-        float powerSlamWeight;
+        boolean playerAirborne = playerAirborneTime > 0.10f;
+        boolean playerApproaching = playerDistanceVelocity < -85f;
+        boolean playerRetreating = playerDistanceVelocity > 85f;
+
+        float spaceTowardPlayer = getSpaceTowardPlayer();
+        float spaceAwayFromPlayer = getDefensiveEscapeSpace();
+
+        /* Core distance-based utility. */
+        float maceWeight = 10f + closeFactor * 52f;
+        float chargeWeight = 8f + farFactor * 48f;
+        float offensiveLeapWeight = 17f
+            + middleFactor * 28f
+            + farFactor * 10f;
+        float powerSlamWeight = phaseTwo
+            ? 12f + closeFactor * 10f + middleFactor * 15f
+            : 0f;
 
         /*
-         * Distance changes probabilities rather than selecting a fixed script.
-         * Close range strongly favours the mace, medium range mixes gap-closing
-         * moves, and long range strongly favours Charge Run.
+         * Adapt to what the player is doing, not only where they currently are.
+         * Closing players are met with short-range pressure; retreating players
+         * are chased; airborne players are intercepted rather than charged at.
          */
-        if (distance <= CLOSE_DISTANCE) {
-            maceWeight = 58f;
-            chargeWeight = 8f;
-            offensiveLeapWeight = 26f;
-            powerSlamWeight = phaseTwo ? 18f : 0f;
-        } else if (distance >= FAR_DISTANCE) {
-            maceWeight = 4f;
-            chargeWeight = 54f;
-            offensiveLeapWeight = 34f;
-            powerSlamWeight = phaseTwo ? 22f : 0f;
-        } else {
-            float rangeAlpha = (distance - CLOSE_DISTANCE)
-                / (FAR_DISTANCE - CLOSE_DISTANCE);
-
-            maceWeight = MathUtils.lerp(24f, 7f, rangeAlpha);
-            chargeWeight = MathUtils.lerp(30f, 49f, rangeAlpha);
-            offensiveLeapWeight = MathUtils.lerp(39f, 35f, rangeAlpha);
-            powerSlamWeight = phaseTwo
-                ? MathUtils.lerp(17f, 21f, rangeAlpha)
-                : 0f;
+        if (playerApproaching) {
+            maceWeight += 15f;
+            offensiveLeapWeight += 7f;
+            chargeWeight *= 0.72f;
+        } else if (playerRetreating) {
+            chargeWeight += 18f;
+            offensiveLeapWeight += 9f;
+            maceWeight *= 0.72f;
         }
 
-        maceWeight = applyMoveHistoryWeight(
+        if (playerAirborne) {
+            offensiveLeapWeight += 18f;
+            chargeWeight *= 0.66f;
+            maceWeight *= 0.78f;
+
+            if (phaseTwo) {
+                powerSlamWeight += 7f;
+            }
+        }
+
+        /* Do not choose a charge that would immediately collide with a wall. */
+        if (spaceTowardPlayer < 250f) {
+            chargeWeight *= 0.24f;
+            maceWeight += 8f;
+            offensiveLeapWeight += 13f;
+        } else if (spaceTowardPlayer > 520f && playerRetreating) {
+            chargeWeight += 8f;
+        }
+
+        /*
+         * When pressure is high but there is no safe room to retreat, counter
+         * with an attack instead of repeatedly attempting Defensive Leap.
+         */
+        float pressureAlpha = MathUtils.clamp(
+            damagePressure / DEFENSIVE_PRESSURE_THRESHOLD,
+            0f,
+            1.5f
+        );
+
+        if (pressureAlpha > 0.65f) {
+            if (spaceAwayFromPlayer < DEFENSIVE_MIN_ESCAPE_SPACE) {
+                maceWeight += 14f * pressureAlpha;
+                offensiveLeapWeight += 9f * pressureAlpha;
+            } else if (phaseTwo) {
+                powerSlamWeight += 7f * pressureAlpha;
+            }
+        }
+
+        maceWeight = finaliseMoveWeight(
             Move.MACE_SLAM,
             maceWeight
         );
-        chargeWeight = applyMoveHistoryWeight(
+        chargeWeight = finaliseMoveWeight(
             Move.CHARGE_RUN,
             chargeWeight
         );
-        offensiveLeapWeight = applyMoveHistoryWeight(
+        offensiveLeapWeight = finaliseMoveWeight(
             Move.OFFENSIVE_LEAP,
             offensiveLeapWeight
         );
-        powerSlamWeight = applyMoveHistoryWeight(
+        powerSlamWeight = finaliseMoveWeight(
             Move.POWER_MACE_SLAM,
             powerSlamWeight
         );
@@ -412,7 +499,7 @@ public class FalseKnight {
         return Move.POWER_MACE_SLAM;
     }
 
-    private float applyMoveHistoryWeight(
+    private float finaliseMoveWeight(
         Move move,
         float baseWeight
     ) {
@@ -420,17 +507,36 @@ public class FalseKnight {
             return 0f;
         }
 
-        /* Hard anti-spam: never repeat the immediately previous move. */
+        float weight = baseWeight;
+
         if (move == lastMove) {
-            return 0f;
+            if (consecutiveMoveCount >= 2) {
+                return 0f;
+            }
+
+            weight *= SAME_MOVE_REPEAT_WEIGHT;
+        } else if (move == previousMove) {
+            weight *= TWO_MOVES_AGO_WEIGHT;
         }
 
-        /* Soft anti-pattern: discourage A-B-A-B loops without deadlocking AI. */
-        if (move == previousMove) {
-            return baseWeight * RECENT_MOVE_REPEAT_WEIGHT;
+        if (
+            isAerialMove(move)
+                && isAerialMove(lastMove)
+                && move != lastMove
+        ) {
+            weight *= SAME_AERIAL_FAMILY_WEIGHT;
         }
 
-        return baseWeight;
+        return weight * MathUtils.random(
+            1f - DECISION_RANDOM_VARIANCE,
+            1f + DECISION_RANDOM_VARIANCE
+        );
+    }
+
+    private boolean isAerialMove(Move move) {
+        return move == Move.OFFENSIVE_LEAP
+            || move == Move.DEFENSIVE_LEAP
+            || move == Move.POWER_MACE_SLAM;
     }
 
     private Move getFallbackMove(float distance) {
@@ -438,7 +544,11 @@ public class FalseKnight {
             return Move.MACE_SLAM;
         }
 
-        if (distance >= FAR_DISTANCE && lastMove != Move.CHARGE_RUN) {
+        if (
+            distance >= FAR_DISTANCE
+                && getSpaceTowardPlayer() >= 250f
+                && lastMove != Move.CHARGE_RUN
+        ) {
             return Move.CHARGE_RUN;
         }
 
@@ -450,14 +560,81 @@ public class FalseKnight {
             return Move.POWER_MACE_SLAM;
         }
 
-        return lastMove == Move.MACE_SLAM
-            ? Move.CHARGE_RUN
-            : Move.MACE_SLAM;
+        return Move.MACE_SLAM;
     }
 
     private void rememberMove(Move move) {
+        if (move == lastMove) {
+            consecutiveMoveCount++;
+        } else {
+            consecutiveMoveCount = 1;
+        }
+
         previousMove = lastMove;
         lastMove = move;
+    }
+
+    private void observePlayer(
+        float delta,
+        Rectangle playerBounds
+    ) {
+        float safeDelta = Math.max(delta, 1f / 240f);
+        float distance = horizontalDistanceTo(playerBounds);
+        float playerCenterX = getPlayerCenterX(playerBounds);
+
+        float rawDistanceVelocity = MathUtils.clamp(
+            (distance - lastPlayerDistance) / safeDelta,
+            -650f,
+            650f
+        );
+        float rawHorizontalVelocity = MathUtils.clamp(
+            (playerCenterX - lastPlayerCenterX) / safeDelta,
+            -650f,
+            650f
+        );
+        float smoothing = Math.min(1f, delta * 7f);
+
+        playerDistanceVelocity = MathUtils.lerp(
+            playerDistanceVelocity,
+            rawDistanceVelocity,
+            smoothing
+        );
+        playerHorizontalVelocity = MathUtils.lerp(
+            playerHorizontalVelocity,
+            rawHorizontalVelocity,
+            smoothing
+        );
+
+        lastPlayerDistance = distance;
+        lastPlayerCenterX = playerCenterX;
+        lastPlayerOnRight = playerCenterX >= getCenterX();
+
+        boolean airborne =
+            playerBounds.y > groundY + 24f;
+
+        if (airborne) {
+            playerAirborneTime = Math.min(
+                1.5f,
+                playerAirborneTime + delta
+            );
+        } else {
+            playerAirborneTime = Math.max(
+                0f,
+                playerAirborneTime - delta * 3f
+            );
+        }
+    }
+
+    private float getSpaceTowardPlayer() {
+        return lastPlayerOnRight
+            ? arenaMaxX - (bounds.x + bounds.width)
+            : bounds.x - arenaMinX;
+    }
+
+    private float getDefensiveEscapeSpace() {
+        return lastPlayerOnRight
+            ? bounds.x - arenaMinX
+            : arenaMaxX - (bounds.x + bounds.width);
     }
 
     /* ----------------------------------------------------------------- */
@@ -503,10 +680,11 @@ public class FalseKnight {
         facingRight = isPlayerOnRight(playerBounds);
         state = State.OFFENSIVE_LEAP;
         velocityY = LEAP_VERTICAL_SPEED;
-        velocityX = computeArcVelocityX(
+        velocityX = computePredictiveArcVelocityX(
             playerBounds,
             LEAP_VERTICAL_SPEED,
-            LEAP_MAX_HORIZONTAL
+            LEAP_MAX_HORIZONTAL,
+            0.42f
         );
     }
 
@@ -515,10 +693,11 @@ public class FalseKnight {
         state = State.POWER_JUMP;
         powerSlamImpactTriggered = false;
         velocityY = POWER_JUMP_VERTICAL_SPEED;
-        velocityX = computeArcVelocityX(
+        velocityX = computePredictiveArcVelocityX(
             playerBounds,
             POWER_JUMP_VERTICAL_SPEED,
-            POWER_MAX_HORIZONTAL
+            POWER_MAX_HORIZONTAL,
+            0.28f
         );
     }
 
@@ -532,6 +711,8 @@ public class FalseKnight {
         animationTime = 0f;
         maceHitActive = false;
 
+        /* Use the latest observed player side, even if an attack had turned us. */
+        facingRight = lastPlayerOnRight;
         velocityY = DEFENSIVE_LEAP_VERTICAL_SPEED;
 
         /* Leap backwards, i.e. away from the player. */
@@ -544,15 +725,24 @@ public class FalseKnight {
      * Horizontal launch speed that lands a symmetric jump near the player's
      * current position, clamped so the arc stays believable.
      */
-    private float computeArcVelocityX(
+    private float computePredictiveArcVelocityX(
         Rectangle playerBounds,
         float verticalSpeed,
-        float maxHorizontal
+        float maxHorizontal,
+        float predictionStrength
     ) {
         float flightTime = 2f * verticalSpeed / Math.abs(GRAVITY);
 
-        float dx = getPlayerCenterX(playerBounds) - getCenterX();
+        float predictedPlayerX = getPlayerCenterX(playerBounds)
+            + playerHorizontalVelocity * flightTime * predictionStrength;
 
+        predictedPlayerX = MathUtils.clamp(
+            predictedPlayerX,
+            arenaMinX + bounds.width * 0.5f,
+            arenaMaxX - bounds.width * 0.5f
+        );
+
+        float dx = predictedPlayerX - getCenterX();
         float vx = dx / flightTime;
 
         return MathUtils.clamp(vx, -maxHorizontal, maxHorizontal);
@@ -836,9 +1026,17 @@ public class FalseKnight {
         maceSlamImpactTriggered = false;
         powerSlamImpactTriggered = false;
 
-        aiTimer = phaseTwo
+        float baseDelay = phaseTwo
             ? AI_DELAY_PHASE_TWO
             : AI_DELAY_PHASE_ONE;
+
+        if (lastPlayerDistance < CLOSE_DISTANCE) {
+            baseDelay *= 0.84f;
+        } else if (lastPlayerDistance > FAR_DISTANCE) {
+            baseDelay *= 1.06f;
+        }
+
+        aiTimer = baseDelay * MathUtils.random(0.86f, 1.14f);
     }
 
     /* ----------------------------------------------------------------- */
@@ -865,6 +1063,10 @@ public class FalseKnight {
 
         recentHits++;
         heavyDamageTimer = HEAVY_DAMAGE_WINDOW;
+        damagePressure = Math.min(
+            DEFENSIVE_PRESSURE_THRESHOLD * 1.65f,
+            damagePressure + 1f + Math.max(0, damage - 1) * 0.35f
+        );
 
         if (health <= 0) {
             die();
@@ -876,23 +1078,29 @@ public class FalseKnight {
             return;
         }
 
-        /*
-         * One random defensive decision is made per full damage-pressure
-         * threshold. Resetting the counter even when the roll fails prevents
-         * every later hit from rerolling until a jump becomes inevitable.
-         */
-        if (recentHits >= HEAVY_DAMAGE_TRIGGER) {
-            recentHits = 0;
+        tryDefensiveReaction();
+    }
 
-            if (
-                defensiveLeapCooldown <= 0f
-                    && lastMove != Move.DEFENSIVE_LEAP
-                    && canInterruptForDefensiveLeap()
-                    && MathUtils.random()
-                        < defensiveLeapReactionChance()
-            ) {
-                startDefensiveLeap();
-            }
+    private void tryDefensiveReaction() {
+        if (
+            damagePressure < DEFENSIVE_PRESSURE_THRESHOLD
+                || defensiveReactionLockout > 0f
+                || defensiveLeapCooldown > 0f
+                || lastMove == Move.DEFENSIVE_LEAP
+                || !canInterruptForDefensiveLeap()
+                || getDefensiveEscapeSpace()
+                    < DEFENSIVE_MIN_ESCAPE_SPACE
+        ) {
+            return;
+        }
+
+        /* Consume the pressure before rolling, so a miss cannot reroll per hit. */
+        defensiveReactionLockout = DEFENSIVE_REACTION_LOCKOUT;
+        damagePressure *= 0.32f;
+        recentHits = 0;
+
+        if (MathUtils.random() < defensiveLeapReactionChance()) {
+            startDefensiveLeap();
         }
     }
 
@@ -905,15 +1113,20 @@ public class FalseKnight {
         );
 
         float chance = MathUtils.lerp(
-            DEFENSIVE_LEAP_CHANCE_CLOSE,
-            DEFENSIVE_LEAP_CHANCE_FAR,
+            0.48f,
+            0.14f,
             distanceAlpha
         );
 
-        /* Phase two reacts a little faster, but still respects the cooldown. */
-        return phaseTwo
-            ? Math.min(0.64f, chance + 0.07f)
-            : chance;
+        if (playerDistanceVelocity < -90f) {
+            chance += 0.08f;
+        }
+
+        if (phaseTwo) {
+            chance += 0.04f;
+        }
+
+        return MathUtils.clamp(chance, 0.12f, 0.58f);
     }
 
     private boolean canInterruptForDefensiveLeap() {
@@ -1247,6 +1460,7 @@ public class FalseKnight {
         state = State.IDLE;
         lastMove = null;
         previousMove = null;
+        consecutiveMoveCount = 0;
 
         stateTime = 0f;
         animationTime = 0f;
@@ -1257,8 +1471,15 @@ public class FalseKnight {
 
         recentHits = 0;
         heavyDamageTimer = 0f;
+        damagePressure = 0f;
         defensiveLeapCooldown = 0f;
+        defensiveReactionLockout = 0f;
         lastPlayerDistance = FAR_DISTANCE;
+        playerDistanceVelocity = 0f;
+        lastPlayerCenterX = getCenterX();
+        playerHorizontalVelocity = 0f;
+        playerAirborneTime = 0f;
+        lastPlayerOnRight = false;
         stunGroundTimer = 0f;
 
         maceHitActive = false;
