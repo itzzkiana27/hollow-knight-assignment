@@ -159,6 +159,14 @@ public class GuideScreen extends ScreenAdapter {
 
         addControlRow(
             table,
+            controller.text("guide.alternateAttack"),
+            controller.keyName(
+                controller.getAlternateAttackKey()
+            )
+        );
+
+        addControlRow(
+            table,
             controller.text("guide.focus"),
             controller.keyName(
                 controller.getFocusKey()
@@ -178,6 +186,38 @@ public class GuideScreen extends ScreenAdapter {
             controller.text("guide.scream"),
             controller.keyName(
                 controller.getScreamKey()
+            )
+        );
+
+        addControlRow(
+            table,
+            controller.text("guide.interact"),
+            controller.keyName(
+                controller.getInteractKey()
+            )
+        );
+
+        addControlRow(
+            table,
+            controller.text("guide.dialogueAdvance"),
+            controller.keyName(
+                controller.getDialogueAdvanceKey()
+            )
+        );
+
+        addControlRow(
+            table,
+            controller.text("guide.inventory"),
+            controller.keyName(
+                controller.getInventoryKey()
+            )
+        );
+
+        addControlRow(
+            table,
+            controller.text("guide.pause"),
+            controller.keyName(
+                controller.getPauseKey()
             )
         );
     }

@@ -43,23 +43,43 @@ public class GuideController {
     }
 
     public int getUpKey() {
-        return com.hollowknight.model.input.KeyBindings.DEFAULT_UP;
+        return settings.getUpKey();
     }
 
     public int getDownKey() {
-        return com.hollowknight.model.input.KeyBindings.DEFAULT_DOWN;
+        return settings.getDownKey();
+    }
+
+    public int getAlternateAttackKey() {
+        return settings.getAlternateAttackKey();
     }
 
     public int getFocusKey() {
-        return com.hollowknight.model.input.KeyBindings.DEFAULT_FOCUS;
+        return settings.getFocusKey();
     }
 
     public int getFireballKey() {
-        return com.hollowknight.model.input.KeyBindings.DEFAULT_FIREBALL_TEST;
+        return settings.getFireballKey();
     }
 
     public int getScreamKey() {
-        return com.hollowknight.model.input.KeyBindings.DEFAULT_SCREAM_TEST;
+        return settings.getScreamKey();
+    }
+
+    public int getInteractKey() {
+        return settings.getInteractKey();
+    }
+
+    public int getDialogueAdvanceKey() {
+        return settings.getDialogueAdvanceKey();
+    }
+
+    public int getInventoryKey() {
+        return settings.getInventoryKey();
+    }
+
+    public int getPauseKey() {
+        return settings.getPauseKey();
     }
 
     public void backToMainMenu() {

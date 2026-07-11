@@ -86,6 +86,7 @@ public final class CrystalGuardian
     private float stateTime;
     private float flashTimeRemaining;
     private float knockbackTimeRemaining;
+    private float knockbackStrengthMultiplier = 1f;
     private int knockbackDirection;
     private float deathSideFallRemaining;
     private int deathSideFallDirection;
@@ -319,7 +320,9 @@ public final class CrystalGuardian
         PlatformWorld platformWorld
     ) {
         float moveAmount =
-            KNOCKBACK_SPEED * delta;
+            KNOCKBACK_SPEED
+                * knockbackStrengthMultiplier
+                * delta;
 
         nextBounds.set(bounds);
 
@@ -800,6 +803,19 @@ public final class CrystalGuardian
         int direction,
         PlatformWorld platformWorld
     ) {
+        applyKnockback(
+            direction,
+            platformWorld,
+            1f
+        );
+    }
+
+    @Override
+    public void applyKnockback(
+        int direction,
+        PlatformWorld platformWorld,
+        float strengthMultiplier
+    ) {
         if (!isAlive()) {
             return;
         }
@@ -811,8 +827,16 @@ public final class CrystalGuardian
         knockbackDirection =
             direction < 0 ? -1 : 1;
 
+        knockbackStrengthMultiplier =
+            Math.max(
+                1f,
+                Math.min(2.75f, strengthMultiplier)
+            );
+
         knockbackTimeRemaining =
-            KNOCKBACK_DURATION;
+            KNOCKBACK_DURATION
+                * (0.88f
+                + knockbackStrengthMultiplier * 0.12f);
 
         flashTimeRemaining =
             FLASH_DURATION;

@@ -597,7 +597,7 @@ public class GameScreen extends ScreenAdapter {
     private void handlePauseInput() {
         if (
             Gdx.input.isKeyJustPressed(
-                Input.Keys.ESCAPE
+                controller.getPauseKey()
             )
         ) {
             setPauseMenuOpen(
@@ -2470,7 +2470,14 @@ public class GameScreen extends ScreenAdapter {
         float attackTime =
             controller.getCurrentAttackTime();
 
-        if (attackTime > SLASH_EFFECT_DURATION) {
+        boolean heavyBlow =
+            controller.hasHeavyBlow();
+
+        float effectDuration =
+            SLASH_EFFECT_DURATION
+                * (heavyBlow ? 1.28f : 1f);
+
+        if (attackTime > effectDuration) {
             return;
         }
 
@@ -2502,9 +2509,10 @@ public class GameScreen extends ScreenAdapter {
                 || direction == AttackDirection.DOWN;
 
         float requestedDrawHeight =
-            vertical
+            (vertical
                 ? SLASH_EFFECT_VERTICAL_DRAW_HEIGHT
-                : SLASH_EFFECT_HORIZONTAL_DRAW_HEIGHT;
+                : SLASH_EFFECT_HORIZONTAL_DRAW_HEIGHT)
+                * (heavyBlow ? 1.24f : 1f);
 
         float scale =
             requestedDrawHeight
@@ -2539,8 +2547,12 @@ public class GameScreen extends ScreenAdapter {
         }
 
         float slashAlpha =
-            SLASH_EFFECT_ALPHA
-                * (1f - attackTime / SLASH_EFFECT_DURATION);
+            Math.min(
+                1f,
+                SLASH_EFFECT_ALPHA
+                    * (heavyBlow ? 1.12f : 1f)
+                    * (1f - attackTime / effectDuration)
+            );
 
         boolean shouldFlip =
             direction == AttackDirection.LEFT
@@ -2554,9 +2566,42 @@ public class GameScreen extends ScreenAdapter {
 
         batch.begin();
 
+        if (heavyBlow) {
+            float echoScale = 1.18f;
+            float echoWidth = drawWidth * echoScale;
+            float echoHeight = drawHeight * echoScale;
+            float echoX = drawX - (echoWidth - drawWidth) / 2f;
+            float echoY = drawY - (echoHeight - drawHeight) / 2f;
+
+            batch.setColor(
+                0.58f,
+                0.82f,
+                1f,
+                slashAlpha * 0.42f
+            );
+
+            if (shouldFlip) {
+                batch.draw(
+                    frame,
+                    echoX + echoWidth,
+                    echoY,
+                    -echoWidth,
+                    echoHeight
+                );
+            } else {
+                batch.draw(
+                    frame,
+                    echoX,
+                    echoY,
+                    echoWidth,
+                    echoHeight
+                );
+            }
+        }
+
         batch.setColor(
-            1f,
-            1f,
+            heavyBlow ? 0.90f : 1f,
+            heavyBlow ? 0.96f : 1f,
             1f,
             slashAlpha
         );

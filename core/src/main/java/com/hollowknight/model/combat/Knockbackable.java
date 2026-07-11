@@ -7,4 +7,15 @@ public interface Knockbackable {
         int direction,
         PlatformWorld platformWorld
     );
+
+    default void applyKnockback(
+        int direction,
+        PlatformWorld platformWorld,
+        float strengthMultiplier
+    ) {
+        applyKnockback(
+            direction,
+            platformWorld
+        );
+    }
 }

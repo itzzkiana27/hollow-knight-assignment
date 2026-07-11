@@ -597,7 +597,7 @@ public class GameScreen extends ScreenAdapter {
     private void handlePauseInput() {
         if (
             Gdx.input.isKeyJustPressed(
-                Input.Keys.ESCAPE
+                controller.getPauseKey()
             )
         ) {
             setPauseMenuOpen(
@@ -908,10 +908,6 @@ public class GameScreen extends ScreenAdapter {
 
         drawMapBackground();
 
-        if (controller.isCurrentRoom("forgotten_crossroads")) {
-            drawCrossroadsDust(delta);
-        }
-
         drawHiddenRoomCover();
         drawCrackedWall();
         drawVoidHeartRewardCharm();
@@ -961,6 +957,11 @@ public class GameScreen extends ScreenAdapter {
         drawSlashEffect();
         drawActiveAttackHitbox();
         drawMapForeground();
+
+        if (controller.isCurrentRoom("forgotten_crossroads")) {
+            drawCrossroadsDust(delta);
+        }
+
         drawZotePrompt();
 
         stage.act(
@@ -1209,6 +1210,12 @@ public class GameScreen extends ScreenAdapter {
 
         batch.setProjectionMatrix(
             worldCamera.getCombined()
+        );
+
+        batch.enableBlending();
+        batch.setBlendFunction(
+            GL20.GL_SRC_ALPHA,
+            GL20.GL_ONE_MINUS_SRC_ALPHA
         );
 
         batch.begin();

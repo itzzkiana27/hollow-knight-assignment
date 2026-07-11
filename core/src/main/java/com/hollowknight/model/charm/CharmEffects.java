@@ -92,15 +92,17 @@ public final class CharmEffects {
     }
 
     public float getKnockbackMultiplier() {
-        if (
-            isEquipped(
-                CharmType.HEAVY_BLOW
-            )
-        ) {
-            return 1.75f;
+        if (hasHeavyBlow()) {
+            return 2.35f;
         }
 
         return 1f;
+    }
+
+    public boolean hasHeavyBlow() {
+        return isEquipped(
+            CharmType.HEAVY_BLOW
+        );
     }
 
     public float getDashLengthMultiplier() {

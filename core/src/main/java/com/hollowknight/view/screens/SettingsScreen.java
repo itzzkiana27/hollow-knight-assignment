@@ -494,8 +494,68 @@ public class SettingsScreen extends ScreenAdapter {
 
         addControlRow(
             table,
+            ControlAction.LOOK_UP,
+            "settings.lookUp"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.LOOK_DOWN,
+            "settings.lookDown"
+        );
+
+        addControlRow(
+            table,
             ControlAction.ATTACK,
             "settings.attack"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.ALTERNATE_ATTACK,
+            "settings.alternateAttack"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.FOCUS,
+            "settings.focus"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.FIREBALL,
+            "settings.fireball"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.SCREAM,
+            "settings.scream"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.INTERACT,
+            "settings.interact"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.DIALOGUE_ADVANCE,
+            "settings.dialogueAdvance"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.INVENTORY,
+            "settings.inventory"
+        );
+
+        addControlRow(
+            table,
+            ControlAction.PAUSE,
+            "settings.pause"
         );
 
         TextButton resetControlsButton = menuTheme.createMenuButton(
@@ -575,8 +635,38 @@ public class SettingsScreen extends ScreenAdapter {
             case DASH:
                 return controller.getDashKey();
 
+            case LOOK_UP:
+                return controller.getUpKey();
+
+            case LOOK_DOWN:
+                return controller.getDownKey();
+
             case ATTACK:
                 return controller.getAttackKey();
+
+            case ALTERNATE_ATTACK:
+                return controller.getAlternateAttackKey();
+
+            case FOCUS:
+                return controller.getFocusKey();
+
+            case FIREBALL:
+                return controller.getFireballKey();
+
+            case SCREAM:
+                return controller.getScreamKey();
+
+            case INTERACT:
+                return controller.getInteractKey();
+
+            case DIALOGUE_ADVANCE:
+                return controller.getDialogueAdvanceKey();
+
+            case INVENTORY:
+                return controller.getInventoryKey();
+
+            case PAUSE:
+                return controller.getPauseKey();
 
             default:
                 throw new IllegalArgumentException(
@@ -606,8 +696,48 @@ public class SettingsScreen extends ScreenAdapter {
                 controller.setDashKey(keycode);
                 break;
 
+            case LOOK_UP:
+                controller.setUpKey(keycode);
+                break;
+
+            case LOOK_DOWN:
+                controller.setDownKey(keycode);
+                break;
+
             case ATTACK:
                 controller.setAttackKey(keycode);
+                break;
+
+            case ALTERNATE_ATTACK:
+                controller.setAlternateAttackKey(keycode);
+                break;
+
+            case FOCUS:
+                controller.setFocusKey(keycode);
+                break;
+
+            case FIREBALL:
+                controller.setFireballKey(keycode);
+                break;
+
+            case SCREAM:
+                controller.setScreamKey(keycode);
+                break;
+
+            case INTERACT:
+                controller.setInteractKey(keycode);
+                break;
+
+            case DIALOGUE_ADVANCE:
+                controller.setDialogueAdvanceKey(keycode);
+                break;
+
+            case INVENTORY:
+                controller.setInventoryKey(keycode);
+                break;
+
+            case PAUSE:
+                controller.setPauseKey(keycode);
                 break;
 
             default:

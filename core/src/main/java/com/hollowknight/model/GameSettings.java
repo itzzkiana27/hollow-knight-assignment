@@ -13,7 +13,7 @@ public class GameSettings {
     private static final String CONTROLS_VERSION_KEY =
         "controlsVersion";
 
-    private static final int CURRENT_CONTROLS_VERSION = 2;
+    private static final int CURRENT_CONTROLS_VERSION = 3;
 
     private static final String SLIDER_DEFAULTS_VERSION_KEY =
         "sliderDefaultsVersion";
@@ -46,6 +46,16 @@ public class GameSettings {
     private int jumpKey;
     private int dashKey;
     private int attackKey;
+    private int upKey;
+    private int downKey;
+    private int alternateAttackKey;
+    private int focusKey;
+    private int fireballKey;
+    private int screamKey;
+    private int interactKey;
+    private int dialogueAdvanceKey;
+    private int inventoryKey;
+    private int pauseKey;
 
     public GameSettings() {
         preferences = Gdx.app.getPreferences(PREFERENCES_NAME);
@@ -91,41 +101,105 @@ public class GameSettings {
             0
         );
 
-        if (controlsVersion < CURRENT_CONTROLS_VERSION) {
+        if (controlsVersion < 2) {
             /*
              * Earlier builds used A/D, Space, Shift, and J.
              * Migrate once to the assignment's required defaults.
              */
             setDefaultControls();
-            save();
         } else {
-            moveLeftKey = preferences.getInteger(
-                "moveLeftKey",
-                KeyBindings.DEFAULT_MOVE_LEFT
-            );
+            loadPrimaryControls();
+            loadAdditionalControls();
+        }
 
-            moveRightKey = preferences.getInteger(
-                "moveRightKey",
-                KeyBindings.DEFAULT_MOVE_RIGHT
-            );
-
-            jumpKey = preferences.getInteger(
-                "jumpKey",
-                KeyBindings.DEFAULT_JUMP
-            );
-
-            dashKey = preferences.getInteger(
-                "dashKey",
-                KeyBindings.DEFAULT_DASH
-            );
-
-            attackKey = preferences.getInteger(
-                "attackKey",
-                KeyBindings.DEFAULT_ATTACK
-            );
+        if (controlsVersion < CURRENT_CONTROLS_VERSION) {
+            /*
+             * Version 3 adds every normal gameplay action without
+             * overwriting the player's existing five custom bindings.
+             */
+            save();
         }
 
         migrateLegacySliderDefaults();
+    }
+
+    private void loadPrimaryControls() {
+        moveLeftKey = preferences.getInteger(
+            "moveLeftKey",
+            KeyBindings.DEFAULT_MOVE_LEFT
+        );
+
+        moveRightKey = preferences.getInteger(
+            "moveRightKey",
+            KeyBindings.DEFAULT_MOVE_RIGHT
+        );
+
+        jumpKey = preferences.getInteger(
+            "jumpKey",
+            KeyBindings.DEFAULT_JUMP
+        );
+
+        dashKey = preferences.getInteger(
+            "dashKey",
+            KeyBindings.DEFAULT_DASH
+        );
+
+        attackKey = preferences.getInteger(
+            "attackKey",
+            KeyBindings.DEFAULT_ATTACK
+        );
+    }
+
+    private void loadAdditionalControls() {
+        upKey = preferences.getInteger(
+            "upKey",
+            KeyBindings.DEFAULT_UP
+        );
+
+        downKey = preferences.getInteger(
+            "downKey",
+            KeyBindings.DEFAULT_DOWN
+        );
+
+        alternateAttackKey = preferences.getInteger(
+            "alternateAttackKey",
+            KeyBindings.DEFAULT_ALTERNATE_ATTACK
+        );
+
+        focusKey = preferences.getInteger(
+            "focusKey",
+            KeyBindings.DEFAULT_FOCUS
+        );
+
+        fireballKey = preferences.getInteger(
+            "fireballKey",
+            KeyBindings.DEFAULT_FIREBALL
+        );
+
+        screamKey = preferences.getInteger(
+            "screamKey",
+            KeyBindings.DEFAULT_SCREAM
+        );
+
+        interactKey = preferences.getInteger(
+            "interactKey",
+            KeyBindings.DEFAULT_INTERACT
+        );
+
+        dialogueAdvanceKey = preferences.getInteger(
+            "dialogueAdvanceKey",
+            KeyBindings.DEFAULT_DIALOGUE_ADVANCE
+        );
+
+        inventoryKey = preferences.getInteger(
+            "inventoryKey",
+            KeyBindings.DEFAULT_INVENTORY
+        );
+
+        pauseKey = preferences.getInteger(
+            "pauseKey",
+            KeyBindings.DEFAULT_PAUSE
+        );
     }
 
     private void migrateLegacySliderDefaults() {
@@ -249,6 +323,56 @@ public class GameSettings {
         );
 
         preferences.putInteger(
+            "upKey",
+            upKey
+        );
+
+        preferences.putInteger(
+            "downKey",
+            downKey
+        );
+
+        preferences.putInteger(
+            "alternateAttackKey",
+            alternateAttackKey
+        );
+
+        preferences.putInteger(
+            "focusKey",
+            focusKey
+        );
+
+        preferences.putInteger(
+            "fireballKey",
+            fireballKey
+        );
+
+        preferences.putInteger(
+            "screamKey",
+            screamKey
+        );
+
+        preferences.putInteger(
+            "interactKey",
+            interactKey
+        );
+
+        preferences.putInteger(
+            "dialogueAdvanceKey",
+            dialogueAdvanceKey
+        );
+
+        preferences.putInteger(
+            "inventoryKey",
+            inventoryKey
+        );
+
+        preferences.putInteger(
+            "pauseKey",
+            pauseKey
+        );
+
+        preferences.putInteger(
             CONTROLS_VERSION_KEY,
             CURRENT_CONTROLS_VERSION
         );
@@ -262,6 +386,18 @@ public class GameSettings {
         jumpKey = KeyBindings.DEFAULT_JUMP;
         dashKey = KeyBindings.DEFAULT_DASH;
         attackKey = KeyBindings.DEFAULT_ATTACK;
+        upKey = KeyBindings.DEFAULT_UP;
+        downKey = KeyBindings.DEFAULT_DOWN;
+        alternateAttackKey =
+            KeyBindings.DEFAULT_ALTERNATE_ATTACK;
+        focusKey = KeyBindings.DEFAULT_FOCUS;
+        fireballKey = KeyBindings.DEFAULT_FIREBALL;
+        screamKey = KeyBindings.DEFAULT_SCREAM;
+        interactKey = KeyBindings.DEFAULT_INTERACT;
+        dialogueAdvanceKey =
+            KeyBindings.DEFAULT_DIALOGUE_ADVANCE;
+        inventoryKey = KeyBindings.DEFAULT_INVENTORY;
+        pauseKey = KeyBindings.DEFAULT_PAUSE;
     }
 
     public void resetControls() {
@@ -416,4 +552,85 @@ public class GameSettings {
     public void setAttackKey(int attackKey) {
         this.attackKey = attackKey;
     }
+
+    public int getUpKey() {
+        return upKey;
+    }
+
+    public void setUpKey(int upKey) {
+        this.upKey = upKey;
+    }
+
+    public int getDownKey() {
+        return downKey;
+    }
+
+    public void setDownKey(int downKey) {
+        this.downKey = downKey;
+    }
+
+    public int getAlternateAttackKey() {
+        return alternateAttackKey;
+    }
+
+    public void setAlternateAttackKey(int alternateAttackKey) {
+        this.alternateAttackKey = alternateAttackKey;
+    }
+
+    public int getFocusKey() {
+        return focusKey;
+    }
+
+    public void setFocusKey(int focusKey) {
+        this.focusKey = focusKey;
+    }
+
+    public int getFireballKey() {
+        return fireballKey;
+    }
+
+    public void setFireballKey(int fireballKey) {
+        this.fireballKey = fireballKey;
+    }
+
+    public int getScreamKey() {
+        return screamKey;
+    }
+
+    public void setScreamKey(int screamKey) {
+        this.screamKey = screamKey;
+    }
+
+    public int getInteractKey() {
+        return interactKey;
+    }
+
+    public void setInteractKey(int interactKey) {
+        this.interactKey = interactKey;
+    }
+
+    public int getDialogueAdvanceKey() {
+        return dialogueAdvanceKey;
+    }
+
+    public void setDialogueAdvanceKey(int dialogueAdvanceKey) {
+        this.dialogueAdvanceKey = dialogueAdvanceKey;
+    }
+
+    public int getInventoryKey() {
+        return inventoryKey;
+    }
+
+    public void setInventoryKey(int inventoryKey) {
+        this.inventoryKey = inventoryKey;
+    }
+
+    public int getPauseKey() {
+        return pauseKey;
+    }
+
+    public void setPauseKey(int pauseKey) {
+        this.pauseKey = pauseKey;
+    }
+
 }

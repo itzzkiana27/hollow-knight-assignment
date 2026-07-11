@@ -494,13 +494,7 @@ public class GameController {
         GameSettings settings =
             game.getSettings();
 
-        keyBindings = new KeyBindings(
-            settings.getMoveLeftKey(),
-            settings.getMoveRightKey(),
-            settings.getJumpKey(),
-            settings.getDashKey(),
-            settings.getAttackKey()
-        );
+        keyBindings = createKeyBindings(settings);
 
         gameSfxPlayer = new GameSfxPlayer(settings);
 
@@ -1520,7 +1514,7 @@ public class GameController {
     private void handleCharmInventoryInput() {
         if (
             !Gdx.input.isKeyJustPressed(
-                Input.Keys.I
+                keyBindings.getInventory()
             )
         ) {
             return;
@@ -2381,11 +2375,29 @@ public class GameController {
             hitVulnerableBody
         );
 
+        playFalseKnightDamageFeedback(
+            hitVulnerableBody
+        );
+
         if (wasAlive && !falseKnight.isAlive()) {
             registerFalseKnightDefeatedIfNeeded();
         }
 
         return true;
+    }
+
+    private void playFalseKnightDamageFeedback(
+        boolean hitVulnerableBody
+    ) {
+        gameSfxPlayer.playEnemyDamage();
+
+        if (hitVulnerableBody) {
+            if (falseKnightHeadDamageSound != null) {
+                falseKnightHeadDamageSound.play(0.75f);
+            }
+        } else if (falseKnightDamageArmourSound != null) {
+            falseKnightDamageArmourSound.play(0.65f);
+        }
     }
 
     private void updateActiveFocus(
@@ -3043,10 +3055,18 @@ public class GameController {
             sharpShadowHitFalseKnight
                 || falseKnight == null
                 || !falseKnight.isAlive()
-                || !playerBounds.overlaps(
-                falseKnight.getBounds()
-            )
         ) {
+            return;
+        }
+
+        boolean hitVulnerableBody =
+            falseKnight.isStunned();
+
+        Rectangle targetHitbox = hitVulnerableBody
+            ? falseKnight.getVulnerableHitbox()
+            : falseKnight.getBounds();
+
+        if (!playerBounds.overlaps(targetHitbox)) {
             return;
         }
 
@@ -3056,9 +3076,13 @@ public class GameController {
 
         falseKnight.takeDamage(
             charmEffects.getSharpShadowDamage(
-                combat.getDamage()
+                getNailDamage()
             ),
-            falseKnight.isStunned()
+            hitVulnerableBody
+        );
+
+        playFalseKnightDamageFeedback(
+            hitVulnerableBody
         );
 
         if (wasAlive && !falseKnight.isAlive()) {
@@ -3266,8 +3290,13 @@ public class GameController {
             playerBody.getBounds();
 
         if (isSharpShadowDashActive()) {
+            /*
+             * Use the complete shadow trail instead of only the Knight body.
+             * This prevents a faster dash from skipping over the boss between
+             * frames and also lets the trail reach the exposed creature.
+             */
             applySharpShadowDamageToFalseKnight(
-                playerBounds
+                getSharpShadowDashVisualBounds()
             );
 
             return false;
@@ -3554,10 +3583,10 @@ public class GameController {
                 keyBindings.getSoulGainTest()
             ),
             Gdx.input.isKeyJustPressed(
-                keyBindings.getFireballTest()
+                keyBindings.getFireball()
             ),
             Gdx.input.isKeyJustPressed(
-                keyBindings.getScreamTest()
+                keyBindings.getScream()
             ),
             Gdx.input.isKeyJustPressed(
                 keyBindings.getDeathTest()
@@ -3609,7 +3638,7 @@ public class GameController {
         if (zoteDialogueActive) {
             if (
                 Gdx.input.isKeyJustPressed(
-                    Input.Keys.ENTER
+                    keyBindings.getDialogueAdvance()
                 )
             ) {
                 advanceZoteDialogue();
@@ -3620,10 +3649,10 @@ public class GameController {
 
         boolean interactPressed =
             Gdx.input.isKeyJustPressed(
-                Input.Keys.E
+                keyBindings.getInteract()
             )
                 || Gdx.input.isKeyJustPressed(
-                Input.Keys.UP
+                keyBindings.getUp()
             );
 
         if (
@@ -3730,7 +3759,8 @@ public class GameController {
                 && movement.canStartDash()
         ) {
             movement.startDash(
-                currentInput
+                currentInput,
+                getDashLengthMultiplier()
             );
 
             resetSharpShadowDashHits();
@@ -4029,15 +4059,9 @@ public class GameController {
             applySuccessfulPogo();
         }
 
-        if (hitVulnerableBody) {
-            if (falseKnightHeadDamageSound != null) {
-                falseKnightHeadDamageSound.play(0.75f);
-            }
-        } else {
-            if (falseKnightDamageArmourSound != null) {
-                falseKnightDamageArmourSound.play(0.65f);
-            }
-        }
+        playFalseKnightDamageFeedback(
+            hitVulnerableBody
+        );
 
         return true;
     }
@@ -4632,6 +4656,32 @@ public class GameController {
         returnToMainMenu();
     }
 
+    private KeyBindings createKeyBindings(
+        GameSettings settings
+    ) {
+        return new KeyBindings(
+            settings.getMoveLeftKey(),
+            settings.getMoveRightKey(),
+            settings.getJumpKey(),
+            settings.getDashKey(),
+            settings.getAttackKey(),
+            settings.getUpKey(),
+            settings.getDownKey(),
+            settings.getAlternateAttackKey(),
+            settings.getFocusKey(),
+            settings.getFireballKey(),
+            settings.getScreamKey(),
+            settings.getInteractKey(),
+            settings.getDialogueAdvanceKey(),
+            settings.getInventoryKey(),
+            settings.getPauseKey()
+        );
+    }
+
+    public int getPauseKey() {
+        return keyBindings.getPause();
+    }
+
     public void openSettingsMenu() {
         game.showSettingsMenuFromPause(this);
     }
@@ -4639,13 +4689,7 @@ public class GameController {
     public void resumeAfterSettings() {
         GameSettings settings = game.getSettings();
 
-        keyBindings = new KeyBindings(
-            settings.getMoveLeftKey(),
-            settings.getMoveRightKey(),
-            settings.getJumpKey(),
-            settings.getDashKey(),
-            settings.getAttackKey()
-        );
+        keyBindings = createKeyBindings(settings);
 
         updateBackgroundMusic();
     }

@@ -179,6 +179,88 @@ public class SettingsController {
         settings.setAttackKey(key);
     }
 
+
+
+    public int getUpKey() {
+        return settings.getUpKey();
+    }
+
+    public void setUpKey(int key) {
+        settings.setUpKey(key);
+    }
+
+    public int getDownKey() {
+        return settings.getDownKey();
+    }
+
+    public void setDownKey(int key) {
+        settings.setDownKey(key);
+    }
+
+    public int getAlternateAttackKey() {
+        return settings.getAlternateAttackKey();
+    }
+
+    public void setAlternateAttackKey(int key) {
+        settings.setAlternateAttackKey(key);
+    }
+
+    public int getFocusKey() {
+        return settings.getFocusKey();
+    }
+
+    public void setFocusKey(int key) {
+        settings.setFocusKey(key);
+    }
+
+    public int getFireballKey() {
+        return settings.getFireballKey();
+    }
+
+    public void setFireballKey(int key) {
+        settings.setFireballKey(key);
+    }
+
+    public int getScreamKey() {
+        return settings.getScreamKey();
+    }
+
+    public void setScreamKey(int key) {
+        settings.setScreamKey(key);
+    }
+
+    public int getInteractKey() {
+        return settings.getInteractKey();
+    }
+
+    public void setInteractKey(int key) {
+        settings.setInteractKey(key);
+    }
+
+    public int getDialogueAdvanceKey() {
+        return settings.getDialogueAdvanceKey();
+    }
+
+    public void setDialogueAdvanceKey(int key) {
+        settings.setDialogueAdvanceKey(key);
+    }
+
+    public int getInventoryKey() {
+        return settings.getInventoryKey();
+    }
+
+    public void setInventoryKey(int key) {
+        settings.setInventoryKey(key);
+    }
+
+    public int getPauseKey() {
+        return settings.getPauseKey();
+    }
+
+    public void setPauseKey(int key) {
+        settings.setPauseKey(key);
+    }
+
     public void resetControls() {
         settings.resetControls();
     }

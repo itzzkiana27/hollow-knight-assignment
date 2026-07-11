@@ -90,6 +90,9 @@ public class GameController {
         CAMERA_SHAKE_BOSS_MOVE = 0.24f;
 
     private static final float
+        CAMERA_SHAKE_HEAVY_BLOW = 0.18f;
+
+    private static final float
         CHECKPOINT_HAZARD_MARGIN = 110f;
 
     private static final float
@@ -494,13 +497,7 @@ public class GameController {
         GameSettings settings =
             game.getSettings();
 
-        keyBindings = new KeyBindings(
-            settings.getMoveLeftKey(),
-            settings.getMoveRightKey(),
-            settings.getJumpKey(),
-            settings.getDashKey(),
-            settings.getAttackKey()
-        );
+        keyBindings = createKeyBindings(settings);
 
         gameSfxPlayer = new GameSfxPlayer(settings);
 
@@ -1096,6 +1093,16 @@ public class GameController {
         );
     }
 
+    private void triggerHeavyBlowFeedback() {
+        if (!hasHeavyBlow()) {
+            return;
+        }
+
+        requestGameplayCameraShake(
+            CAMERA_SHAKE_HEAVY_BLOW
+        );
+    }
+
     private void requestGameplayCameraShake(
         float intensity
     ) {
@@ -1520,7 +1527,7 @@ public class GameController {
     private void handleCharmInventoryInput() {
         if (
             !Gdx.input.isKeyJustPressed(
-                Input.Keys.I
+                keyBindings.getInventory()
             )
         ) {
             return;
@@ -1726,6 +1733,10 @@ public class GameController {
     public float getEnemyKnockbackMultiplier() {
         return charmEffects
             .getKnockbackMultiplier();
+    }
+
+    public boolean hasHeavyBlow() {
+        return charmEffects.hasHeavyBlow();
     }
 
     public boolean hasSharpShadow() {
@@ -3589,10 +3600,10 @@ public class GameController {
                 keyBindings.getSoulGainTest()
             ),
             Gdx.input.isKeyJustPressed(
-                keyBindings.getFireballTest()
+                keyBindings.getFireball()
             ),
             Gdx.input.isKeyJustPressed(
-                keyBindings.getScreamTest()
+                keyBindings.getScream()
             ),
             Gdx.input.isKeyJustPressed(
                 keyBindings.getDeathTest()
@@ -3644,7 +3655,7 @@ public class GameController {
         if (zoteDialogueActive) {
             if (
                 Gdx.input.isKeyJustPressed(
-                    Input.Keys.ENTER
+                    keyBindings.getDialogueAdvance()
                 )
             ) {
                 advanceZoteDialogue();
@@ -3655,10 +3666,10 @@ public class GameController {
 
         boolean interactPressed =
             Gdx.input.isKeyJustPressed(
-                Input.Keys.E
+                keyBindings.getInteract()
             )
                 || Gdx.input.isKeyJustPressed(
-                Input.Keys.UP
+                keyBindings.getUp()
             );
 
         if (
@@ -4069,6 +4080,8 @@ public class GameController {
             hitVulnerableBody
         );
 
+        triggerHeavyBlowFeedback();
+
         return true;
     }
 
@@ -4160,7 +4173,8 @@ public class GameController {
                 getEnemyKnockbackDirection(
                     enemyBounds
                 ),
-                platformWorld
+                platformWorld,
+                getEnemyKnockbackMultiplier()
             );
         }
 
@@ -4169,6 +4183,7 @@ public class GameController {
         );
 
         gameSfxPlayer.playEnemyDamage();
+        triggerHeavyBlowFeedback();
 
         gainSoulFromNailHit();
 
@@ -4662,6 +4677,32 @@ public class GameController {
         returnToMainMenu();
     }
 
+    private KeyBindings createKeyBindings(
+        GameSettings settings
+    ) {
+        return new KeyBindings(
+            settings.getMoveLeftKey(),
+            settings.getMoveRightKey(),
+            settings.getJumpKey(),
+            settings.getDashKey(),
+            settings.getAttackKey(),
+            settings.getUpKey(),
+            settings.getDownKey(),
+            settings.getAlternateAttackKey(),
+            settings.getFocusKey(),
+            settings.getFireballKey(),
+            settings.getScreamKey(),
+            settings.getInteractKey(),
+            settings.getDialogueAdvanceKey(),
+            settings.getInventoryKey(),
+            settings.getPauseKey()
+        );
+    }
+
+    public int getPauseKey() {
+        return keyBindings.getPause();
+    }
+
     public void openSettingsMenu() {
         game.showSettingsMenuFromPause(this);
     }
@@ -4669,13 +4710,7 @@ public class GameController {
     public void resumeAfterSettings() {
         GameSettings settings = game.getSettings();
 
-        keyBindings = new KeyBindings(
-            settings.getMoveLeftKey(),
-            settings.getMoveRightKey(),
-            settings.getJumpKey(),
-            settings.getDashKey(),
-            settings.getAttackKey()
-        );
+        keyBindings = createKeyBindings(settings);
 
         updateBackgroundMusic();
     }
