@@ -26,6 +26,15 @@ public final class GameCamera {
     private static final float SHAKE_DURATION_SCALE = 0.55f;
     private static final float MAX_SHAKE_INTENSITY = 1.7f;
 
+    /*
+     * Final render-strength profiles. False Knight still supplies the exact
+     * event intensity (slam, landing, death, and so on); these values only
+     * soften the camera output. The boss profile remains stronger than the
+     * ordinary gameplay profile for the same requested intensity.
+     */
+    private static final float NORMAL_SHAKE_MAGNITUDE_SCALE = 0.55f;
+    private static final float BOSS_ARENA_SHAKE_MAGNITUDE_SCALE = 0.72f;
+
     private final OrthographicCamera camera;
     private final Viewport viewport;
     private final Rectangle worldBounds;
@@ -90,18 +99,48 @@ public final class GameCamera {
      * in the 0..1 range (larger values are clamped).
      */
     public void shake(float intensity) {
+        shakeWithMagnitudeScale(
+            intensity,
+            NORMAL_SHAKE_MAGNITUDE_SCALE
+        );
+    }
+
+    /**
+     * Uses the stronger arena profile without changing the boss's requested
+     * intensity or any of its attack-specific shake decisions.
+     */
+    public void shakeBossArena(float intensity) {
+        shakeWithMagnitudeScale(
+            intensity,
+            BOSS_ARENA_SHAKE_MAGNITUDE_SCALE
+        );
+    }
+
+    private void shakeWithMagnitudeScale(
+        float intensity,
+        float magnitudeScale
+    ) {
         if (intensity <= 0f) {
             return;
         }
 
-        float clamped = MathUtils.clamp(intensity, 0f, MAX_SHAKE_INTENSITY);
+        float clamped = MathUtils.clamp(
+            intensity,
+            0f,
+            MAX_SHAKE_INTENSITY
+        );
 
         float newMagnitude =
             clamped
                 * camera.viewportWidth
                 * camera.zoom
-                * MAX_SHAKE_FRACTION;
+                * MAX_SHAKE_FRACTION
+                * magnitudeScale;
 
+        /*
+         * Duration still depends directly on the original requested intensity,
+         * so a power slam lasts longer than a light landing exactly as before.
+         */
         float newDuration =
             MIN_SHAKE_DURATION
                 + clamped * SHAKE_DURATION_SCALE;

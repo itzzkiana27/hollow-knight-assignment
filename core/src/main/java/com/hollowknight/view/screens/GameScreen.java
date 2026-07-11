@@ -1016,7 +1016,7 @@ public class GameScreen extends ScreenAdapter {
             falseKnight != null
                 && falseKnight.consumeCameraShakeRequest()
         ) {
-            worldCamera.shake(
+            worldCamera.shakeBossArena(
                 falseKnight.getPendingShakeIntensity()
             );
         }

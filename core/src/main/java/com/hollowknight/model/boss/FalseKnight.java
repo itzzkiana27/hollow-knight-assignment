@@ -89,7 +89,18 @@ public class FalseKnight {
 
     private static final float HEAVY_DAMAGE_WINDOW = 1.3f;
     private static final int HEAVY_DAMAGE_TRIGGER = 3;
-    private static final float DEFENSIVE_LEAP_REACTION_CHANCE = 0.85f;
+
+    /*
+     * Defensive Leap remains a random reaction to sustained pressure, but a
+     * cooldown and distance-scaled chance stop repeated hits from forcing the
+     * boss into the same escape over and over.
+     */
+    private static final float DEFENSIVE_LEAP_CHANCE_CLOSE = 0.55f;
+    private static final float DEFENSIVE_LEAP_CHANCE_FAR = 0.18f;
+    private static final float DEFENSIVE_LEAP_COOLDOWN_PHASE_ONE = 4.25f;
+    private static final float DEFENSIVE_LEAP_COOLDOWN_PHASE_TWO = 3.50f;
+
+    private static final float RECENT_MOVE_REPEAT_WEIGHT = 0.24f;
 
     private static final float MACE_SLAM_ANTIC_TIME = 0.51f;
     private static final float MACE_SLAM_IMPACT_TIME = 0.20f;
@@ -142,6 +153,7 @@ public class FalseKnight {
 
     private State state = State.IDLE;
     private Move lastMove = null;
+    private Move previousMove = null;
 
     private int health = MAX_HEALTH;
 
@@ -159,6 +171,8 @@ public class FalseKnight {
 
     private float heavyDamageTimer;
     private int recentHits;
+    private float defensiveLeapCooldown;
+    private float lastPlayerDistance = FAR_DISTANCE;
 
     private float stunGroundTimer;
 
@@ -219,6 +233,15 @@ public class FalseKnight {
         if (bodyContactCooldown > 0f) {
             bodyContactCooldown -= delta;
         }
+
+        if (defensiveLeapCooldown > 0f) {
+            defensiveLeapCooldown = Math.max(
+                0f,
+                defensiveLeapCooldown - delta
+            );
+        }
+
+        lastPlayerDistance = horizontalDistanceTo(playerBounds);
 
         if (state != State.DEAD) {
             updateHeavyDamageTimer(delta);
@@ -314,83 +337,100 @@ public class FalseKnight {
     ) {
         float distance = horizontalDistanceTo(playerBounds);
 
-        for (int attempt = 0; attempt < 10; attempt++) {
-            float roll = MathUtils.random();
+        float maceWeight;
+        float chargeWeight;
+        float offensiveLeapWeight;
+        float powerSlamWeight;
 
-            Move chosen;
+        /*
+         * Distance changes probabilities rather than selecting a fixed script.
+         * Close range strongly favours the mace, medium range mixes gap-closing
+         * moves, and long range strongly favours Charge Run.
+         */
+        if (distance <= CLOSE_DISTANCE) {
+            maceWeight = 58f;
+            chargeWeight = 8f;
+            offensiveLeapWeight = 26f;
+            powerSlamWeight = phaseTwo ? 18f : 0f;
+        } else if (distance >= FAR_DISTANCE) {
+            maceWeight = 4f;
+            chargeWeight = 54f;
+            offensiveLeapWeight = 34f;
+            powerSlamWeight = phaseTwo ? 22f : 0f;
+        } else {
+            float rangeAlpha = (distance - CLOSE_DISTANCE)
+                / (FAR_DISTANCE - CLOSE_DISTANCE);
 
-            if (distance <= CLOSE_DISTANCE) {
-                chosen = chooseCloseMove(roll);
-            } else if (distance >= FAR_DISTANCE) {
-                chosen = chooseFarMove(roll);
-            } else {
-                chosen = chooseMediumMove(roll);
-            }
-
-            if (isMoveAllowed(chosen)) {
-                return chosen;
-            }
+            maceWeight = MathUtils.lerp(24f, 7f, rangeAlpha);
+            chargeWeight = MathUtils.lerp(30f, 49f, rangeAlpha);
+            offensiveLeapWeight = MathUtils.lerp(39f, 35f, rangeAlpha);
+            powerSlamWeight = phaseTwo
+                ? MathUtils.lerp(17f, 21f, rangeAlpha)
+                : 0f;
         }
 
-        return getFallbackMove(distance);
-    }
+        maceWeight = applyMoveHistoryWeight(
+            Move.MACE_SLAM,
+            maceWeight
+        );
+        chargeWeight = applyMoveHistoryWeight(
+            Move.CHARGE_RUN,
+            chargeWeight
+        );
+        offensiveLeapWeight = applyMoveHistoryWeight(
+            Move.OFFENSIVE_LEAP,
+            offensiveLeapWeight
+        );
+        powerSlamWeight = applyMoveHistoryWeight(
+            Move.POWER_MACE_SLAM,
+            powerSlamWeight
+        );
 
-    /*
-     * Close range: Mace Slam is the dominant choice (rule: its probability must
-     * greatly increase when the player is close). Phase two adds Power Mace
-     * Slam, and an occasional Offensive Leap lets the knight reposition.
-     */
-    private Move chooseCloseMove(float roll) {
-        if (phaseTwo && roll < 0.20f) {
-            return Move.POWER_MACE_SLAM;
+        float totalWeight = maceWeight
+            + chargeWeight
+            + offensiveLeapWeight
+            + powerSlamWeight;
+
+        if (totalWeight <= 0f) {
+            return getFallbackMove(distance);
         }
 
-        if (roll < 0.80f) {
+        float roll = MathUtils.random(totalWeight);
+
+        if ((roll -= maceWeight) < 0f) {
             return Move.MACE_SLAM;
         }
 
-        return Move.OFFENSIVE_LEAP;
-    }
-
-    /*
-     * Medium range: too far for a mace to connect, so close the gap. Charge Run
-     * and Offensive Leap share the load, with Power Mace Slam in phase two.
-     */
-    private Move chooseMediumMove(float roll) {
-        if (phaseTwo && roll < 0.22f) {
-            return Move.POWER_MACE_SLAM;
-        }
-
-        if (roll < 0.55f) {
+        if ((roll -= chargeWeight) < 0f) {
             return Move.CHARGE_RUN;
         }
 
-        return Move.OFFENSIVE_LEAP;
+        if ((roll -= offensiveLeapWeight) < 0f) {
+            return Move.OFFENSIVE_LEAP;
+        }
+
+        return Move.POWER_MACE_SLAM;
     }
 
-    /*
-     * Long range: the knight becomes enraged and mostly charges, with leaps as
-     * the alternative and Power Mace Slam in phase two.
-     */
-    private Move chooseFarMove(float roll) {
-        if (phaseTwo && roll < 0.25f) {
-            return Move.POWER_MACE_SLAM;
+    private float applyMoveHistoryWeight(
+        Move move,
+        float baseWeight
+    ) {
+        if (baseWeight <= 0f) {
+            return 0f;
         }
 
-        if (roll < 0.68f) {
-            return Move.CHARGE_RUN;
+        /* Hard anti-spam: never repeat the immediately previous move. */
+        if (move == lastMove) {
+            return 0f;
         }
 
-        return Move.OFFENSIVE_LEAP;
-    }
-
-    private boolean isMoveAllowed(Move move) {
-        if (move == Move.POWER_MACE_SLAM && !phaseTwo) {
-            return false;
+        /* Soft anti-pattern: discourage A-B-A-B loops without deadlocking AI. */
+        if (move == previousMove) {
+            return baseWeight * RECENT_MOVE_REPEAT_WEIGHT;
         }
 
-        /* Anti-spam: never the same move twice in a row. */
-        return move != lastMove;
+        return baseWeight;
     }
 
     private Move getFallbackMove(float distance) {
@@ -398,7 +438,7 @@ public class FalseKnight {
             return Move.MACE_SLAM;
         }
 
-        if (lastMove != Move.CHARGE_RUN) {
+        if (distance >= FAR_DISTANCE && lastMove != Move.CHARGE_RUN) {
             return Move.CHARGE_RUN;
         }
 
@@ -406,7 +446,18 @@ public class FalseKnight {
             return Move.OFFENSIVE_LEAP;
         }
 
-        return Move.MACE_SLAM;
+        if (phaseTwo && lastMove != Move.POWER_MACE_SLAM) {
+            return Move.POWER_MACE_SLAM;
+        }
+
+        return lastMove == Move.MACE_SLAM
+            ? Move.CHARGE_RUN
+            : Move.MACE_SLAM;
+    }
+
+    private void rememberMove(Move move) {
+        previousMove = lastMove;
+        lastMove = move;
     }
 
     /* ----------------------------------------------------------------- */
@@ -417,7 +468,7 @@ public class FalseKnight {
         Move move,
         Rectangle playerBounds
     ) {
-        lastMove = move;
+        rememberMove(move);
         stateTime = 0f;
         animationTime = 0f;
         maceHitActive = false;
@@ -472,7 +523,10 @@ public class FalseKnight {
     }
 
     private void startDefensiveLeap() {
-        lastMove = Move.DEFENSIVE_LEAP;
+        rememberMove(Move.DEFENSIVE_LEAP);
+        defensiveLeapCooldown = phaseTwo
+            ? DEFENSIVE_LEAP_COOLDOWN_PHASE_TWO
+            : DEFENSIVE_LEAP_COOLDOWN_PHASE_ONE;
         state = State.DEFENSIVE_LEAP;
         stateTime = 0f;
         animationTime = 0f;
@@ -823,19 +877,43 @@ public class FalseKnight {
         }
 
         /*
-         * Reactive Defensive Leap: sustained heavy damage in a short window
-         * makes the knight hop backwards. It has a random element and can
-         * interrupt wind-up / recovery, but never chains into itself.
+         * One random defensive decision is made per full damage-pressure
+         * threshold. Resetting the counter even when the roll fails prevents
+         * every later hit from rerolling until a jump becomes inevitable.
          */
-        if (
-            recentHits >= HEAVY_DAMAGE_TRIGGER
-                && lastMove != Move.DEFENSIVE_LEAP
-                && canInterruptForDefensiveLeap()
-                && MathUtils.random() < DEFENSIVE_LEAP_REACTION_CHANCE
-        ) {
+        if (recentHits >= HEAVY_DAMAGE_TRIGGER) {
             recentHits = 0;
-            startDefensiveLeap();
+
+            if (
+                defensiveLeapCooldown <= 0f
+                    && lastMove != Move.DEFENSIVE_LEAP
+                    && canInterruptForDefensiveLeap()
+                    && MathUtils.random()
+                        < defensiveLeapReactionChance()
+            ) {
+                startDefensiveLeap();
+            }
         }
+    }
+
+    private float defensiveLeapReactionChance() {
+        float distanceAlpha = MathUtils.clamp(
+            (lastPlayerDistance - CLOSE_DISTANCE)
+                / (FAR_DISTANCE - CLOSE_DISTANCE),
+            0f,
+            1f
+        );
+
+        float chance = MathUtils.lerp(
+            DEFENSIVE_LEAP_CHANCE_CLOSE,
+            DEFENSIVE_LEAP_CHANCE_FAR,
+            distanceAlpha
+        );
+
+        /* Phase two reacts a little faster, but still respects the cooldown. */
+        return phaseTwo
+            ? Math.min(0.64f, chance + 0.07f)
+            : chance;
     }
 
     private boolean canInterruptForDefensiveLeap() {
@@ -1168,6 +1246,7 @@ public class FalseKnight {
 
         state = State.IDLE;
         lastMove = null;
+        previousMove = null;
 
         stateTime = 0f;
         animationTime = 0f;
@@ -1178,6 +1257,8 @@ public class FalseKnight {
 
         recentHits = 0;
         heavyDamageTimer = 0f;
+        defensiveLeapCooldown = 0f;
+        lastPlayerDistance = FAR_DISTANCE;
         stunGroundTimer = 0f;
 
         maceHitActive = false;
