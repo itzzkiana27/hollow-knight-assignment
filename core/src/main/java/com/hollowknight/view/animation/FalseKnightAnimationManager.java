@@ -22,6 +22,7 @@ public final class FalseKnightAnimationManager
         > animations;
 
     private final Animation<TextureRegion> shockwaveAnimation;
+    private final Animation<TextureRegion> deathFallAnimation;
 
     private final Array<Texture> textures;
 
@@ -49,7 +50,7 @@ public final class FalseKnightAnimationManager
             loadAnimation(
                 "attack_antic",
                 6,
-                0.075f,
+                0.085f,
                 Animation.PlayMode.NORMAL
             )
         );
@@ -59,7 +60,7 @@ public final class FalseKnightAnimationManager
             loadAnimation(
                 "attack",
                 3,
-                0.07f,
+                0.10f,
                 Animation.PlayMode.NORMAL
             )
         );
@@ -69,7 +70,7 @@ public final class FalseKnightAnimationManager
             loadAnimation(
                 "attack_recover",
                 5,
-                0.08f,
+                0.10f,
                 Animation.PlayMode.NORMAL
             )
         );
@@ -118,17 +119,26 @@ public final class FalseKnightAnimationManager
             FalseKnight.State.POWER_JUMP,
             loadAnimation(
                 "jump_attack",
-                8,
-                0.075f,
+                4,
+                0.10f,
                 Animation.PlayMode.NORMAL
             )
         );
 
+        /*
+         * Continue the power-mace motion after landing. Frame 005 is the
+         * visible floor-contact frame, so gameplay starts the shockwave at
+         * 0.12 seconds, exactly when this animation reaches that frame.
+         */
         animations.put(
             FalseKnight.State.POWER_SLAM,
             loadAnimation(
-                "jump_attack_hit",
-                1,
+                new String[] {
+                    BASE_PATH + "jump_attack_004.png",
+                    BASE_PATH + "jump_attack_005.png",
+                    BASE_PATH + "jump_attack_006.png",
+                    BASE_PATH + "jump_attack_007.png"
+                },
                 0.12f,
                 Animation.PlayMode.NORMAL
             )
@@ -162,6 +172,13 @@ public final class FalseKnightAnimationManager
                 0.10f,
                 Animation.PlayMode.NORMAL
             )
+        );
+
+        deathFallAnimation = loadAnimation(
+            "death_fall",
+            3,
+            0.10f,
+            Animation.PlayMode.NORMAL
         );
 
         /*
@@ -260,13 +277,49 @@ public final class FalseKnightAnimationManager
         return animation;
     }
 
+    private Animation<TextureRegion> loadAnimation(
+        String[] framePaths,
+        float frameDuration,
+        Animation.PlayMode playMode
+    ) {
+        Array<TextureRegion> frames =
+            new Array<>(framePaths.length);
+
+        for (String path : framePaths) {
+            Texture texture =
+                new Texture(Gdx.files.internal(path));
+
+            texture.setFilter(
+                Texture.TextureFilter.Linear,
+                Texture.TextureFilter.Linear
+            );
+
+            textures.add(texture);
+            frames.add(new TextureRegion(texture));
+        }
+
+        Animation<TextureRegion> animation =
+            new Animation<>(frameDuration, frames);
+
+        animation.setPlayMode(playMode);
+        return animation;
+    }
+
     public TextureRegion getFrame(
         FalseKnight falseKnight
     ) {
-        Animation<TextureRegion> animation =
-            animations.get(
+        Animation<TextureRegion> animation;
+
+        if (
+            falseKnight.getState() == FalseKnight.State.DEAD
+                && !falseKnight.isCorpseGrounded()
+        ) {
+            animation = deathFallAnimation;
+        } else {
+            animation = animations.get(
                 falseKnight.getState()
             );
+        }
 
         if (animation == null) {
             animation =
@@ -282,7 +335,10 @@ public final class FalseKnightAnimationManager
          * Phase 2 animation speed scaling.
          * This makes the boss visibly faster after stun.
          */
-        if (falseKnight.isPhaseTwo()) {
+        if (
+            falseKnight.isPhaseTwo()
+                && falseKnight.getState() != FalseKnight.State.DEAD
+        ) {
             animationTime *= 1.25f;
         }
 

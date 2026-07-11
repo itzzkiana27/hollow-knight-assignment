@@ -72,7 +72,7 @@ public final class EndGameScreen extends ScreenAdapter {
         Table panel = new Table();
         panel.pad(32f);
         panel.setBackground(
-            menuTheme.panelDrawable(0.62f)
+            menuTheme.panelDrawable(0.56f)
         );
 
         Label title = menuTheme.createTitleLabel(
@@ -235,7 +235,9 @@ public final class EndGameScreen extends ScreenAdapter {
 
         menuTheme.drawBackground(
             delta,
-            false
+            false,
+            0.58f,
+            0.72f
         );
 
         stage.act(

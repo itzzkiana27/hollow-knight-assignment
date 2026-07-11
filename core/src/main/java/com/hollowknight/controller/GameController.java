@@ -75,7 +75,7 @@ public class GameController {
         SPEEDRUN_LIMIT_SECONDS = 600f;
 
     private static final float
-        END_GAME_SCREEN_DELAY_SECONDS = 2.25f;
+        END_GAME_SCREEN_DELAY_SECONDS = 2.75f;
 
     private static final float
         NOCLIP_SPEED = 650f;
@@ -3043,10 +3043,18 @@ public class GameController {
             sharpShadowHitFalseKnight
                 || falseKnight == null
                 || !falseKnight.isAlive()
-                || !playerBounds.overlaps(
-                falseKnight.getBounds()
-            )
         ) {
+            return;
+        }
+
+        boolean hitVulnerableBody =
+            falseKnight.isStunned();
+
+        Rectangle targetHitbox = hitVulnerableBody
+            ? falseKnight.getVulnerableHitbox()
+            : falseKnight.getBounds();
+
+        if (!playerBounds.overlaps(targetHitbox)) {
             return;
         }
 
@@ -3058,7 +3066,7 @@ public class GameController {
             charmEffects.getSharpShadowDamage(
                 combat.getDamage()
             ),
-            falseKnight.isStunned()
+            hitVulnerableBody
         );
 
         if (wasAlive && !falseKnight.isAlive()) {

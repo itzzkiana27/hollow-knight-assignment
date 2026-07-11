@@ -250,10 +250,22 @@ public final class MenuThemeSkin implements Disposable {
         float delta,
         boolean saveScreen
     ) {
+        drawBackground(delta, saveScreen, 1f, 1f);
+    }
+
+    public void drawBackground(
+        float delta,
+        boolean saveScreen,
+        float backgroundAlpha,
+        float overlayAlphaMultiplier
+    ) {
         particleTime += delta;
 
         float width = Gdx.graphics.getWidth();
         float height = Gdx.graphics.getHeight();
+
+        float clampedBackgroundAlpha = Math.max(0f, Math.min(1f, backgroundAlpha));
+        float clampedOverlayMultiplier = Math.max(0f, Math.min(1f, overlayAlphaMultiplier));
 
         Gdx.gl.glEnable(GL20.GL_BLEND);
         backgroundBatch.begin();
@@ -264,7 +276,7 @@ public final class MenuThemeSkin implements Disposable {
                 : backgroundTexture,
             width,
             height,
-            themeTint(1f)
+            themeTint(clampedBackgroundAlpha)
         );
 
         drawParticles(width, height);
@@ -273,9 +285,9 @@ public final class MenuThemeSkin implements Disposable {
             0f,
             0f,
             0f,
-            theme == MenuThemeType.ROYAL_GOLD
+            (theme == MenuThemeType.ROYAL_GOLD
                 ? 0.45f
-                : 0.28f
+                : 0.28f) * clampedOverlayMultiplier
         );
         backgroundBatch.draw(
             backgroundTexture,

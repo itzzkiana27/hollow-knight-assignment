@@ -49,7 +49,7 @@ public class FalseKnight {
         POWER_MACE_SLAM
     }
 
-    private static final int MAX_HEALTH = 160;
+    private static final int MAX_HEALTH = 80;
     private static final int STUN_HEALTH_THRESHOLD = MAX_HEALTH / 2;
 
     private static final float GRAVITY = -1800f;
@@ -83,7 +83,7 @@ public class FalseKnight {
     private static final float FAR_DISTANCE = 560f;
 
     private static final float AI_DELAY_PHASE_ONE = 0.80f;
-    private static final float AI_DELAY_PHASE_TWO = 0.45f;
+    private static final float AI_DELAY_PHASE_TWO = 0.36f;
 
     private static final float STUN_DURATION = 3.5f;
 
@@ -91,14 +91,17 @@ public class FalseKnight {
     private static final int HEAVY_DAMAGE_TRIGGER = 3;
     private static final float DEFENSIVE_LEAP_REACTION_CHANCE = 0.85f;
 
-    private static final float MACE_SLAM_ANTIC_TIME = 0.42f;
-    private static final float MACE_SLAM_HIT_TIME = 0.16f;
-    private static final float MACE_SLAM_RECOVER_TIME = 0.40f;
+    private static final float MACE_SLAM_ANTIC_TIME = 0.51f;
+    private static final float MACE_SLAM_IMPACT_TIME = 0.20f;
+    private static final float MACE_SLAM_HIT_TIME = 0.34f;
+    private static final float MACE_SLAM_RECOVER_TIME = 0.50f;
 
     private static final float CHARGE_ANTIC_TIME = 0.32f;
     private static final float CHARGE_DURATION = 1.4f;
 
-    private static final float POWER_SLAM_GROUND_TIME = 0.30f;
+    private static final float POWER_SLAM_IMPACT_TIME = 0.12f;
+    private static final float POWER_SLAM_HIT_END_TIME = 0.30f;
+    private static final float POWER_SLAM_GROUND_TIME = 0.56f;
 
     private static final int BODY_DAMAGE = 1;
     private static final int MACE_DAMAGE = 1;
@@ -115,15 +118,15 @@ public class FalseKnight {
      * Camera shake intensities (roughly 0..1.4). These are deliberately punchy
      * so heavy strikes and landings read as weighty.
      */
-    private static final float SHAKE_MACE_SLAM = 0.70f;
-    private static final float SHAKE_CHARGE_WALL = 0.75f;
-    private static final float SHAKE_CHARGE_TIMEOUT = 0.45f;
-    private static final float SHAKE_OFFENSIVE_LAND = 0.75f;
-    private static final float SHAKE_DEFENSIVE_LAND = 0.55f;
-    private static final float SHAKE_POWER_SLAM = 1.25f;
-    private static final float SHAKE_STUN = 0.90f;
-    private static final float SHAKE_STUN_LAND = 0.70f;
-    private static final float SHAKE_DEATH = 1.40f;
+    private static final float SHAKE_MACE_SLAM = 0.60f;
+    private static final float SHAKE_CHARGE_WALL = 0.64f;
+    private static final float SHAKE_CHARGE_TIMEOUT = 0.38f;
+    private static final float SHAKE_OFFENSIVE_LAND = 0.64f;
+    private static final float SHAKE_DEFENSIVE_LAND = 0.47f;
+    private static final float SHAKE_POWER_SLAM = 1.05f;
+    private static final float SHAKE_STUN = 0.76f;
+    private static final float SHAKE_STUN_LAND = 0.60f;
+    private static final float SHAKE_DEATH = 1.18f;
 
     private final Rectangle bounds;
     private final Rectangle maceHitbox;
@@ -160,7 +163,10 @@ public class FalseKnight {
     private float stunGroundTimer;
 
     private boolean maceHitActive;
+    private boolean maceSlamImpactTriggered;
+    private boolean powerSlamImpactTriggered;
     private boolean shockwaveActive;
+    private boolean corpseGrounded;
     private boolean shouldShakeCamera;
     private float pendingShakeIntensity;
 
@@ -214,11 +220,9 @@ public class FalseKnight {
             bodyContactCooldown -= delta;
         }
 
-        if (state == State.DEAD) {
-            return;
+        if (state != State.DEAD) {
+            updateHeavyDamageTimer(delta);
         }
-
-        updateHeavyDamageTimer(delta);
 
         switch (state) {
             case IDLE ->
@@ -257,10 +261,8 @@ public class FalseKnight {
             case STUN_RECOVER ->
                 updateStunRecover();
 
-            case DEAD -> {
-                velocityX = 0f;
-                velocityY = 0f;
-            }
+            case DEAD ->
+                updateDead(delta);
         }
 
         updateShockwave(delta);
@@ -419,6 +421,8 @@ public class FalseKnight {
         stateTime = 0f;
         animationTime = 0f;
         maceHitActive = false;
+        maceSlamImpactTriggered = false;
+        powerSlamImpactTriggered = false;
 
         switch (move) {
             case MACE_SLAM -> {
@@ -458,6 +462,7 @@ public class FalseKnight {
     private void startPowerJump(Rectangle playerBounds) {
         facingRight = isPlayerOnRight(playerBounds);
         state = State.POWER_JUMP;
+        powerSlamImpactTriggered = false;
         velocityY = POWER_JUMP_VERTICAL_SPEED;
         velocityX = computeArcVelocityX(
             playerBounds,
@@ -510,13 +515,21 @@ public class FalseKnight {
             state = State.MACE_SLAM;
             stateTime = 0f;
             animationTime = 0f;
-            maceHitActive = true;
-
-            requestCameraShake(SHAKE_MACE_SLAM);
+            maceHitActive = false;
+            maceSlamImpactTriggered = false;
         }
     }
 
     private void updateMaceSlam() {
+        if (
+            !maceSlamImpactTriggered
+                && stateTime >= MACE_SLAM_IMPACT_TIME
+        ) {
+            maceSlamImpactTriggered = true;
+            maceHitActive = true;
+            requestCameraShake(SHAKE_MACE_SLAM);
+        }
+
         if (stateTime >= MACE_SLAM_HIT_TIME) {
             maceHitActive = false;
             state = State.MACE_SLAM_RECOVER;
@@ -677,10 +690,8 @@ public class FalseKnight {
             stateTime = 0f;
             animationTime = 0f;
 
-            maceHitActive = true;
-            startShockwave();
-
-            requestCameraShake(SHAKE_POWER_SLAM);
+            maceHitActive = false;
+            powerSlamImpactTriggered = false;
             return;
         }
 
@@ -688,6 +699,28 @@ public class FalseKnight {
     }
 
     private void updatePowerSlam() {
+        if (
+            !powerSlamImpactTriggered
+                && stateTime >= POWER_SLAM_IMPACT_TIME
+        ) {
+            powerSlamImpactTriggered = true;
+            maceHitActive = true;
+
+            /*
+             * The wave begins on the exact animation frame where the mace
+             * reaches the floor, rather than when the boss body lands.
+             */
+            startShockwave();
+            requestCameraShake(SHAKE_POWER_SLAM);
+        }
+
+        if (
+            powerSlamImpactTriggered
+                && stateTime >= POWER_SLAM_HIT_END_TIME
+        ) {
+            maceHitActive = false;
+        }
+
         if (stateTime >= POWER_SLAM_GROUND_TIME) {
             maceHitActive = false;
             returnToIdle();
@@ -746,6 +779,8 @@ public class FalseKnight {
         velocityX = 0f;
         velocityY = 0f;
         maceHitActive = false;
+        maceSlamImpactTriggered = false;
+        powerSlamImpactTriggered = false;
 
         aiTimer = phaseTwo
             ? AI_DELAY_PHASE_TWO
@@ -820,6 +855,8 @@ public class FalseKnight {
         velocityX = 0f;
         velocityY = 0f;
         maceHitActive = false;
+        maceSlamImpactTriggered = false;
+        powerSlamImpactTriggered = false;
         shockwaveActive = false;
 
         requestCameraShake(SHAKE_STUN);
@@ -832,12 +869,39 @@ public class FalseKnight {
         animationTime = 0f;
 
         maceHitActive = false;
+        maceSlamImpactTriggered = false;
+        powerSlamImpactTriggered = false;
         shockwaveActive = false;
 
         velocityX = 0f;
-        velocityY = 0f;
+        corpseGrounded = bounds.y <= groundY + 0.5f;
+
+        if (corpseGrounded) {
+            bounds.y = groundY;
+            velocityY = 0f;
+        }
 
         requestCameraShake(SHAKE_DEATH);
+    }
+
+    private void updateDead(float delta) {
+        maceHitActive = false;
+        velocityX = 0f;
+
+        if (corpseGrounded) {
+            bounds.y = groundY;
+            velocityY = 0f;
+            return;
+        }
+
+        velocityY += GRAVITY * delta;
+        bounds.y += velocityY * delta;
+
+        if (bounds.y <= groundY) {
+            bounds.y = groundY;
+            velocityY = 0f;
+            corpseGrounded = true;
+        }
     }
 
     /* ----------------------------------------------------------------- */
@@ -922,11 +986,24 @@ public class FalseKnight {
             );
         }
 
+        /*
+         * The exposed maggot is drawn outside most of the armour body while
+         * stunned. Keep this hitbox aligned with the visible creature and
+         * mirror it when the boss turns. The previous centered hitbox sat on
+         * the armour, making direct nail hits on the creature miss.
+         */
+        float vulnerableWidth = bounds.width * 0.47f;
+        float vulnerableHeight = bounds.height * 0.50f;
+
+        float vulnerableX = facingRight
+            ? bounds.x + bounds.width * 0.76f
+            : bounds.x - bounds.width * 0.24f;
+
         vulnerableHitbox.set(
-            bounds.x + bounds.width * 0.28f,
-            bounds.y + bounds.height * 0.38f,
-            bounds.width * 0.44f,
-            bounds.height * 0.30f
+            vulnerableX,
+            bounds.y + bounds.height * 0.06f,
+            vulnerableWidth,
+            vulnerableHeight
         );
     }
 
@@ -1076,6 +1153,10 @@ public class FalseKnight {
         return state == State.STUNNED;
     }
 
+    public boolean isCorpseGrounded() {
+        return corpseGrounded;
+    }
+
     public void respawn() {
         bounds.x = spawnX;
         bounds.y = spawnY;
@@ -1100,7 +1181,10 @@ public class FalseKnight {
         stunGroundTimer = 0f;
 
         maceHitActive = false;
+        maceSlamImpactTriggered = false;
+        powerSlamImpactTriggered = false;
         shockwaveActive = false;
+        corpseGrounded = false;
         shouldShakeCamera = false;
         pendingShakeIntensity = 0f;
         shockwaveTime = 0f;
