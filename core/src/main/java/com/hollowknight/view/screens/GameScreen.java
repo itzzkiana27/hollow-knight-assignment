@@ -617,7 +617,7 @@ public class GameScreen extends ScreenAdapter {
         window.top();
 
         Label pauseHeader = menuTheme.createSectionLabel(
-            "PAUSE MENU"
+            controller.text("pause.title")
         );
         pauseHeader.setFontScale(0.82f);
         pauseHeader.setAlignment(Align.center);
@@ -629,11 +629,11 @@ public class GameScreen extends ScreenAdapter {
             .padBottom(2f)
             .row();
 
-        window.add(menuTheme.createOrnament(230f))
-            .width(230f)
-            .height(27f)
+        window.add(menuTheme.createPauseHeaderFleur(300f))
+            .width(300f)
+            .height(72f)
             .center()
-            .padBottom(4f)
+            .padBottom(2f)
             .row();
 
         pauseContent = new Table();
@@ -690,7 +690,7 @@ public class GameScreen extends ScreenAdapter {
         pauseContent.clear();
 
         Label title = menuTheme.createTitleLabel(
-            "Game Paused"
+            controller.text("pause.gamePaused")
         );
 
         title.setFontScale(1.22f);
@@ -699,16 +699,8 @@ public class GameScreen extends ScreenAdapter {
             .padBottom(8f)
             .row();
 
-        String statusText = controller
-            .getCheatStatusLine()
-            .replace(
-                " Flight/Noclip",
-                "\nFlight/Noclip"
-            )
-            .replace(
-                " Emergency Heal",
-                "\nEmergency Heal"
-            );
+        String statusText =
+            controller.getCheatStatusLine();
 
         Label status = menuTheme.createBodyLabel(
             statusText
@@ -744,34 +736,34 @@ public class GameScreen extends ScreenAdapter {
             .row();
 
         addPauseButton(
-            "Continue",
+            controller.text("pause.resume"),
             () -> setPauseMenuOpen(false)
         );
 
         addPauseButton(
-            "Cheat Codes",
+            controller.text("pause.cheatCodes"),
             this::showCheatCodesPanel
         );
 
         addPauseButton(
-            "Achievements",
+            controller.text("pause.achievements"),
             this::showAchievementsPanel
         );
 
         addPauseButton(
-            "Settings",
+            controller.text("pause.settings"),
             controller::openSettingsMenu
         );
 
         addPauseButton(
-            "Save Game",
+            controller.text("pause.saveGame"),
             () -> setPauseMessage(
                 controller.saveGame()
             )
         );
 
         addPauseButton(
-            "Load Game",
+            controller.text("pause.loadGame"),
             () -> {
                 setPauseMessage(
                     controller.loadGame()
@@ -781,9 +773,18 @@ public class GameScreen extends ScreenAdapter {
         );
 
         addPauseButton(
-            "Save and Exit",
+            controller.text("pause.saveAndExit"),
             controller::saveGameAndExit
         );
+
+        pauseContent.add(
+            menuTheme.createMenuFooterFleur(210f)
+        )
+            .width(210f)
+            .height(32f)
+            .center()
+            .padTop(4f)
+            .row();
     }
 
     private void addPauseButton(
@@ -828,7 +829,7 @@ public class GameScreen extends ScreenAdapter {
         pauseContent.clear();
 
         Label title = menuTheme.createTitleLabel(
-            "Cheat Codes"
+            controller.text("pause.cheatCodes")
         );
 
         title.setFontScale(1.28f);
@@ -838,12 +839,15 @@ public class GameScreen extends ScreenAdapter {
             .row();
 
         Label cheats = menuTheme.createBodyLabel(
-            "Left Ctrl + B  : Teleport to False Knight arena\n"
-                + "Left Ctrl + F  : Toggle flight / noclip mode\n"
-                + "Left Ctrl + H  : Emergency heal (+1 mask)\n"
-                + "Left Ctrl + S  : Refill Soul vessel\n"
-                + "Left Ctrl + G  : Toggle God Mode\n"
-                + "Left Ctrl + K  : Insta-kill enemies on screen"
+            String.join(
+                "\n",
+                controller.text("pause.cheatBossTeleport"),
+                controller.text("pause.cheatNoclip"),
+                controller.text("pause.cheatEmergencyHeal"),
+                controller.text("pause.cheatSoul"),
+                controller.text("pause.cheatGodMode"),
+                controller.text("pause.cheatInstaKill")
+            )
         );
 
         cheats.setFontScale(0.60f);
@@ -855,8 +859,17 @@ public class GameScreen extends ScreenAdapter {
             .padBottom(14f)
             .row();
 
+        pauseContent.add(
+            menuTheme.createMenuFooterFleur(190f)
+        )
+            .width(190f)
+            .height(29f)
+            .center()
+            .padBottom(5f)
+            .row();
+
         addPauseButton(
-            "Back",
+            controller.text("pause.back"),
             this::showPauseMainPanel
         );
     }
@@ -865,7 +878,7 @@ public class GameScreen extends ScreenAdapter {
         pauseContent.clear();
 
         Label title = menuTheme.createTitleLabel(
-            "Achievements"
+            controller.text("pause.achievements")
         );
 
         title.setFontScale(1.28f);
@@ -883,7 +896,12 @@ public class GameScreen extends ScreenAdapter {
                 achievement.isUnlocked();
 
             String line =
-                (unlocked ? "UNLOCKED — " : "LOCKED — ")
+                controller.text(
+                    unlocked
+                        ? "achievements.unlocked"
+                        : "achievements.locked"
+                )
+                    + " — "
                     + controller.text(
                     achievement.getTitleKey()
                 )
@@ -926,15 +944,28 @@ public class GameScreen extends ScreenAdapter {
             true,
             false
         );
+        scrollPane.setOverscroll(false, false);
+        scrollPane.setScrollBarPositions(false, true);
+        scrollPane.setScrollbarsOnTop(true);
+        scrollPane.setVariableSizeKnobs(false);
 
         pauseContent.add(scrollPane)
             .width(410f)
-            .height(350f)
-            .padBottom(14f)
+            .height(330f)
+            .padBottom(10f)
+            .row();
+
+        pauseContent.add(
+            menuTheme.createMenuFooterFleur(190f)
+        )
+            .width(190f)
+            .height(29f)
+            .center()
+            .padBottom(5f)
             .row();
 
         addPauseButton(
-            "Back",
+            controller.text("pause.back"),
             this::showPauseMainPanel
         );
     }
@@ -982,7 +1013,7 @@ public class GameScreen extends ScreenAdapter {
         drawVoidHeartRewardCharm();
 
         if (controller.isCurrentRoom("city_of_tears")) {
-            drawRain();
+            drawRain(delta);
         }
 
         drawHuskHornhead();
@@ -1297,16 +1328,28 @@ public class GameScreen extends ScreenAdapter {
         batch.end();
     }
 
-    private void drawRain() {
+    private void drawRain(float delta) {
+        if (rainEffect == null || worldCamera == null) {
+            return;
+        }
 
         batch.setProjectionMatrix(
             worldCamera.getCombined()
         );
 
+        batch.enableBlending();
+        batch.setBlendFunction(
+            GL20.GL_SRC_ALPHA,
+            GL20.GL_ONE_MINUS_SRC_ALPHA
+        );
+
         batch.begin();
 
         rainEffect.update(
-            Gdx.graphics.getDeltaTime()
+            pauseMenuOpen
+                ? 0f
+                : Math.min(delta, 1f / 30f),
+            worldCamera.getCamera()
         );
 
         rainEffect.draw(batch);
@@ -2297,7 +2340,7 @@ public class GameScreen extends ScreenAdapter {
 
         font.draw(
             batch,
-            "E / UP",
+            controller.getZoteInteractionPrompt(),
             promptX + 13f,
             promptY + 28f
         );
@@ -2408,6 +2451,49 @@ public class GameScreen extends ScreenAdapter {
                 "font"
             );
 
+        Texture dialogueDividerTexture =
+            menuTheme.getDialogueDividerTexture();
+
+        float dividerWidth = Math.min(
+            boxWidth - 48f,
+            780f
+        );
+
+        float dividerHeight =
+            dividerWidth
+                * dialogueDividerTexture.getHeight()
+                / Math.max(
+                    1f,
+                    dialogueDividerTexture.getWidth()
+                );
+
+        float dividerX =
+            boxX
+                + (boxWidth - dividerWidth) / 2f;
+
+        float dividerY =
+            boxY + boxHeight - 74f;
+
+        Color dividerColor =
+            menuTheme.highlightColor();
+
+        batch.setColor(
+            dividerColor.r,
+            dividerColor.g,
+            dividerColor.b,
+            0.82f
+        );
+
+        batch.draw(
+            dialogueDividerTexture,
+            dividerX,
+            dividerY,
+            dividerWidth,
+            dividerHeight
+        );
+
+        batch.setColor(Color.WHITE);
+
         float originalTitleScaleX = titleFont.getData().scaleX;
         float originalTitleScaleY = titleFont.getData().scaleY;
         float originalTextScaleX = textFont.getData().scaleX;
@@ -2422,7 +2508,7 @@ public class GameScreen extends ScreenAdapter {
 
         titleFont.draw(
             batch,
-            "Zote the Mighty",
+            controller.text("zote.name"),
             boxX + 24f,
             boxY + boxHeight - 24f
         );
@@ -2435,7 +2521,7 @@ public class GameScreen extends ScreenAdapter {
             batch,
             dialogueLine,
             boxX + 24f,
-            boxY + boxHeight - 62f,
+            boxY + boxHeight - 88f,
             boxWidth - 48f,
             Align.left,
             true
@@ -2447,7 +2533,7 @@ public class GameScreen extends ScreenAdapter {
 
         textFont.draw(
             batch,
-            "ENTER",
+            controller.getZoteDialogueAdvancePrompt(),
             boxX + boxWidth - 94f,
             boxY + 26f
         );
@@ -3792,7 +3878,7 @@ public class GameScreen extends ScreenAdapter {
 
         titleFont.draw(
             batch,
-            "CHARMS",
+            controller.text("inventory.title"),
             charmMenuPanelBounds.x + 34f,
             charmMenuPanelBounds.y
                 + charmMenuPanelBounds.height
@@ -3805,7 +3891,7 @@ public class GameScreen extends ScreenAdapter {
 
         textFont.draw(
             batch,
-            "Press I to close. Click a charm to inspect it. Click it again to equip or unequip it.",
+            controller.text("inventory.instructions"),
             charmMenuPanelBounds.x + 34f,
             charmMenuPanelBounds.y
                 + charmMenuPanelBounds.height
@@ -3869,10 +3955,11 @@ public class GameScreen extends ScreenAdapter {
 
         textFont.draw(
             batch,
-            "Notches "
-                + usedNotches
-                + "/"
-                + notchCapacity,
+            controller.format(
+                "inventory.notches",
+                usedNotches,
+                notchCapacity
+            ),
             startX,
             centerY + 7f
         );
@@ -4028,7 +4115,7 @@ public class GameScreen extends ScreenAdapter {
 
         titleFont.draw(
             batch,
-            charm.getDisplayName(),
+            controller.text(charm.getNameKey()),
             charmMenuPanelBounds.x + 34f,
             charmMenuPanelBounds.y + 116f,
             charmMenuPanelBounds.width - 68f,
@@ -4042,7 +4129,7 @@ public class GameScreen extends ScreenAdapter {
 
         textFont.draw(
             batch,
-            charm.getDescription(),
+            controller.text(charm.getDescriptionKey()),
             charmMenuPanelBounds.x + 80f,
             charmMenuPanelBounds.y + 84f,
             charmMenuPanelBounds.width - 160f,
@@ -4056,7 +4143,9 @@ public class GameScreen extends ScreenAdapter {
 
         String message = charmOwned
             ? controller.getCharmInventoryMessage()
-            : "Charm is not enabled.";
+            : controller.text(
+                "inventory.charmNotEnabled"
+            );
 
         if (
             message != null
@@ -4166,7 +4255,7 @@ public class GameScreen extends ScreenAdapter {
 
             textFont.draw(
                 batch,
-                charm.getDisplayName(),
+                controller.text(charm.getNameKey()),
                 charmCardBounds.x + 8f,
                 charmCardBounds.y + 52f,
                 charmCardBounds.width - 16f,
@@ -4187,7 +4276,7 @@ public class GameScreen extends ScreenAdapter {
 
                 textFont.draw(
                     batch,
-                    "NOT ENABLED",
+                    controller.text("inventory.notEnabled"),
                     charmCardBounds.x + 10f,
                     charmCardBounds.y + 13f,
                     charmCardBounds.width - 20f,
@@ -4201,7 +4290,7 @@ public class GameScreen extends ScreenAdapter {
 
                 textFont.draw(
                     batch,
-                    "EQUIPPED",
+                    controller.text("inventory.equipped"),
                     charmCardBounds.x + 10f,
                     charmCardBounds.y + 13f,
                     charmCardBounds.width - 20f,
@@ -4219,7 +4308,7 @@ public class GameScreen extends ScreenAdapter {
 
                 textFont.draw(
                     batch,
-                    "click to equip",
+                    controller.text("inventory.clickToEquip"),
                     charmCardBounds.x + 10f,
                     charmCardBounds.y + 13f,
                     charmCardBounds.width - 20f,

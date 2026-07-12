@@ -158,25 +158,19 @@ public class GameController {
             PlayerAnimationType.DEATH
         );
 
-    // ===== ZOTE MAIN DIALOGUE LINES - EDIT  =====.
-    private static final String[] ZOTE_MAIN_DIALOGUE = {
-        "Halt, noble knight, and mark my words well.",
-        "Beyond yonder pass rides a monarch with a heart of stone, cruel in judgment and colder than winter’s iron",
-        "Many brave souls have bent the knee before him, yet found no mercy beneath his crown.",
-        "Turn thy blade with wisdom, for valor alone shall not soften such a tyrant’s heart."
+    private static final String[] ZOTE_MAIN_DIALOGUE_KEYS = {
+        "zote.warning.1",
+        "zote.warning.2",
+        "zote.warning.3",
+        "zote.warning.4"
     };
 
-    // ===== PRECEPTS OF ZOTE - DYNAMIC DIALOGUE =====
-    private static final String[] ZOTE_PRECEPTS = {
-        "Precept One: 'Always Win Your Battles'. Losing a battle earns you nothing and teaches you nothing. Win your battles, or don't engage in them at all!",
-
-        "Precept Two: 'Never Let Them Laugh at You'. Fools laugh at everything, even at their superiors. But beware, laughter isn't harmless! Laughter spreads like a disease, and soon everyone is laughing at you. You need to strike at the source of this perverse merriment quickly to stop it from spreading.",
-
-        "Precept Three: 'Always Be Rested'. Fighting and adventuring take their toll on your body. When you rest, your body strengthens and repairs itself. The longer you rest, the stronger you become.",
-
-        "Precept Four: 'Forget Your Past'. The past is painful, and thinking about your past can only bring you misery. Think about something else instead, such as the future, or some food.",
-
-        "Precept Five: 'Strength Beats Strength'. Is your opponent strong? No matter! Simply overcome their strength with even more strength, and they'll soon be defeated."
+    private static final String[] ZOTE_PRECEPT_KEYS = {
+        "zote.precept.1",
+        "zote.precept.2",
+        "zote.precept.3",
+        "zote.precept.4",
+        "zote.precept.5"
     };
 
     private final HollowKnightGame game;
@@ -1206,7 +1200,7 @@ public class GameController {
 
         if (targetSpawn == null) {
             setCheatMessage(
-                "Boss arena spawn not found."
+                text("game.bossArenaSpawnMissing")
             );
             return;
         }
@@ -1250,7 +1244,7 @@ public class GameController {
         );
 
         setCheatMessage(
-            "Teleported to False Knight arena."
+            text("game.teleportedToBoss")
         );
     }
 
@@ -1279,9 +1273,11 @@ public class GameController {
         );
 
         setCheatMessage(
-            noclipModeEnabled
-                ? "Flight / noclip enabled."
-                : "Flight / noclip disabled."
+            text(
+                noclipModeEnabled
+                    ? "game.noclipEnabled"
+                    : "game.noclipDisabled"
+            )
         );
     }
 
@@ -1357,7 +1353,7 @@ public class GameController {
         }
 
         setCheatMessage(
-            "Emergency heal armed: last mask will recharge."
+            text("game.emergencyHealArmed")
         );
     }
 
@@ -1394,7 +1390,7 @@ public class GameController {
         );
 
         setCheatMessage(
-            "Emergency heal triggered: +1 mask."
+            text("game.emergencyHealTriggered")
         );
     }
 
@@ -1402,7 +1398,7 @@ public class GameController {
         soul.refill();
 
         setCheatMessage(
-            "Soul vessel refilled."
+            text("game.soulRefilled")
         );
     }
 
@@ -1410,9 +1406,11 @@ public class GameController {
         godModeEnabled = !godModeEnabled;
 
         setCheatMessage(
-            godModeEnabled
-                ? "God Mode enabled."
-                : "God Mode disabled."
+            text(
+                godModeEnabled
+                    ? "game.godModeEnabled"
+                    : "game.godModeDisabled"
+            )
         );
     }
 
@@ -1450,7 +1448,10 @@ public class GameController {
         }
 
         setCheatMessage(
-            "Insta-kill affected " + kills + " enemies."
+            format(
+                "game.instaKillAffected",
+                kills
+            )
         );
     }
 
@@ -1558,10 +1559,11 @@ public class GameController {
         charmInventoryOpen = true;
         charmEquipFailed = false;
         charmInventoryMessage =
-            "Choose charms. Notches: "
-                + charmInventory.getUsedNotches()
-                + "/"
-                + charmInventory.getNotchCapacity();
+            format(
+                "game.chooseCharms",
+                charmInventory.getUsedNotches(),
+                charmInventory.getNotchCapacity()
+            );
 
         combat.finishAttack();
         cancelFocus();
@@ -1593,7 +1595,7 @@ public class GameController {
         if (!changed) {
             charmEquipFailed = true;
             charmInventoryMessage =
-                "Not enough charm notches.";
+                text("game.notEnoughNotches");
             return false;
         }
 
@@ -1601,20 +1603,20 @@ public class GameController {
 
         if (wasEquipped) {
             charmInventoryMessage =
-                "Unequipped "
-                    + charm.getDisplayName()
-                    + ". Notches: "
-                    + charmInventory.getUsedNotches()
-                    + "/"
-                    + charmInventory.getNotchCapacity();
+                format(
+                    "game.unequippedCharm",
+                    text(charm.getNameKey()),
+                    charmInventory.getUsedNotches(),
+                    charmInventory.getNotchCapacity()
+                );
         } else {
             charmInventoryMessage =
-                "Equipped "
-                    + charm.getDisplayName()
-                    + ". Notches: "
-                    + charmInventory.getUsedNotches()
-                    + "/"
-                    + charmInventory.getNotchCapacity();
+                format(
+                    "game.equippedCharm",
+                    text(charm.getNameKey()),
+                    charmInventory.getUsedNotches(),
+                    charmInventory.getNotchCapacity()
+                );
         }
 
         return true;
@@ -1910,7 +1912,7 @@ public class GameController {
     private void startShadeSoulAbility() {
         if (!soul.spend(ABILITY_SOUL_COST)) {
             charmInventoryMessage =
-                "Not enough Soul.";
+                text("game.notEnoughSoul");
             return;
         }
 
@@ -1981,7 +1983,7 @@ public class GameController {
     private void startAbyssShriekAbility() {
         if (!soul.spend(ABILITY_SOUL_COST)) {
             charmInventoryMessage =
-                "Not enough Soul.";
+                text("game.notEnoughSoul");
             return;
         }
 
@@ -3690,15 +3692,15 @@ public class GameController {
 
         if (!zoteMainDialogueFinished) {
             activeZoteDialogueLines =
-                ZOTE_MAIN_DIALOGUE;
+                ZOTE_MAIN_DIALOGUE_KEYS;
 
             zoteUsingMainDialogue = true;
         } else {
             activeZoteDialogueLines =
                 new String[] {
-                    ZOTE_PRECEPTS[
+                    ZOTE_PRECEPT_KEYS[
                         MathUtils.random(
-                            ZOTE_PRECEPTS.length - 1
+                            ZOTE_PRECEPT_KEYS.length - 1
                         )
                     ]
                 };
@@ -4133,10 +4135,10 @@ public class GameController {
                         );
 
                charmInventoryMessage =
-                       "Void Heart obtained.";
+                       text("game.voidHeartObtained");
 
                    charmObtainedMessage =
-                       "Void Heart obtained.";
+                       text("game.voidHeartObtained");
 
                     charmObtainedMessageTimeRemaining =
                         CHARM_OBTAINED_MESSAGE_DURATION;
@@ -4627,12 +4629,13 @@ public class GameController {
         );
 
         setCheatMessage(
-            "Game saved."
+            text("game.saved")
         );
 
-        return "Game saved to slot "
-            + saveSlotNumber
-            + ".";
+        return format(
+            "game.savedToSlot",
+            saveSlotNumber
+        );
     }
 
     public String loadGame() {
@@ -4648,19 +4651,19 @@ public class GameController {
 
         if (data == null) {
             setCheatMessage(
-                "No save file found."
+                text("game.noSaveFile")
             );
 
-            return "No save file found.";
+            return text("game.noSaveFile");
         }
 
         applyGameData(data);
 
         setCheatMessage(
-            "Game loaded."
+            text("game.loaded")
         );
 
-        return "Game loaded.";
+        return text("game.loaded");
     }
 
     public boolean hasSavedGame() {
@@ -4780,12 +4783,24 @@ public class GameController {
     }
 
     public String getCheatStatusLine() {
-        return "God Mode: "
-            + (godModeEnabled ? "ON" : "OFF")
-            + "   Flight/Noclip: "
-            + (noclipModeEnabled ? "ON" : "OFF")
-            + "   Emergency Heal: "
-            + (emergencyHealArmed ? "ARMED" : "OFF");
+        return format(
+            "game.cheatStatus",
+            text(
+                godModeEnabled
+                    ? "common.enabled"
+                    : "common.disabled"
+            ),
+            text(
+                noclipModeEnabled
+                    ? "common.enabled"
+                    : "common.disabled"
+            ),
+            text(
+                emergencyHealArmed
+                    ? "common.armed"
+                    : "common.disabled"
+            )
+        );
     }
 
     public float getElapsedGameSeconds() {
@@ -4849,9 +4864,11 @@ public class GameController {
             return "";
         }
 
-        return activeZoteDialogueLines[
-            zoteDialogueLineIndex
-        ];
+        return text(
+            activeZoteDialogueLines[
+                zoteDialogueLineIndex
+            ]
+        );
     }
 
     public void respawnEnemiesForRoomEntry() {
@@ -4963,6 +4980,31 @@ public class GameController {
         return game
             .getLocalization()
             .get(key);
+    }
+
+    public String format(
+        String key,
+        Object... arguments
+    ) {
+        return game
+            .getLocalization()
+            .format(key, arguments);
+    }
+
+    public String getZoteInteractionPrompt() {
+        return Input.Keys.toString(
+            keyBindings.getInteract()
+        )
+            + " / "
+            + Input.Keys.toString(
+            keyBindings.getUp()
+        );
+    }
+
+    public String getZoteDialogueAdvancePrompt() {
+        return Input.Keys.toString(
+            keyBindings.getDialogueAdvance()
+        );
     }
 
     public void dispose() {

@@ -86,9 +86,9 @@ public class AchievementsScreen extends ScreenAdapter {
             .padBottom(3f)
             .row();
 
-        contentTable.add(menuTheme.createOrnament(260f))
-            .width(260f)
-            .height(30f)
+        contentTable.add(menuTheme.createMenuHeaderFleur(360f))
+            .width(360f)
+            .height(50f)
             .padBottom(12f)
             .row();
 
@@ -121,6 +121,13 @@ public class AchievementsScreen extends ScreenAdapter {
                 .row();
         }
 
+        contentTable.add(menuTheme.createMenuFooterFleur(250f))
+            .width(250f)
+            .height(38f)
+            .padTop(6f)
+            .padBottom(4f)
+            .row();
+
         TextButton backButton = menuTheme.createMenuButton(
             controller.text("common.back")
         );
@@ -152,6 +159,9 @@ public class AchievementsScreen extends ScreenAdapter {
         scrollPane.setFadeScrollBars(false);
         scrollPane.setScrollingDisabled(true, false);
         scrollPane.setOverscroll(false, false);
+        scrollPane.setScrollBarPositions(false, true);
+        scrollPane.setScrollbarsOnTop(true);
+        scrollPane.setVariableSizeKnobs(false);
 
         Table rootTable = new Table();
         rootTable.setFillParent(true);

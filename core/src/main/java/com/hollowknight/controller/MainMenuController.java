@@ -16,6 +16,15 @@ public class MainMenuController {
         return game.getLocalization().get(key);
     }
 
+    public String format(
+        String key,
+        Object... arguments
+    ) {
+        return game
+            .getLocalization()
+            .format(key, arguments);
+    }
+
     public void startGame() {
         game.showStartGameMenu();
     }
@@ -34,9 +43,11 @@ public class MainMenuController {
     }
 
     public String getMenuThemeDisplayName() {
-        return MenuThemeType
-            .fromId(game.getSettings().getMenuTheme())
-            .getDisplayName();
+        MenuThemeType theme = MenuThemeType.fromId(
+            game.getSettings().getMenuTheme()
+        );
+
+        return text(theme.getLocalizationKey());
     }
 
     public void cycleMenuTheme() {

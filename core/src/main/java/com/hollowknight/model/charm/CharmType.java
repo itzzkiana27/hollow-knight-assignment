@@ -2,84 +2,84 @@ package com.hollowknight.model.charm;
 
 public enum CharmType {
     SOUL_CATCHER(
-        "Soul Catcher",
-        "Gain more Soul from each successful Nail hit.",
+        "charm.soulCatcher.name",
+        "charm.soulCatcher.description",
         "sprites/ui/charms/soul_catcher.png",
         1
     ),
 
     DASHMASTER(
-        "Dashmaster",
-        "Dash more often by reducing dash cooldown.",
+        "charm.dashmaster.name",
+        "charm.dashmaster.description",
         "sprites/ui/charms/dashmaster.png",
         1
     ),
 
     UNBREAKABLE_STRENGTH(
-        "Unbreakable Strength",
-        "Increase normal Nail damage.",
+        "charm.unbreakableStrength.name",
+        "charm.unbreakableStrength.description",
         "sprites/ui/charms/unbreakable_strength.png",
         1
     ),
 
     QUICK_SLASH(
-        "Quick Slash",
-        "Attack faster by reducing Nail cooldown.",
+        "charm.quickSlash.name",
+        "charm.quickSlash.description",
         "sprites/ui/charms/quick_slash.png",
         1
     ),
 
     QUICK_FOCUS(
-        "Quick Focus",
-        "Focus faster when healing.",
+        "charm.quickFocus.name",
+        "charm.quickFocus.description",
         "sprites/ui/charms/quick_focus.png",
         1
     ),
 
     HEAVY_BLOW(
-        "Heavy Blow",
-        "Increase enemy knockback distance.",
+        "charm.heavyBlow.name",
+        "charm.heavyBlow.description",
         "sprites/ui/charms/heavy_blow.png",
         1
     ),
 
     SHARP_SHADOW(
-        "Sharp Shadow",
-        "Dash through enemies, damage them, avoid contact damage, and increase dash length.",
+        "charm.sharpShadow.name",
+        "charm.sharpShadow.description",
         "sprites/ui/charms/sharp_shadow.png",
         1
     ),
 
     VOID_HEART(
-        "Void Heart",
-        "Increase ability damage and use upgraded black ability animations.",
+        "charm.voidHeart.name",
+        "charm.voidHeart.description",
         "sprites/ui/charms/void_heart.png",
         1
     );
 
-    private final String displayName;
-    private final String description;
+    private final String nameKey;
+    private final String descriptionKey;
     private final String iconPath;
     private final int notchCost;
 
     CharmType(
-        String displayName,
-        String description,
+        String nameKey,
+        String descriptionKey,
         String iconPath,
         int notchCost
     ) {
-        this.displayName = displayName;
-        this.description = description;
+        this.nameKey = nameKey;
+        this.descriptionKey = descriptionKey;
         this.iconPath = iconPath;
         this.notchCost = notchCost;
     }
 
-    public String getDisplayName() {
-        return displayName;
+    public String getNameKey() {
+        return nameKey;
     }
 
-    public String getDescription() {
-        return description;
+    public String getDescriptionKey() {
+        return descriptionKey;
     }
 
     public String getIconPath() {

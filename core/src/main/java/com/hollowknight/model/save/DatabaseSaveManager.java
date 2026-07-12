@@ -1,6 +1,7 @@
 package com.hollowknight.model.save;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
 
@@ -21,6 +22,9 @@ import java.sql.Statement;
  */
 public class DatabaseSaveManager {
     private static final String DATABASE_FILE_PATH =
+        ".hollowknight/save/hollow_knight_save.db";
+
+    private static final String OLD_LOCAL_DATABASE_FILE_PATH =
         "save/hollow_knight_save.db";
 
     private static final String LEGACY_SAVE_SLOT_ID =
@@ -57,6 +61,10 @@ public class DatabaseSaveManager {
             + "FROM game_saves "
             + "WHERE slot_id = ?";
 
+    private static final String COUNT_SAVES_SQL =
+        "SELECT COUNT(*) AS save_count "
+            + "FROM game_saves";
+
     private final Json json;
     private final String databaseUrl;
 
@@ -67,9 +75,11 @@ public class DatabaseSaveManager {
             JsonWriter.OutputType.json
         );
 
-        databaseUrl = buildDatabaseUrl();
-
         loadSqliteDriver();
+
+        File databaseFile = prepareExternalDatabaseFile();
+        databaseUrl = buildDatabaseUrl(databaseFile);
+
         createTablesIfNecessary();
     }
 
@@ -341,14 +351,14 @@ public class DatabaseSaveManager {
         );
     }
 
-    private String buildDatabaseUrl() {
-        File databaseFile =
+    private File prepareExternalDatabaseFile() {
+        File externalDatabaseFile =
             Gdx.files
-                .local(DATABASE_FILE_PATH)
+                .external(DATABASE_FILE_PATH)
                 .file();
 
         File parentFolder =
-            databaseFile.getParentFile();
+            externalDatabaseFile.getParentFile();
 
         if (
             parentFolder != null
@@ -357,6 +367,129 @@ public class DatabaseSaveManager {
             parentFolder.mkdirs();
         }
 
+        migrateOldLocalDatabaseIfNecessary(
+            externalDatabaseFile
+        );
+
+        return externalDatabaseFile;
+    }
+
+    private void migrateOldLocalDatabaseIfNecessary(
+        File externalDatabaseFile
+    ) {
+        if (
+            externalDatabaseFile.isFile()
+                && countSaveRows(externalDatabaseFile) > 0
+        ) {
+            return;
+        }
+
+        File oldDatabaseFile = findBestOldLocalDatabase();
+
+        if (
+            oldDatabaseFile == null
+                || countSaveRows(oldDatabaseFile) <= 0
+        ) {
+            return;
+        }
+
+        new FileHandle(oldDatabaseFile).copyTo(
+            new FileHandle(externalDatabaseFile)
+        );
+    }
+
+    private File findBestOldLocalDatabase() {
+        File workingDirectory = new File(
+            System.getProperty("user.dir", ".")
+        );
+
+        File directCandidate = new File(
+            workingDirectory,
+            OLD_LOCAL_DATABASE_FILE_PATH
+        );
+
+        File alternateCandidate;
+
+        if ("assets".equals(workingDirectory.getName())) {
+            File parent = workingDirectory.getParentFile();
+            alternateCandidate = parent == null
+                ? null
+                : new File(
+                    parent,
+                    OLD_LOCAL_DATABASE_FILE_PATH
+                );
+        } else {
+            alternateCandidate = new File(
+                workingDirectory,
+                "assets/" + OLD_LOCAL_DATABASE_FILE_PATH
+            );
+        }
+
+        return betterDatabaseCandidate(
+            directCandidate,
+            alternateCandidate
+        );
+    }
+
+    private File betterDatabaseCandidate(
+        File first,
+        File second
+    ) {
+        int firstRows = countSaveRows(first);
+        int secondRows = countSaveRows(second);
+
+        if (firstRows <= 0 && secondRows <= 0) {
+            return null;
+        }
+
+        if (firstRows != secondRows) {
+            return firstRows > secondRows
+                ? first
+                : second;
+        }
+
+        long firstModified = first == null
+            ? 0L
+            : first.lastModified();
+
+        long secondModified = second == null
+            ? 0L
+            : second.lastModified();
+
+        return firstModified >= secondModified
+            ? first
+            : second;
+    }
+
+    private int countSaveRows(File databaseFile) {
+        if (databaseFile == null || !databaseFile.isFile()) {
+            return 0;
+        }
+
+        String candidateUrl = buildDatabaseUrl(
+            databaseFile
+        );
+
+        try (
+            Connection connection = DriverManager.getConnection(
+                candidateUrl
+            );
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery(
+                COUNT_SAVES_SQL
+            )
+        ) {
+            return resultSet.next()
+                ? resultSet.getInt("save_count")
+                : 0;
+        } catch (SQLException exception) {
+            return 0;
+        }
+    }
+
+    private String buildDatabaseUrl(
+        File databaseFile
+    ) {
         return "jdbc:sqlite:"
             + databaseFile.getAbsolutePath();
     }

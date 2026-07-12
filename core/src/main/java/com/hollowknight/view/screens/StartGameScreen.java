@@ -127,14 +127,17 @@ public class StartGameScreen extends ScreenAdapter {
         Table textTable = new Table();
 
         Label slotTitle = menuTheme.createSectionLabel(
-            "Save Slot " + slotNumber
+            controller.format(
+                "start.slotTitle",
+                slotNumber
+            )
         );
         slotTitle.setAlignment(Align.left);
 
         Label slotStatus = menuTheme.createBodyLabel(
             saved
                 ? controller.getSaveSlotLabel(slotNumber)
-                : "Empty Slot"
+                : controller.text("start.emptySlot")
         );
         slotStatus.setColor(
             saved
@@ -163,7 +166,11 @@ public class StartGameScreen extends ScreenAdapter {
             .left();
 
         TextButton openButton = menuTheme.createMenuButton(
-            saved ? "Load" : "Begin"
+            controller.text(
+                saved
+                    ? "start.load"
+                    : "start.begin"
+            )
         );
         openButton.addListener(new ChangeListener() {
             @Override

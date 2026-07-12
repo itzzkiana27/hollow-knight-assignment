@@ -54,10 +54,11 @@ public class MainMenuScreen extends ScreenAdapter {
             .padBottom(8f)
             .row();
 
-        table.add(menuTheme.createOrnament(300f))
-            .width(300f)
-            .height(34f)
-            .padBottom(34f)
+        table.add(menuTheme.createMenuHeaderFleur(520f))
+            .width(520f)
+            .height(72f)
+            .center()
+            .padBottom(28f)
             .row();
 
         addButton(
@@ -91,7 +92,10 @@ public class MainMenuScreen extends ScreenAdapter {
         );
 
         TextButton themeButton = menuTheme.createMenuButton(
-            "Theme: " + controller.getMenuThemeDisplayName()
+            controller.format(
+                "main.theme",
+                controller.getMenuThemeDisplayName()
+            )
         );
         themeButton.getLabel().setFontScale(0.90f);
         themeButton.getLabel().setAlignment(Align.center);

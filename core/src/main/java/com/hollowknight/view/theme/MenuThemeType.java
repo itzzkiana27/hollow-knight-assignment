@@ -3,34 +3,34 @@ package com.hollowknight.view.theme;
 public enum MenuThemeType {
     CLASSIC_HOLLOW(
         "classic_hollow",
-        "Classic Hollow"
+        "settings.theme.classicHollow"
     ),
     VOIDHEART(
         "voidheart",
-        "Voidheart"
+        "settings.theme.voidheart"
     ),
     ROYAL_GOLD(
         "royal_gold",
-        "Royal Gold"
+        "settings.theme.royalGold"
     );
 
     private final String id;
-    private final String displayName;
+    private final String localizationKey;
 
     MenuThemeType(
         String id,
-        String displayName
+        String localizationKey
     ) {
         this.id = id;
-        this.displayName = displayName;
+        this.localizationKey = localizationKey;
     }
 
     public String getId() {
         return id;
     }
 
-    public String getDisplayName() {
-        return displayName;
+    public String getLocalizationKey() {
+        return localizationKey;
     }
 
     public MenuThemeType next() {
@@ -52,30 +52,4 @@ public enum MenuThemeType {
         return VOIDHEART;
     }
 
-    public static String[] displayNames() {
-        MenuThemeType[] values = values();
-        String[] names = new String[values.length];
-
-        for (int index = 0; index < values.length; index++) {
-            names[index] = values[index].getDisplayName();
-        }
-
-        return names;
-    }
-
-    public static MenuThemeType fromDisplayName(
-        String displayName
-    ) {
-        if (displayName == null) {
-            return VOIDHEART;
-        }
-
-        for (MenuThemeType theme : values()) {
-            if (theme.displayName.equals(displayName)) {
-                return theme;
-            }
-        }
-
-        return VOIDHEART;
-    }
 }

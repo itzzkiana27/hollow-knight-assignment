@@ -84,21 +84,47 @@ public class SettingsController {
     }
 
     public String[] getMenuThemeDisplayNames() {
-        return MenuThemeType.displayNames();
+        MenuThemeType[] themes =
+            MenuThemeType.values();
+
+        String[] names =
+            new String[themes.length];
+
+        for (
+            int index = 0;
+            index < themes.length;
+            index++
+        ) {
+            names[index] = text(
+                themes[index].getLocalizationKey()
+            );
+        }
+
+        return names;
     }
 
     public String getCurrentMenuThemeDisplayName() {
-        return MenuThemeType
-            .fromId(settings.getMenuTheme())
-            .getDisplayName();
+        MenuThemeType theme =
+            MenuThemeType.fromId(
+                settings.getMenuTheme()
+            );
+
+        return text(theme.getLocalizationKey());
     }
 
     public String getMenuThemeIdFromDisplayName(
         String displayName
     ) {
-        return MenuThemeType
-            .fromDisplayName(displayName)
-            .getId();
+        for (MenuThemeType theme : MenuThemeType.values()) {
+            if (
+                text(theme.getLocalizationKey())
+                    .equals(displayName)
+            ) {
+                return theme.getId();
+            }
+        }
+
+        return MenuThemeType.VOIDHEART.getId();
     }
 
     public void setLanguage(String language) {

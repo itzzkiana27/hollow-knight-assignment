@@ -17,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.List;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -39,8 +40,14 @@ public final class MenuThemeSkin implements Disposable {
     private static final String BASE_PATH =
         "ui/menu/";
 
+    private static final String FLEUR_PATH =
+        "ui/fleurs/";
+
     private static final String TRAJAN_FONT_PATH =
         "ui/fonts/TrajanPro-Regular.ttf";
+
+    private static final String SCROLLBAR_PATH =
+        "ui/scrollbar/";
 
     private static final int MENU_BODY_FONT_SIZE = 24;
 
@@ -77,6 +84,13 @@ public final class MenuThemeSkin implements Disposable {
     private final Texture slotAbyssTexture;
     private final Texture slotWhitePalaceTexture;
     private final Texture slotDirtmouthTexture;
+    private final Texture verticalScrollTrackTexture;
+    private final Texture verticalScrollKnobTexture;
+
+    private final Texture menuHeaderFleurTexture;
+    private final Texture menuFooterFleurTexture;
+    private final Texture pauseHeaderFleurTexture;
+    private final Texture dialogueDividerTexture;
 
     private float particleTime;
 
@@ -171,6 +185,30 @@ public final class MenuThemeSkin implements Disposable {
 
         slotDirtmouthTexture = load(
             BASE_PATH + "slots/area_dirtmouth.png"
+        );
+
+        menuHeaderFleurTexture = load(
+            FLEUR_PATH + "menu_header_fleur.png"
+        );
+
+        menuFooterFleurTexture = load(
+            FLEUR_PATH + "menu_footer_fleur.png"
+        );
+
+        pauseHeaderFleurTexture = load(
+            FLEUR_PATH + "pause_header_fleur.png"
+        );
+
+        dialogueDividerTexture = load(
+            FLEUR_PATH + "dialogue_divider.png"
+        );
+
+        verticalScrollTrackTexture = load(
+            SCROLLBAR_PATH + "vertical_scroll_track.png"
+        );
+
+        verticalScrollKnobTexture = load(
+            SCROLLBAR_PATH + "vertical_scroll_knob.png"
         );
 
         customizeSkin();
@@ -325,6 +363,71 @@ public final class MenuThemeSkin implements Disposable {
             com.badlogic.gdx.utils.Scaling.fit
         );
         image.setSize(width, width * 0.09f);
+
+        return image;
+    }
+
+
+    public Image createMenuHeaderFleur(float width) {
+        return createFleurImage(
+            menuHeaderFleurTexture,
+            width,
+            0.92f
+        );
+    }
+
+    public Image createMenuFooterFleur(float width) {
+        return createFleurImage(
+            menuFooterFleurTexture,
+            width,
+            0.78f
+        );
+    }
+
+    public Image createPauseHeaderFleur(float width) {
+        return createFleurImage(
+            pauseHeaderFleurTexture,
+            width,
+            0.90f
+        );
+    }
+
+    public Texture getDialogueDividerTexture() {
+        return dialogueDividerTexture;
+    }
+
+    private Image createFleurImage(
+        Texture texture,
+        float width,
+        float alpha
+    ) {
+        Image image = new Image(
+            drawable(texture)
+        );
+
+        Color tint = highlightColor();
+
+        image.setColor(
+            tint.r,
+            tint.g,
+            tint.b,
+            alpha
+        );
+
+        image.setScaling(
+            com.badlogic.gdx.utils.Scaling.fit
+        );
+
+        float safeWidth = Math.max(1f, width);
+        float height =
+            safeWidth
+                * texture.getHeight()
+                / Math.max(1f, texture.getWidth());
+
+        image.setSize(
+            safeWidth,
+            height
+        );
 
         return image;
     }
@@ -819,6 +922,30 @@ public final class MenuThemeSkin implements Disposable {
             load(BASE_PATH + "settings/slider_thumb_active.png")
         );
         sliderStyle.knobDown = sliderStyle.knobOver;
+
+        ScrollPane.ScrollPaneStyle scrollPaneStyle =
+            skin.get(ScrollPane.ScrollPaneStyle.class);
+
+        TextureRegionDrawable verticalTrack =
+            new TextureRegionDrawable(
+                new TextureRegion(verticalScrollTrackTexture)
+            );
+
+        verticalTrack.setMinWidth(18f);
+        verticalTrack.setMinHeight(96f);
+
+        TextureRegionDrawable verticalKnob =
+            new TextureRegionDrawable(
+                new TextureRegion(verticalScrollKnobTexture)
+            );
+
+        verticalKnob.setMinWidth(30f);
+        verticalKnob.setMinHeight(60f);
+
+        scrollPaneStyle.vScroll = verticalTrack;
+        scrollPaneStyle.vScrollKnob = verticalKnob;
+        scrollPaneStyle.hScroll = null;
+        scrollPaneStyle.hScrollKnob = null;
 
         CheckBox.CheckBoxStyle checkBoxStyle =
             skin.get(CheckBox.CheckBoxStyle.class);

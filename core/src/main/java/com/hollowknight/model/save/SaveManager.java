@@ -5,14 +5,25 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
 
+import java.io.File;
+
 public class SaveManager {
     public static final int DEFAULT_SLOT = 1;
     public static final int SLOT_COUNT = 4;
 
+    private static final String EXTERNAL_SAVE_DIRECTORY =
+        ".hollowknight/save";
+
     private static final String LEGACY_SAVE_PATH =
-        "save/game_save.json";
+        EXTERNAL_SAVE_DIRECTORY + "/game_save.json";
 
     private static final String SAVE_SLOT_PATTERN =
+        EXTERNAL_SAVE_DIRECTORY + "/slot_%d.json";
+
+    private static final String OLD_LOCAL_LEGACY_SAVE_PATH =
+        "save/game_save.json";
+
+    private static final String OLD_LOCAL_SAVE_SLOT_PATTERN =
         "save/slot_%d.json";
 
     private final Json json;
@@ -40,10 +51,7 @@ public class SaveManager {
             return;
         }
 
-        FileHandle file =
-            Gdx.files.local(
-                getSavePath(slotNumber)
-            );
+        FileHandle file = getSlotFile(slotNumber);
 
         file.parent().mkdirs();
 
@@ -57,10 +65,7 @@ public class SaveManager {
          * so older code/builds can still load the latest save.
          */
         if (normalizeSlot(slotNumber) == DEFAULT_SLOT) {
-            FileHandle legacyFile =
-                Gdx.files.local(
-                    LEGACY_SAVE_PATH
-                );
+            FileHandle legacyFile = getLegacySaveFile();
 
             legacyFile.parent().mkdirs();
 
@@ -80,18 +85,13 @@ public class SaveManager {
     public GameData load(
         int slotNumber
     ) {
-        FileHandle file =
-            Gdx.files.local(
-                getSavePath(slotNumber)
-            );
+        FileHandle file = getSlotFile(slotNumber);
 
         if (
             !file.exists()
                 && normalizeSlot(slotNumber) == DEFAULT_SLOT
         ) {
-            file = Gdx.files.local(
-                LEGACY_SAVE_PATH
-            );
+            file = getLegacySaveFile();
         }
 
         if (!file.exists()) {
@@ -113,37 +113,24 @@ public class SaveManager {
     public boolean hasSave(
         int slotNumber
     ) {
-        if (
-            Gdx.files
-                .local(
-                    getSavePath(slotNumber)
-                )
-                .exists()
-        ) {
+        if (getSlotFile(slotNumber).exists()) {
             return true;
         }
 
         return normalizeSlot(slotNumber) == DEFAULT_SLOT
-            && Gdx.files.local(
-            LEGACY_SAVE_PATH
-        ).exists();
+            && getLegacySaveFile().exists();
     }
 
     public long getSavedAtMillis(
         int slotNumber
     ) {
-        FileHandle file =
-            Gdx.files.local(
-                getSavePath(slotNumber)
-            );
+        FileHandle file = getSlotFile(slotNumber);
 
         if (
             !file.exists()
                 && normalizeSlot(slotNumber) == DEFAULT_SLOT
         ) {
-            file = Gdx.files.local(
-                LEGACY_SAVE_PATH
-            );
+            file = getLegacySaveFile();
         }
 
         if (!file.exists()) {
@@ -166,6 +153,119 @@ public class SaveManager {
             SAVE_SLOT_PATTERN,
             normalizeSlot(slotNumber)
         );
+    }
+
+    private FileHandle getSlotFile(
+        int slotNumber
+    ) {
+        int normalizedSlot = normalizeSlot(slotNumber);
+
+        FileHandle externalFile = Gdx.files.external(
+            getSavePath(normalizedSlot)
+        );
+
+        migrateOldLocalFileIfNecessary(
+            externalFile,
+            String.format(
+                OLD_LOCAL_SAVE_SLOT_PATTERN,
+                normalizedSlot
+            )
+        );
+
+        return externalFile;
+    }
+
+    private FileHandle getLegacySaveFile() {
+        FileHandle externalFile = Gdx.files.external(
+            LEGACY_SAVE_PATH
+        );
+
+        migrateOldLocalFileIfNecessary(
+            externalFile,
+            OLD_LOCAL_LEGACY_SAVE_PATH
+        );
+
+        return externalFile;
+    }
+
+    private void migrateOldLocalFileIfNecessary(
+        FileHandle externalFile,
+        String oldRelativePath
+    ) {
+        if (externalFile.exists()) {
+            return;
+        }
+
+        FileHandle oldFile = findNewestOldLocalFile(
+            oldRelativePath
+        );
+
+        if (oldFile == null) {
+            return;
+        }
+
+        externalFile.parent().mkdirs();
+        oldFile.copyTo(externalFile);
+    }
+
+    private FileHandle findNewestOldLocalFile(
+        String oldRelativePath
+    ) {
+        File workingDirectory = new File(
+            System.getProperty("user.dir", ".")
+        );
+
+        File directCandidate = new File(
+            workingDirectory,
+            oldRelativePath
+        );
+
+        File alternateCandidate;
+
+        if ("assets".equals(workingDirectory.getName())) {
+            File parent = workingDirectory.getParentFile();
+            alternateCandidate = parent == null
+                ? null
+                : new File(parent, oldRelativePath);
+        } else {
+            alternateCandidate = new File(
+                workingDirectory,
+                "assets/" + oldRelativePath
+            );
+        }
+
+        File newest = newestExistingFile(
+            directCandidate,
+            alternateCandidate
+        );
+
+        return newest == null
+            ? null
+            : new FileHandle(newest);
+    }
+
+    private File newestExistingFile(
+        File first,
+        File second
+    ) {
+        boolean firstExists = first != null && first.isFile();
+        boolean secondExists = second != null && second.isFile();
+
+        if (!firstExists && !secondExists) {
+            return null;
+        }
+
+        if (!firstExists) {
+            return second;
+        }
+
+        if (!secondExists) {
+            return first;
+        }
+
+        return first.lastModified() >= second.lastModified()
+            ? first
+            : second;
     }
 
     public static int normalizeSlot(

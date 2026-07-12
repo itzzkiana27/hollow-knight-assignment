@@ -76,6 +76,13 @@ public class FalseKnight {
     private static final float POWER_MAX_HORIZONTAL = 320f;
 
     /*
+     * Airborne wall response.  A minimum release speed keeps the boss from
+     * hovering against either arena wall after a leap reaches a corner.
+     */
+    private static final float AIRBORNE_WALL_REBOUND_DAMPING = 0.40f;
+    private static final float AIRBORNE_WALL_RELEASE_SPEED = 95f;
+
+    /*
      * Distance thresholds, measured centre-to-centre horizontally.
      * CLOSE is roughly the reach at which a Mace Slam actually connects.
      */
@@ -871,21 +878,20 @@ public class FalseKnight {
     ) {
         velocityY += GRAVITY * delta;
 
-        Rectangle nextBounds = new Rectangle(bounds);
-        nextBounds.x += velocityX * delta;
-        nextBounds.y += velocityY * delta;
+        /*
+         * Resolve X and Y independently.  The old code tested one rectangle
+         * containing both movements.  When its X side touched an arena wall,
+         * overlapsSolid(...) also rejected the Y movement, making gravity look
+         * frozen until the weakened horizontal rebound escaped the corner.
+         */
+        resolveAirborneHorizontalMovement(
+            delta,
+            platformWorld
+        );
 
-        if (
-            nextBounds.x < arenaMinX
-                || nextBounds.x + nextBounds.width > arenaMaxX
-        ) {
-            /* Bounce off the arena wall instead of clipping through it. */
-            velocityX *= -0.4f;
-        } else {
-            bounds.x = nextBounds.x;
-        }
+        float nextY = bounds.y + velocityY * delta;
 
-        if (nextBounds.y <= groundY) {
+        if (nextY <= groundY) {
             bounds.y = groundY;
             velocityY = 0f;
 
@@ -897,9 +903,69 @@ public class FalseKnight {
             return;
         }
 
-        if (!platformWorld.overlapsSolid(nextBounds)) {
-            bounds.y = nextBounds.y;
+        Rectangle verticalBounds = new Rectangle(bounds);
+        verticalBounds.y = nextY;
+
+        if (!platformWorld.overlapsSolid(verticalBounds)) {
+            bounds.y = nextY;
+        } else if (velocityY > 0f) {
+            /* Stop rising on a ceiling; gravity starts the fall next frame. */
+            velocityY = 0f;
         }
+    }
+
+    private void resolveAirborneHorizontalMovement(
+        float delta,
+        PlatformWorld platformWorld
+    ) {
+        Rectangle horizontalBounds = new Rectangle(bounds);
+        horizontalBounds.x += velocityX * delta;
+
+        boolean hitLeftArenaWall =
+            horizontalBounds.x < arenaMinX;
+
+        boolean hitRightArenaWall =
+            horizontalBounds.x + horizontalBounds.width > arenaMaxX;
+
+        boolean hitSolid =
+            !hitLeftArenaWall
+                && !hitRightArenaWall
+                && platformWorld.overlapsSolid(horizontalBounds);
+
+        if (
+            !hitLeftArenaWall
+                && !hitRightArenaWall
+                && !hitSolid
+        ) {
+            bounds.x = horizontalBounds.x;
+            return;
+        }
+
+        float reboundSpeed = Math.max(
+            AIRBORNE_WALL_RELEASE_SPEED,
+            Math.abs(velocityX)
+                * AIRBORNE_WALL_REBOUND_DAMPING
+        );
+
+        if (hitLeftArenaWall) {
+            bounds.x = arenaMinX;
+            velocityX = reboundSpeed;
+            return;
+        }
+
+        if (hitRightArenaWall) {
+            bounds.x = arenaMaxX - bounds.width;
+            velocityX = -reboundSpeed;
+            return;
+        }
+
+        /*
+         * A solid wall inside the room is handled using the previous safe X,
+         * then the boss is pushed back in the opposite direction.
+         */
+        velocityX = velocityX >= 0f
+            ? -reboundSpeed
+            : reboundSpeed;
     }
 
     /* ----------------------------------------------------------------- */
@@ -913,19 +979,14 @@ public class FalseKnight {
     ) {
         velocityY += GRAVITY * delta;
 
-        Rectangle nextBounds = new Rectangle(bounds);
-        nextBounds.x += velocityX * delta;
-        nextBounds.y += velocityY * delta;
+        resolveAirborneHorizontalMovement(
+            delta,
+            platformWorld
+        );
 
-        if (
-            nextBounds.x >= arenaMinX
-                && nextBounds.x + nextBounds.width <= arenaMaxX
-                && !platformWorld.overlapsSolid(nextBounds)
-        ) {
-            bounds.x = nextBounds.x;
-        }
+        float nextY = bounds.y + velocityY * delta;
 
-        if (nextBounds.y <= groundY) {
+        if (nextY <= groundY) {
             bounds.y = groundY;
             velocityY = 0f;
             velocityX = 0f;
@@ -942,7 +1003,14 @@ public class FalseKnight {
             return;
         }
 
-        bounds.y = nextBounds.y;
+        Rectangle verticalBounds = new Rectangle(bounds);
+        verticalBounds.y = nextY;
+
+        if (!platformWorld.overlapsSolid(verticalBounds)) {
+            bounds.y = nextY;
+        } else if (velocityY > 0f) {
+            velocityY = 0f;
+        }
     }
 
     private void updatePowerSlam() {

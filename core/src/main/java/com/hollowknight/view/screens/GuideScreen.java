@@ -70,16 +70,26 @@ public class GuideScreen extends ScreenAdapter {
             .padBottom(5f)
             .row();
 
-        contentTable.add(menuTheme.createOrnament(260f))
+        contentTable.add(menuTheme.createMenuHeaderFleur(390f))
             .colspan(3)
-            .width(260f)
-            .height(30f)
+            .width(390f)
+            .height(54f)
+            .center()
             .padBottom(18f)
             .row();
 
         createControlsSection(contentTable);
         createAbilitiesSection(contentTable);
         createCheatCodesSection(contentTable);
+
+        contentTable.add(menuTheme.createMenuFooterFleur(280f))
+            .colspan(3)
+            .width(280f)
+            .height(42f)
+            .padTop(8f)
+            .padBottom(4f)
+            .row();
+
         createBackButton(contentTable);
 
         ScrollPane scrollPane = new ScrollPane(
@@ -90,6 +100,9 @@ public class GuideScreen extends ScreenAdapter {
         scrollPane.setFadeScrollBars(false);
         scrollPane.setScrollingDisabled(true, false);
         scrollPane.setOverscroll(false, false);
+        scrollPane.setScrollBarPositions(false, true);
+        scrollPane.setScrollbarsOnTop(true);
+        scrollPane.setVariableSizeKnobs(false);
 
         Table rootTable = new Table();
         rootTable.setFillParent(true);
@@ -296,37 +309,37 @@ public class GuideScreen extends ScreenAdapter {
 
         addDescription(
             table,
-            "Left Ctrl + B",
+            controller.text("guide.cheatKeyBossTeleport"),
             controller.text("guide.cheatBossTeleport")
         );
 
         addDescription(
             table,
-            "Left Ctrl + F",
+            controller.text("guide.cheatKeyNoclip"),
             controller.text("guide.cheatNoclip")
         );
 
         addDescription(
             table,
-            "Left Ctrl + H",
+            controller.text("guide.cheatKeyEmergencyHeal"),
             controller.text("guide.cheatEmergencyHeal")
         );
 
         addDescription(
             table,
-            "Left Ctrl + S",
+            controller.text("guide.cheatKeySoul"),
             controller.text("guide.cheatSoul")
         );
 
         addDescription(
             table,
-            "Left Ctrl + G",
+            controller.text("guide.cheatKeyGodMode"),
             controller.text("guide.cheatGodMode")
         );
 
         addDescription(
             table,
-            "Left Ctrl + K",
+            controller.text("guide.cheatKeyInstaKill"),
             controller.text("guide.cheatInstaKill")
         );
     }
@@ -362,11 +375,12 @@ public class GuideScreen extends ScreenAdapter {
             .padRight(10f);
 
         table.add(actionLabel)
-            .width(340f)
+            .width(455f)
             .left();
 
         table.add(keyLabel)
-            .width(150f)
+            .width(110f)
+            .padLeft(24f)
             .left()
             .row();
     }

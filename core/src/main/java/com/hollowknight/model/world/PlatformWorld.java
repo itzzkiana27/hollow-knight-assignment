@@ -27,10 +27,18 @@ public final class PlatformWorld {
     private static final float SIDE_COLLISION_TOP_INSET = 9f;
 
     /*
-     * A landing or ceiling hit needs more than a one-pixel horizontal
-     * graze. This prevents edge touches from stealing the jump arc.
+     * A ceiling hit needs more than a one-pixel horizontal graze. This
+     * prevents tiny corner touches from stealing the jump arc.
      */
     private static final float MIN_VERTICAL_BLOCK_OVERLAP = 4f;
+
+    /*
+     * Ground support must come from the Knight's real body, not from an
+     * expanded edge probe. Requiring a small but genuine footprint prevents
+     * the character from remaining grounded when the hitbox is only touching
+     * the exact outer edge of a platform.
+     */
+    private static final float MIN_GROUND_SUPPORT_OVERLAP = 6f;
 
     /*
      * Small map seams and shallow lips should be walked over instead of
@@ -43,13 +51,6 @@ public final class PlatformWorld {
      * still allowing real platform edges to be walked off normally.
      */
     private static final float GROUND_SNAP_DISTANCE = 10f;
-
-    /*
-     * A tiny horizontal extension bridges narrow seams between neighbouring
-     * collision rectangles. On a real ledge it only adds a few pixels of
-     * forgiveness, so the Knight still leaves the platform naturally.
-     */
-    private static final float GROUND_EDGE_GRACE = 4f;
 
     /*
      * Small downward floor changes are followed over two or three frames
@@ -373,7 +374,7 @@ public final class PlatformWorld {
 
                 if (
                     horizontalOverlap
-                        < MIN_VERTICAL_BLOCK_OVERLAP
+                        < MIN_GROUND_SUPPORT_OVERLAP
                 ) {
                     continue;
                 }
@@ -807,7 +808,7 @@ public final class PlatformWorld {
 
             if (
                 horizontalOverlap
-                    < MIN_VERTICAL_BLOCK_OVERLAP
+                    < MIN_GROUND_SUPPORT_OVERLAP
             ) {
                 continue;
             }
@@ -1063,16 +1064,15 @@ public final class PlatformWorld {
 
             float horizontalOverlap =
                 overlapAmount(
-                    body.x - GROUND_EDGE_GRACE,
-                    body.x + body.width
-                        + GROUND_EDGE_GRACE,
+                    body.x,
+                    body.x + body.width,
                     solid.x,
                     solid.x + solid.width
                 );
 
             if (
                 horizontalOverlap
-                    < MIN_VERTICAL_BLOCK_OVERLAP
+                    < MIN_GROUND_SUPPORT_OVERLAP
             ) {
                 continue;
             }

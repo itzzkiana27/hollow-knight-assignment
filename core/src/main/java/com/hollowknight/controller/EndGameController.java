@@ -20,6 +20,15 @@ public final class EndGameController {
         return game.getLocalization().get(key);
     }
 
+    public String format(
+        String key,
+        Object... arguments
+    ) {
+        return game
+            .getLocalization()
+            .format(key, arguments);
+    }
+
     public EndGameStats getStats() {
         return stats;
     }

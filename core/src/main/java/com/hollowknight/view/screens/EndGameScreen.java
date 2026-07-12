@@ -166,7 +166,11 @@ public final class EndGameScreen extends ScreenAdapter {
         float contentWidth
     ) {
         Label stat = menuTheme.createBodyLabel(
-            label + ": " + value
+            controller.format(
+                "end.statLine",
+                label,
+                value
+            )
         );
 
         stat.setFontScale(0.96f);

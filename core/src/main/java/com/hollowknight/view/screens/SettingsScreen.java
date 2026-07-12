@@ -127,13 +127,15 @@ public class SettingsScreen extends ScreenAdapter {
 
         contentTable.add(title)
             .colspan(2)
+            .center()
             .padBottom(8f)
             .row();
 
-        contentTable.add(menuTheme.createOrnament(230f))
+        contentTable.add(menuTheme.createMenuHeaderFleur(360f))
             .colspan(2)
-            .width(230f)
-            .height(32f)
+            .width(360f)
+            .height(50f)
+            .center()
             .padBottom(18f)
             .row();
 
@@ -144,6 +146,16 @@ public class SettingsScreen extends ScreenAdapter {
         createThemeControl(contentTable);
         createLanguageControl(contentTable);
         createControlsSection(contentTable);
+
+        contentTable.add(menuTheme.createMenuFooterFleur(260f))
+            .colspan(2)
+            .width(260f)
+            .height(40f)
+            .center()
+            .padTop(8f)
+            .padBottom(4f)
+            .row();
+
         createButtons(contentTable);
 
         ScrollPane scrollPane = new ScrollPane(
@@ -154,6 +166,9 @@ public class SettingsScreen extends ScreenAdapter {
         scrollPane.setFadeScrollBars(false);
         scrollPane.setScrollingDisabled(true, false);
         scrollPane.setOverscroll(false, false);
+        scrollPane.setScrollBarPositions(false, true);
+        scrollPane.setScrollbarsOnTop(true);
+        scrollPane.setVariableSizeKnobs(false);
 
         Table rootTable = new Table();
         rootTable.setFillParent(true);
@@ -392,7 +407,7 @@ public class SettingsScreen extends ScreenAdapter {
 
     private void createThemeControl(Table table) {
         Label themeLabel = createSettingsSectionLabel(
-            "Menu Theme"
+            controller.text("settings.menuTheme")
         );
 
         table.add(themeLabel)
