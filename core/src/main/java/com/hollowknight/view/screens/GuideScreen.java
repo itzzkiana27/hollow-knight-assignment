@@ -18,6 +18,12 @@ import com.hollowknight.view.theme.MenuThemeSkin;
 
 public class GuideScreen extends ScreenAdapter {
 
+    private static final float GUIDE_TITLE_SCALE = 1.78f;
+    private static final float GUIDE_SECTION_SCALE = 1.02f;
+    private static final float GUIDE_BODY_SCALE = 0.82f;
+    private static final float GUIDE_KEY_SCALE = 0.94f;
+    private static final float GUIDE_HEADING_SCALE = 0.88f;
+
     private final GuideController controller;
 
     private Stage stage;
@@ -44,11 +50,11 @@ public class GuideScreen extends ScreenAdapter {
         Table contentTable = new Table();
 
         contentTable.top();
-        contentTable.pad(30f);
+        contentTable.pad(24f);
         contentTable.defaults()
-            .pad(7f)
-            .padLeft(12f)
-            .padRight(12f);
+            .pad(5f)
+            .padLeft(10f)
+            .padRight(10f);
         contentTable.setBackground(
             menuTheme.panelDrawable(0.60f)
         );
@@ -57,6 +63,7 @@ public class GuideScreen extends ScreenAdapter {
             controller.text("guide.title")
         );
         title.setAlignment(Align.center);
+        title.setFontScale(GUIDE_TITLE_SCALE);
 
         contentTable.add(title)
             .colspan(3)
@@ -89,8 +96,8 @@ public class GuideScreen extends ScreenAdapter {
         rootTable.center();
 
         rootTable.add(scrollPane)
-            .width(Math.min(920f, Gdx.graphics.getWidth() * 0.92f))
-            .height(Math.min(700f, Gdx.graphics.getHeight() * 0.92f));
+            .width(Math.min(980f, Gdx.graphics.getWidth() * 0.95f))
+            .height(Math.min(720f, Gdx.graphics.getHeight() * 0.94f));
 
         stage.addActor(rootTable);
     }
@@ -329,6 +336,7 @@ public class GuideScreen extends ScreenAdapter {
         String text
     ) {
         Label sectionTitle = menuTheme.createSectionLabel(text);
+        sectionTitle.setFontScale(GUIDE_SECTION_SCALE);
 
         table.add(sectionTitle)
             .colspan(3)
@@ -343,7 +351,10 @@ public class GuideScreen extends ScreenAdapter {
         String key
     ) {
         Label actionLabel = menuTheme.createBodyLabel(action);
+        actionLabel.setFontScale(GUIDE_BODY_SCALE);
+
         Label keyLabel = menuTheme.createSectionLabel(key);
+        keyLabel.setFontScale(GUIDE_KEY_SCALE);
 
         table.add(menuTheme.createMagicOrbIcon(18f))
             .size(18f)
@@ -351,11 +362,11 @@ public class GuideScreen extends ScreenAdapter {
             .padRight(10f);
 
         table.add(actionLabel)
-            .width(300f)
+            .width(340f)
             .left();
 
         table.add(keyLabel)
-            .width(170f)
+            .width(150f)
             .left()
             .row();
     }
@@ -416,11 +427,15 @@ public class GuideScreen extends ScreenAdapter {
             heading
         );
 
+        headingLabel.setFontScale(GUIDE_HEADING_SCALE);
+        headingLabel.setWrap(true);
         headingLabel.setAlignment(Align.left);
 
         Label descriptionLabel = menuTheme.createBodyLabel(
             description
         );
+
+        descriptionLabel.setFontScale(GUIDE_BODY_SCALE);
 
         descriptionLabel.setWrap(true);
         descriptionLabel.setAlignment(
@@ -429,12 +444,12 @@ public class GuideScreen extends ScreenAdapter {
         );
 
         table.add(headingLabel)
-            .width(200f)
+            .width(330f)
             .left()
             .top();
 
         table.add(descriptionLabel)
-            .width(380f)
+            .width(420f)
             .left()
             .top()
             .row();
@@ -455,10 +470,12 @@ public class GuideScreen extends ScreenAdapter {
             }
         });
 
+        backButton.getLabel().setFontScale(0.92f);
+
         table.add(backButton)
             .colspan(3)
-            .width(240f)
-            .height(52f)
+            .width(250f)
+            .height(46f)
             .padTop(30f)
             .padBottom(25f)
             .row();

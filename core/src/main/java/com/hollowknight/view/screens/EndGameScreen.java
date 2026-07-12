@@ -5,6 +5,9 @@ import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -27,14 +30,25 @@ public final class EndGameScreen extends ScreenAdapter {
     };
 
     private final EndGameController controller;
+    private final Texture gameplaySnapshot;
 
     private Stage stage;
+    private SpriteBatch backgroundBatch;
+    private TextureRegion gameplaySnapshotRegion;
     private Skin skin;
     private MenuThemeSkin menuTheme;
     private Music victoryMusic;
 
     public EndGameScreen(EndGameController controller) {
+        this(controller, null);
+    }
+
+    public EndGameScreen(
+        EndGameController controller,
+        Texture gameplaySnapshot
+    ) {
         this.controller = controller;
+        this.gameplaySnapshot = gameplaySnapshot;
     }
 
     @Override
@@ -42,6 +56,14 @@ public final class EndGameScreen extends ScreenAdapter {
         stage = new Stage(
             new ScreenViewport()
         );
+        backgroundBatch = new SpriteBatch();
+
+        if (gameplaySnapshot != null) {
+            gameplaySnapshotRegion = new TextureRegion(
+                gameplaySnapshot
+            );
+            gameplaySnapshotRegion.flip(false, true);
+        }
 
         menuTheme = MenuThemeSkin.fromSettings();
         skin = menuTheme.getSkin();
@@ -72,14 +94,14 @@ public final class EndGameScreen extends ScreenAdapter {
         Table panel = new Table();
         panel.pad(32f);
         panel.setBackground(
-            menuTheme.panelDrawable(0.56f)
+            menuTheme.panelDrawable(0.18f)
         );
 
         Label title = menuTheme.createTitleLabel(
             controller.text("end.title")
         );
 
-        title.setFontScale(2.20f);
+        title.setFontScale(1.95f);
         title.setAlignment(Align.center);
 
         panel.add(title)
@@ -87,9 +109,9 @@ public final class EndGameScreen extends ScreenAdapter {
             .padBottom(5f)
             .row();
 
-        panel.add(menuTheme.createOrnament(310f))
-            .width(310f)
-            .height(34f)
+        panel.add(menuTheme.createOrnament(300f))
+            .width(300f)
+            .height(32f)
             .padBottom(18f)
             .row();
 
@@ -147,7 +169,7 @@ public final class EndGameScreen extends ScreenAdapter {
             label + ": " + value
         );
 
-        stat.setFontScale(1.12f);
+        stat.setFontScale(0.96f);
         stat.setAlignment(Align.center);
 
         table.add(stat)
@@ -166,7 +188,7 @@ public final class EndGameScreen extends ScreenAdapter {
             text
         );
 
-        button.getLabel().setFontScale(1.12f);
+        button.getLabel().setFontScale(0.98f);
 
         button.addListener(
             new ChangeListener() {
@@ -223,9 +245,9 @@ public final class EndGameScreen extends ScreenAdapter {
     @Override
     public void render(float delta) {
         Gdx.gl.glClearColor(
-            0.01f,
-            0.01f,
-            0.015f,
+            0f,
+            0f,
+            0f,
             1f
         );
 
@@ -233,11 +255,33 @@ public final class EndGameScreen extends ScreenAdapter {
             GL20.GL_COLOR_BUFFER_BIT
         );
 
+        if (
+            backgroundBatch != null
+                && gameplaySnapshotRegion != null
+        ) {
+            backgroundBatch.begin();
+            backgroundBatch.setColor(1f, 1f, 1f, 1f);
+            backgroundBatch.draw(
+                gameplaySnapshotRegion,
+                0f,
+                0f,
+                Gdx.graphics.getWidth(),
+                Gdx.graphics.getHeight()
+            );
+            backgroundBatch.end();
+        }
+
+        /*
+         * Draw no replacement menu background here. The gameplay
+         * screenshot remains visible while MenuThemeSkin contributes
+         * the same animated particles and a soft dark veil used by
+         * the main-menu theme.
+         */
         menuTheme.drawBackground(
             delta,
             false,
-            0.58f,
-            0.72f
+            0f,
+            0.56f
         );
 
         stage.act(
@@ -280,6 +324,14 @@ public final class EndGameScreen extends ScreenAdapter {
 
         if (menuTheme != null) {
             menuTheme.dispose();
+        }
+
+        if (backgroundBatch != null) {
+            backgroundBatch.dispose();
+        }
+
+        if (gameplaySnapshot != null) {
+            gameplaySnapshot.dispose();
         }
     }
 }

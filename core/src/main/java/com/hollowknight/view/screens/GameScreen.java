@@ -51,6 +51,7 @@ import com.hollowknight.model.achievement.Achievement;
 import com.hollowknight.model.combat.AttackDirection;
 import com.hollowknight.view.actors.AchievementPopupObserver;
 import com.hollowknight.view.animation.FalseKnightAnimationManager;
+import com.hollowknight.view.theme.MenuThemeSkin;
 
 import java.util.EnumMap;
 
@@ -231,7 +232,20 @@ public class GameScreen extends ScreenAdapter {
 
     private static final float CHARM_CARD_GAP_Y = 24f;
 
-    private static final float CHARM_ICON_SIZE = 70f;
+    private static final float CHARM_ICON_SIZE = 66f;
+
+    private static final String HUD_ASSET_PATH =
+        "ui/hud/";
+
+    private static final int HUD_MASK_BREAK_FRAME_COUNT = 6;
+    private static final int HUD_MASK_REFILL_FRAME_COUNT = 5;
+
+    private static final float HUD_MASK_BREAK_FRAME_DURATION = 0.07f;
+    private static final float HUD_MASK_REFILL_FRAME_DURATION = 0.08f;
+
+    private static final int HUD_MASK_ANIMATION_NONE = 0;
+    private static final int HUD_MASK_ANIMATION_BREAK = 1;
+    private static final int HUD_MASK_ANIMATION_REFILL = 2;
 
     private static final int SHARP_SHADOW_DASH_FRAME_COUNT = 11;
 
@@ -371,6 +385,23 @@ public class GameScreen extends ScreenAdapter {
     private TextureRegion[] soulScreamFrames;
     private Texture shadowScreamTexture;
     private TextureRegion[] shadowScreamFrames;
+
+    private Texture hudSoulFrameTexture;
+    private Texture hudSoulFillTexture;
+    private Texture hudSoulFullTexture;
+    private Texture hudMaskFilledTexture;
+    private Texture hudMaskEmptyTexture;
+    private Texture[] hudMaskBreakTextures;
+    private Texture[] hudMaskRefillTextures;
+
+    private boolean hudAnimationInitialized;
+    private int hudDisplayedMasks;
+    private int hudTargetMasks;
+    private int hudMaskAnimationState;
+    private float hudMaskAnimationTime;
+    private float hudDisplayedSoulRatio;
+    private float hudSoulSurfaceTime;
+
     private final Rectangle charmMenuPanelBounds = new Rectangle();
     private final Rectangle charmCardBounds = new Rectangle();
     private final Vector2 charmTouchPosition = new Vector2();
@@ -385,6 +416,7 @@ public class GameScreen extends ScreenAdapter {
     private AchievementPopupObserver popupObserver;
 
     private GameCamera worldCamera;
+    private MenuThemeSkin menuTheme;
 
     public GameScreen(
         GameController controller
@@ -414,11 +446,8 @@ public class GameScreen extends ScreenAdapter {
             new ScreenViewport()
         );
 
-        skin = new Skin(
-            Gdx.files.internal(
-                "ui/uiskin.json"
-            )
-        );
+        menuTheme = MenuThemeSkin.fromSettings();
+        skin = menuTheme.getSkin();
 
         batch = new SpriteBatch();
 
@@ -457,6 +486,7 @@ public class GameScreen extends ScreenAdapter {
         falseKnightAnimationManager = new FalseKnightAnimationManager();
         zoteAnimationManager = new ZoteAnimationManager();
         charmIconTextures = loadCharmIconTextures();
+        loadHudTextures();
 
         loadSharpShadowDashFrames();
         loadWhiteDashEffect();
@@ -476,7 +506,6 @@ public class GameScreen extends ScreenAdapter {
 
         resetWorldCamera();
 
-        createInterface();
         createPauseMenu();
 
         if (startPaused) {
@@ -521,12 +550,13 @@ public class GameScreen extends ScreenAdapter {
 
     private void createInterface() {
         TextButton backButton =
-            new TextButton(
+            menuTheme.createMenuButton(
                 controller.text(
                     "game.returnToMainMenu"
-                ),
-                skin
+                )
             );
+
+        backButton.getLabel().setFontScale(0.78f);
 
         backButton.addListener(
             new ChangeListener() {
@@ -569,25 +599,57 @@ public class GameScreen extends ScreenAdapter {
         pauseOverlay.setFillParent(true);
         pauseOverlay.center();
         pauseOverlay.setVisible(false);
+        pauseOverlay.setBackground(
+            menuTheme.panelDrawable(0.24f)
+        );
 
         Window window = new Window(
-            "PAUSE",
+            "",
             skin
         );
 
         window.setMovable(false);
         window.setResizable(false);
+        window.setBackground(
+            menuTheme.panelDrawable(0.88f)
+        );
         window.pad(22f);
+        window.top();
+
+        Label pauseHeader = menuTheme.createSectionLabel(
+            "PAUSE MENU"
+        );
+        pauseHeader.setFontScale(0.82f);
+        pauseHeader.setAlignment(Align.center);
+
+        window.add(pauseHeader)
+            .width(420f)
+            .center()
+            .padTop(4f)
+            .padBottom(2f)
+            .row();
+
+        window.add(menuTheme.createOrnament(230f))
+            .width(230f)
+            .height(27f)
+            .center()
+            .padBottom(4f)
+            .row();
 
         pauseContent = new Table();
-        pauseContent.defaults().pad(6f);
+        pauseContent.top();
+        pauseContent.defaults().pad(5f);
 
         window.add(pauseContent)
-            .width(560f)
-            .pad(8f);
+            .width(430f)
+            .expand()
+            .fill()
+            .pad(6f)
+            .row();
 
         pauseOverlay.add(window)
-            .width(620f);
+            .width(500f)
+            .height(Math.min(690f, Gdx.graphics.getHeight() - 44f));
 
         stage.addActor(pauseOverlay);
 
@@ -627,39 +689,49 @@ public class GameScreen extends ScreenAdapter {
 
         pauseContent.clear();
 
-        Label title = new Label(
-            "Game Paused",
-            skin
+        Label title = menuTheme.createTitleLabel(
+            "Game Paused"
         );
 
-        title.setFontScale(2.0f);
+        title.setFontScale(1.22f);
 
         pauseContent.add(title)
-            .padBottom(12f)
-            .row();
-
-        Label status = new Label(
-            controller.getCheatStatusLine(),
-            skin
-        );
-
-        status.setColor(
-            0.76f,
-            0.86f,
-            1f,
-            1f
-        );
-
-        pauseContent.add(status)
-            .width(520f)
-            .center()
             .padBottom(8f)
             .row();
 
-        pauseMessageLabel = new Label(
-            "",
-            skin
+        String statusText = controller
+            .getCheatStatusLine()
+            .replace(
+                " Flight/Noclip",
+                "\nFlight/Noclip"
+            )
+            .replace(
+                " Emergency Heal",
+                "\nEmergency Heal"
+            );
+
+        Label status = menuTheme.createBodyLabel(
+            statusText
         );
+
+        status.setFontScale(0.59f);
+        status.setWrap(true);
+        status.setAlignment(Align.center);
+        status.setColor(
+            menuTheme.highlightColor()
+        );
+
+        pauseContent.add(status)
+            .width(405f)
+            .height(62f)
+            .center()
+            .padBottom(5f)
+            .row();
+
+        pauseMessageLabel = menuTheme.createBodyLabel(
+            ""
+        );
+        pauseMessageLabel.setFontScale(0.76f);
 
         pauseMessageLabel.setWrap(true);
         pauseMessageLabel.setAlignment(
@@ -667,8 +739,8 @@ public class GameScreen extends ScreenAdapter {
         );
 
         pauseContent.add(pauseMessageLabel)
-            .width(520f)
-            .height(36f)
+            .width(405f)
+            .height(30f)
             .row();
 
         addPauseButton(
@@ -718,12 +790,11 @@ public class GameScreen extends ScreenAdapter {
         String text,
         Runnable action
     ) {
-        TextButton button = new TextButton(
-            text,
-            skin
+        TextButton button = menuTheme.createMenuButton(
+            text
         );
 
-        button.getLabel().setFontScale(1.12f);
+        button.getLabel().setFontScale(0.82f);
 
         button.addListener(
             new ChangeListener() {
@@ -738,8 +809,8 @@ public class GameScreen extends ScreenAdapter {
         );
 
         pauseContent.add(button)
-            .width(300f)
-            .height(46f)
+            .width(310f)
+            .height(44f)
             .row();
     }
 
@@ -756,33 +827,32 @@ public class GameScreen extends ScreenAdapter {
     private void showCheatCodesPanel() {
         pauseContent.clear();
 
-        Label title = new Label(
-            "Cheat Codes",
-            skin
+        Label title = menuTheme.createTitleLabel(
+            "Cheat Codes"
         );
 
-        title.setFontScale(1.90f);
+        title.setFontScale(1.28f);
 
         pauseContent.add(title)
             .padBottom(12f)
             .row();
 
-        Label cheats = new Label(
+        Label cheats = menuTheme.createBodyLabel(
             "Left Ctrl + B  : Teleport to False Knight arena\n"
                 + "Left Ctrl + F  : Toggle flight / noclip mode\n"
                 + "Left Ctrl + H  : Emergency heal (+1 mask)\n"
                 + "Left Ctrl + S  : Refill Soul vessel\n"
                 + "Left Ctrl + G  : Toggle God Mode\n"
-                + "Left Ctrl + K  : Insta-kill enemies on screen",
-            skin
+                + "Left Ctrl + K  : Insta-kill enemies on screen"
         );
 
+        cheats.setFontScale(0.60f);
         cheats.setWrap(true);
         cheats.setAlignment(Align.left);
 
         pauseContent.add(cheats)
-            .width(500f)
-            .padBottom(16f)
+            .width(400f)
+            .padBottom(14f)
             .row();
 
         addPauseButton(
@@ -794,12 +864,11 @@ public class GameScreen extends ScreenAdapter {
     private void showAchievementsPanel() {
         pauseContent.clear();
 
-        Label title = new Label(
-            "Achievements",
-            skin
+        Label title = menuTheme.createTitleLabel(
+            "Achievements"
         );
 
-        title.setFontScale(1.90f);
+        title.setFontScale(1.28f);
 
         pauseContent.add(title)
             .padBottom(12f)
@@ -814,7 +883,7 @@ public class GameScreen extends ScreenAdapter {
                 achievement.isUnlocked();
 
             String line =
-                (unlocked ? "✓ " : "🔒 ")
+                (unlocked ? "UNLOCKED — " : "LOCKED — ")
                     + controller.text(
                     achievement.getTitleKey()
                 )
@@ -823,11 +892,11 @@ public class GameScreen extends ScreenAdapter {
                     achievement.getDescriptionKey()
                 );
 
-            Label label = new Label(
-                line,
-                skin
+            Label label = menuTheme.createBodyLabel(
+                line
             );
 
+            label.setFontScale(0.70f);
             label.setWrap(true);
 
             if (!unlocked) {
@@ -842,7 +911,7 @@ public class GameScreen extends ScreenAdapter {
             }
 
             list.add(label)
-                .width(490f)
+                .width(390f)
                 .left()
                 .row();
         }
@@ -859,8 +928,8 @@ public class GameScreen extends ScreenAdapter {
         );
 
         pauseContent.add(scrollPane)
-            .width(520f)
-            .height(270f)
+            .width(410f)
+            .height(350f)
             .padBottom(14f)
             .row();
 
@@ -981,6 +1050,11 @@ public class GameScreen extends ScreenAdapter {
             handleCharmInventoryClick();
         }
 
+        updateHudAnimations(
+            pauseMenuOpen
+                ? 0f
+                : Math.min(delta, 1f / 30f)
+        );
         drawPlayerHud();
         drawCharmObtainedMessage();
         drawCheatMessage();
@@ -2181,11 +2255,13 @@ public class GameScreen extends ScreenAdapter {
             ShapeRenderer.ShapeType.Line
         );
 
+        Color promptColor = menuTheme.highlightColor();
+
         shapeRenderer.setColor(
-            0.85f,
-            0.88f,
-            1f,
-            1f
+            promptColor.r,
+            promptColor.g,
+            promptColor.b,
+            0.92f
         );
 
         shapeRenderer.rect(
@@ -2212,8 +2288,11 @@ public class GameScreen extends ScreenAdapter {
                 "font"
             );
 
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        font.getData().setScale(0.68f);
         font.setColor(
-            Color.WHITE
+            menuTheme.bodyColor()
         );
 
         font.draw(
@@ -2221,6 +2300,11 @@ public class GameScreen extends ScreenAdapter {
             "E / UP",
             promptX + 13f,
             promptY + 28f
+        );
+
+        font.getData().setScale(
+            originalScaleX,
+            originalScaleY
         );
 
         batch.end();
@@ -2267,10 +2351,10 @@ public class GameScreen extends ScreenAdapter {
         );
 
         shapeRenderer.setColor(
-            0f,
-            0f,
-            0f,
-            0.82f
+            0.02f,
+            0.03f,
+            0.06f,
+            0.88f
         );
 
         shapeRenderer.rect(
@@ -2286,11 +2370,13 @@ public class GameScreen extends ScreenAdapter {
             ShapeRenderer.ShapeType.Line
         );
 
+        Color dialogueBorder = menuTheme.highlightColor();
+
         shapeRenderer.setColor(
-            0.78f,
-            0.80f,
-            0.92f,
-            1f
+            dialogueBorder.r,
+            dialogueBorder.g,
+            dialogueBorder.b,
+            0.86f
         );
 
         shapeRenderer.rect(
@@ -2322,11 +2408,16 @@ public class GameScreen extends ScreenAdapter {
                 "font"
             );
 
+        float originalTitleScaleX = titleFont.getData().scaleX;
+        float originalTitleScaleY = titleFont.getData().scaleY;
+        float originalTextScaleX = textFont.getData().scaleX;
+        float originalTextScaleY = textFont.getData().scaleY;
+
+        titleFont.getData().setScale(0.82f);
+        textFont.getData().setScale(0.74f);
+
         titleFont.setColor(
-            0.90f,
-            0.90f,
-            1f,
-            1f
+            menuTheme.titleColor()
         );
 
         titleFont.draw(
@@ -2337,7 +2428,7 @@ public class GameScreen extends ScreenAdapter {
         );
 
         textFont.setColor(
-            Color.WHITE
+            menuTheme.bodyColor()
         );
 
         textFont.draw(
@@ -2351,10 +2442,7 @@ public class GameScreen extends ScreenAdapter {
         );
 
         textFont.setColor(
-            0.78f,
-            0.80f,
-            0.92f,
-            1f
+            menuTheme.highlightColor()
         );
 
         textFont.draw(
@@ -2362,6 +2450,15 @@ public class GameScreen extends ScreenAdapter {
             "ENTER",
             boxX + boxWidth - 94f,
             boxY + 26f
+        );
+
+        titleFont.getData().setScale(
+            originalTitleScaleX,
+            originalTitleScaleY
+        );
+        textFont.getData().setScale(
+            originalTextScaleX,
+            originalTextScaleY
         );
 
         batch.end();
@@ -3428,7 +3525,19 @@ public class GameScreen extends ScreenAdapter {
         }
 
         /*
-         * Second click on the same charm equips or
+         * Void Heart and any future locked charm cannot be
+         * equipped until its gameplay unlock is completed.
+         */
+        if (
+            !controller
+                .getCharmInventory()
+                .isOwned(clickedCharm)
+        ) {
+            return;
+        }
+
+        /*
+         * Second click on the same owned charm equips or
          * unequips it.
          */
         controller.toggleCharmFromInventory(
@@ -3471,7 +3580,7 @@ public class GameScreen extends ScreenAdapter {
             0f,
             0f,
             0f,
-            0.72f
+            0.66f
         );
 
         shapeRenderer.rect(
@@ -3482,10 +3591,10 @@ public class GameScreen extends ScreenAdapter {
         );
 
         shapeRenderer.setColor(
-            0.055f,
-            0.058f,
-            0.075f,
-            0.96f
+            0.025f,
+            0.035f,
+            0.070f,
+            0.92f
         );
 
         shapeRenderer.rect(
@@ -3493,6 +3602,33 @@ public class GameScreen extends ScreenAdapter {
             charmMenuPanelBounds.y,
             charmMenuPanelBounds.width,
             charmMenuPanelBounds.height
+        );
+
+        shapeRenderer.setColor(
+            0.08f,
+            0.11f,
+            0.17f,
+            0.50f
+        );
+        shapeRenderer.rect(
+            charmMenuPanelBounds.x,
+            charmMenuPanelBounds.y
+                + charmMenuPanelBounds.height - 88f,
+            charmMenuPanelBounds.width,
+            88f
+        );
+
+        shapeRenderer.setColor(
+            0.04f,
+            0.055f,
+            0.10f,
+            0.58f
+        );
+        shapeRenderer.rect(
+            charmMenuPanelBounds.x,
+            charmMenuPanelBounds.y,
+            charmMenuPanelBounds.width,
+            132f
         );
 
         drawCharmCardsBackground();
@@ -3503,11 +3639,13 @@ public class GameScreen extends ScreenAdapter {
             ShapeRenderer.ShapeType.Line
         );
 
+        Color charmBorder = menuTheme.highlightColor();
+
         shapeRenderer.setColor(
-            0.70f,
-            0.72f,
-            0.84f,
-            1f
+            charmBorder.r,
+            charmBorder.g,
+            charmBorder.b,
+            0.88f
         );
 
         shapeRenderer.rect(
@@ -3640,11 +3778,16 @@ public class GameScreen extends ScreenAdapter {
                 "font"
             );
 
+        float originalTitleScaleX = titleFont.getData().scaleX;
+        float originalTitleScaleY = titleFont.getData().scaleY;
+        float originalTextScaleX = textFont.getData().scaleX;
+        float originalTextScaleY = textFont.getData().scaleY;
+
+        titleFont.getData().setScale(0.88f);
+        textFont.getData().setScale(0.68f);
+
         titleFont.setColor(
-            0.92f,
-            0.93f,
-            1f,
-            1f
+            menuTheme.titleColor()
         );
 
         titleFont.draw(
@@ -3657,10 +3800,7 @@ public class GameScreen extends ScreenAdapter {
         );
 
         textFont.setColor(
-            0.72f,
-            0.75f,
-            0.86f,
-            1f
+            menuTheme.bodyColor()
         );
 
         textFont.draw(
@@ -3684,6 +3824,15 @@ public class GameScreen extends ScreenAdapter {
             titleFont,
             textFont
         );
+
+        titleFont.getData().setScale(
+            originalTitleScaleX,
+            originalTitleScaleY
+        );
+        textFont.getData().setScale(
+            originalTextScaleX,
+            originalTextScaleY
+        );
     }
 
     private void drawCharmNotches(
@@ -3698,18 +3847,24 @@ public class GameScreen extends ScreenAdapter {
         float startX =
             charmMenuPanelBounds.x
                 + charmMenuPanelBounds.width
-                - 230f;
+                - 260f;
+
+        float notchStartOffset = 150f;
+        float notchSpacing = 27f;
 
         float centerY =
             charmMenuPanelBounds.y
                 + charmMenuPanelBounds.height
                 - 44f;
 
+        float originalScaleX =
+            textFont.getData().scaleX;
+        float originalScaleY =
+            textFont.getData().scaleY;
+
+        textFont.getData().setScale(0.54f);
         textFont.setColor(
-            0.86f,
-            0.88f,
-            0.96f,
-            1f
+            menuTheme.bodyColor()
         );
 
         textFont.draw(
@@ -3720,6 +3875,11 @@ public class GameScreen extends ScreenAdapter {
                 + notchCapacity,
             startX,
             centerY + 7f
+        );
+
+        textFont.getData().setScale(
+            originalScaleX,
+            originalScaleY
         );
 
         batch.end();
@@ -3754,9 +3914,11 @@ public class GameScreen extends ScreenAdapter {
             }
 
             shapeRenderer.circle(
-                startX + 98f + index * 28f,
+                startX
+                    + notchStartOffset
+                    + index * notchSpacing,
                 centerY,
-                8f
+                7.5f
             );
         }
 
@@ -3779,9 +3941,11 @@ public class GameScreen extends ScreenAdapter {
             index++
         ) {
             shapeRenderer.circle(
-                startX + 98f + index * 28f,
+                startX
+                    + notchStartOffset
+                    + index * notchSpacing,
                 centerY,
-                8f
+                7.5f
             );
         }
 
@@ -3791,13 +3955,17 @@ public class GameScreen extends ScreenAdapter {
 
         drawEquippedCharmIcons(
             startX,
-            centerY
+            centerY,
+            notchStartOffset,
+            notchSpacing
         );
     }
 
     private void drawEquippedCharmIcons(
         float startX,
-        float centerY
+        float centerY,
+        float notchStartOffset,
+        float notchSpacing
     ) {
         if (charmIconTextures == null) {
             return;
@@ -3818,9 +3986,9 @@ public class GameScreen extends ScreenAdapter {
             if (texture != null) {
                 float centerX =
                     startX
-                        + 98f
+                        + notchStartOffset
                         + equippedIndex
-                        * 28f;
+                        * notchSpacing;
 
                 batch.draw(
                     texture,
@@ -3855,10 +4023,7 @@ public class GameScreen extends ScreenAdapter {
         }
 
         titleFont.setColor(
-            0.95f,
-            0.76f,
-            0.34f,
-            1f
+            menuTheme.highlightColor()
         );
 
         titleFont.draw(
@@ -3872,10 +4037,7 @@ public class GameScreen extends ScreenAdapter {
         );
 
         textFont.setColor(
-            0.88f,
-            0.90f,
-            1f,
-            1f
+            menuTheme.bodyColor()
         );
 
         textFont.draw(
@@ -3888,14 +4050,22 @@ public class GameScreen extends ScreenAdapter {
             true
         );
 
-        String message =
-            controller.getCharmInventoryMessage();
+        boolean charmOwned = controller
+            .getCharmInventory()
+            .isOwned(charm);
+
+        String message = charmOwned
+            ? controller.getCharmInventoryMessage()
+            : "Charm is not enabled.";
 
         if (
             message != null
                 && !message.isBlank()
         ) {
-            if (controller.didCharmEquipFail()) {
+            if (
+                !charmOwned
+                    || controller.didCharmEquipFail()
+            ) {
                 textFont.setColor(
                     1f,
                     0.42f,
@@ -3929,6 +4099,11 @@ public class GameScreen extends ScreenAdapter {
         CharmType[] charms =
             CharmType.values();
 
+        float originalScaleX =
+            textFont.getData().scaleX;
+        float originalScaleY =
+            textFont.getData().scaleY;
+
         for (
             int index = 0;
             index < charms.length;
@@ -3957,9 +4132,22 @@ public class GameScreen extends ScreenAdapter {
                 charmCardBounds.y
                     + charmCardBounds.height
                     - CHARM_ICON_SIZE
-                    - 16f;
+                    - 12f;
+
+            boolean charmOwned = controller
+                .getCharmInventory()
+                .isOwned(charm);
 
             if (texture != null) {
+                if (!charmOwned) {
+                    batch.setColor(
+                        0.34f,
+                        0.37f,
+                        0.44f,
+                        0.58f
+                    );
+                }
+
                 batch.draw(
                     texture,
                     iconX,
@@ -3967,58 +4155,83 @@ public class GameScreen extends ScreenAdapter {
                     CHARM_ICON_SIZE,
                     CHARM_ICON_SIZE
                 );
+
+                batch.setColor(Color.WHITE);
             }
 
+            textFont.getData().setScale(0.54f);
             textFont.setColor(
-                Color.WHITE
+                menuTheme.titleColor()
             );
 
             textFont.draw(
                 batch,
                 charm.getDisplayName(),
-                charmCardBounds.x + 10f,
-                charmCardBounds.y + 47f,
-                charmCardBounds.width - 20f,
+                charmCardBounds.x + 8f,
+                charmCardBounds.y + 52f,
+                charmCardBounds.width - 16f,
                 Align.center,
                 true
             );
 
-            if (controller.isCharmEquipped(charm)) {
+            textFont.getData().setScale(0.47f);
+
+            if (!charmOwned) {
+                textFont.getData().setScale(0.40f);
                 textFont.setColor(
-                    0.95f,
-                    0.76f,
-                    0.34f,
+                    0.72f,
+                    0.48f,
+                    0.48f,
                     1f
+                );
+
+                textFont.draw(
+                    batch,
+                    "NOT ENABLED",
+                    charmCardBounds.x + 10f,
+                    charmCardBounds.y + 13f,
+                    charmCardBounds.width - 20f,
+                    Align.center,
+                    false
+                );
+            } else if (controller.isCharmEquipped(charm)) {
+                textFont.setColor(
+                    menuTheme.highlightColor()
                 );
 
                 textFont.draw(
                     batch,
                     "EQUIPPED",
                     charmCardBounds.x + 10f,
-                    charmCardBounds.y + 20f,
+                    charmCardBounds.y + 13f,
                     charmCardBounds.width - 20f,
                     Align.center,
                     false
                 );
             } else {
+                Color inactiveColor = menuTheme.bodyColor();
                 textFont.setColor(
-                    0.60f,
-                    0.64f,
-                    0.74f,
-                    1f
+                    inactiveColor.r,
+                    inactiveColor.g,
+                    inactiveColor.b,
+                    0.78f
                 );
 
                 textFont.draw(
                     batch,
                     "click to equip",
                     charmCardBounds.x + 10f,
-                    charmCardBounds.y + 20f,
+                    charmCardBounds.y + 13f,
                     charmCardBounds.width - 20f,
                     Align.center,
                     false
                 );
             }
         }
+        textFont.getData().setScale(
+            originalScaleX,
+            originalScaleY
+        );
     }
 
     private void calculateCharmMenuPanelBounds(
@@ -4133,11 +4346,12 @@ public class GameScreen extends ScreenAdapter {
                 "window"
             );
 
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        font.getData().setScale(0.82f);
+
         font.setColor(
-            0.95f,
-            0.76f,
-            0.34f,
-            1f
+            menuTheme.highlightColor()
         );
 
         font.draw(
@@ -4148,6 +4362,11 @@ public class GameScreen extends ScreenAdapter {
             screenWidth,
             Align.center,
             false
+        );
+
+        font.getData().setScale(
+            originalScaleX,
+            originalScaleY
         );
 
         batch.end();
@@ -4179,11 +4398,12 @@ public class GameScreen extends ScreenAdapter {
                 "window"
             );
 
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        font.getData().setScale(0.78f);
+
         font.setColor(
-            0.50f,
-            0.90f,
-            1f,
-            1f
+            menuTheme.highlightColor()
         );
 
         font.draw(
@@ -4196,10 +4416,493 @@ public class GameScreen extends ScreenAdapter {
             false
         );
 
+        font.getData().setScale(
+            originalScaleX,
+            originalScaleY
+        );
+
         batch.end();
     }
 
+    private void loadHudTextures() {
+        hudSoulFrameTexture = loadHudTexture(
+            HUD_ASSET_PATH + "soul_frame.png"
+        );
+        hudSoulFillTexture = loadHudTexture(
+            HUD_ASSET_PATH + "soul_fill.png"
+        );
+        hudSoulFullTexture = loadHudTexture(
+            HUD_ASSET_PATH + "soul_full.png"
+        );
+        hudMaskFilledTexture = loadHudTexture(
+            HUD_ASSET_PATH + "mask_filled.png"
+        );
+        hudMaskEmptyTexture = loadHudTexture(
+            HUD_ASSET_PATH + "mask_empty.png"
+        );
+
+        hudMaskBreakTextures = new Texture[
+            HUD_MASK_BREAK_FRAME_COUNT
+        ];
+        for (
+            int index = 0;
+            index < HUD_MASK_BREAK_FRAME_COUNT;
+            index++
+        ) {
+            hudMaskBreakTextures[index] = loadHudTexture(
+                HUD_ASSET_PATH
+                    + String.format(
+                        "mask_break_%03d.png",
+                        index
+                    )
+            );
+        }
+
+        hudMaskRefillTextures = new Texture[
+            HUD_MASK_REFILL_FRAME_COUNT
+        ];
+        for (
+            int index = 0;
+            index < HUD_MASK_REFILL_FRAME_COUNT;
+            index++
+        ) {
+            hudMaskRefillTextures[index] = loadHudTexture(
+                HUD_ASSET_PATH
+                    + String.format(
+                        "mask_refill_%03d.png",
+                        index
+                    )
+            );
+        }
+
+        hudAnimationInitialized = false;
+        hudMaskAnimationState = HUD_MASK_ANIMATION_NONE;
+        hudMaskAnimationTime = 0f;
+    }
+
+    private Texture loadHudTexture(String path) {
+        if (!Gdx.files.internal(path).exists()) {
+            return null;
+        }
+
+        Texture texture = new Texture(
+            Gdx.files.internal(path)
+        );
+        texture.setFilter(
+            Texture.TextureFilter.Linear,
+            Texture.TextureFilter.Linear
+        );
+        return texture;
+    }
+
+    private boolean hasCompleteHudTextureSet() {
+        if (
+            hudSoulFrameTexture == null
+                || hudSoulFillTexture == null
+                || hudSoulFullTexture == null
+                || hudMaskFilledTexture == null
+                || hudMaskEmptyTexture == null
+                || hudMaskBreakTextures == null
+                || hudMaskRefillTextures == null
+        ) {
+            return false;
+        }
+
+        for (Texture texture : hudMaskBreakTextures) {
+            if (texture == null) {
+                return false;
+            }
+        }
+
+        for (Texture texture : hudMaskRefillTextures) {
+            if (texture == null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void updateHudAnimations(float delta) {
+        int maximumMasks = Math.max(
+            0,
+            controller.getMaximumMasks()
+        );
+        int actualMasks = Math.max(
+            0,
+            Math.min(
+                maximumMasks,
+                controller.getCurrentMasks()
+            )
+        );
+        float actualSoulRatio = Math.max(
+            0f,
+            Math.min(
+                1f,
+                controller.getSoulFillRatio()
+            )
+        );
+
+        if (!hudAnimationInitialized) {
+            hudAnimationInitialized = true;
+            hudDisplayedMasks = actualMasks;
+            hudTargetMasks = actualMasks;
+            hudDisplayedSoulRatio = actualSoulRatio;
+            hudMaskAnimationState = HUD_MASK_ANIMATION_NONE;
+            hudMaskAnimationTime = 0f;
+            return;
+        }
+
+        hudDisplayedMasks = Math.max(
+            0,
+            Math.min(maximumMasks, hudDisplayedMasks)
+        );
+        hudTargetMasks = actualMasks;
+
+        if (delta > 0f) {
+            hudSoulSurfaceTime += delta;
+
+            float soulDifference =
+                actualSoulRatio - hudDisplayedSoulRatio;
+
+            /*
+             * A slower eased response while gaining Soul makes the
+             * white liquid visibly rise instead of jumping to the
+             * new value. Spending Soul drains faster but remains
+             * animated.
+             */
+            float response = soulDifference > 0f
+                ? 1.65f
+                : 4.25f;
+            float blend = 1f - (float) Math.exp(
+                -response * delta
+            );
+
+            hudDisplayedSoulRatio +=
+                soulDifference * blend;
+
+            if (Math.abs(soulDifference) < 0.001f) {
+                hudDisplayedSoulRatio = actualSoulRatio;
+            }
+        }
+
+        if (hudMaskAnimationState == HUD_MASK_ANIMATION_NONE) {
+            if (hudDisplayedMasks > hudTargetMasks) {
+                hudMaskAnimationState = HUD_MASK_ANIMATION_BREAK;
+                hudMaskAnimationTime = 0f;
+            } else if (hudDisplayedMasks < hudTargetMasks) {
+                hudMaskAnimationState = HUD_MASK_ANIMATION_REFILL;
+                hudMaskAnimationTime = 0f;
+            }
+            return;
+        }
+
+        if (delta <= 0f) {
+            return;
+        }
+
+        hudMaskAnimationTime += delta;
+
+        float animationDuration =
+            hudMaskAnimationState == HUD_MASK_ANIMATION_BREAK
+                ? HUD_MASK_BREAK_FRAME_COUNT
+                    * HUD_MASK_BREAK_FRAME_DURATION
+                : HUD_MASK_REFILL_FRAME_COUNT
+                    * HUD_MASK_REFILL_FRAME_DURATION;
+
+        if (hudMaskAnimationTime < animationDuration) {
+            return;
+        }
+
+        if (hudMaskAnimationState == HUD_MASK_ANIMATION_BREAK) {
+            hudDisplayedMasks = Math.max(
+                hudTargetMasks,
+                hudDisplayedMasks - 1
+            );
+        } else {
+            hudDisplayedMasks = Math.min(
+                hudTargetMasks,
+                hudDisplayedMasks + 1
+            );
+        }
+
+        hudMaskAnimationState = HUD_MASK_ANIMATION_NONE;
+        hudMaskAnimationTime = 0f;
+    }
+
     private void drawPlayerHud() {
+        if (!hasCompleteHudTextureSet()) {
+            drawFallbackPlayerHud();
+            return;
+        }
+
+        float screenWidth =
+            stage.getViewport().getWorldWidth();
+        float screenHeight =
+            stage.getViewport().getWorldHeight();
+
+        float hudScale = Math.max(
+            0.72f,
+            Math.min(
+                1.05f,
+                Math.min(
+                    screenWidth / 1280f,
+                    screenHeight / 720f
+                )
+            )
+        );
+
+        float hudX = 18f * hudScale;
+        float hudTop = screenHeight - 12f * hudScale;
+
+        float soulWidth = 232f * hudScale;
+        float soulHeight =
+            soulWidth
+                * hudSoulFrameTexture.getHeight()
+                / hudSoulFrameTexture.getWidth();
+        float soulY = hudTop - soulHeight;
+
+        batch.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+        batch.begin();
+        batch.setColor(Color.WHITE);
+
+        batch.draw(
+            hudSoulFrameTexture,
+            hudX,
+            soulY,
+            soulWidth,
+            soulHeight
+        );
+
+        drawSoulFill(
+            hudX,
+            soulY,
+            soulWidth,
+            soulHeight
+        );
+
+        int maximumMasks = Math.max(
+            0,
+            controller.getMaximumMasks()
+        );
+
+        float maskWidth = 82f * hudScale;
+        float maskHeight =
+            maskWidth
+                * hudMaskFilledTexture.getHeight()
+                / hudMaskFilledTexture.getWidth();
+        float maskStartX = hudX + 118f * hudScale;
+        float maskY = hudTop - 108f * hudScale;
+        float maskSpacing = 49f * hudScale;
+
+        for (
+            int index = 0;
+            index < maximumMasks;
+            index++
+        ) {
+            float maskX = maskStartX + index * maskSpacing;
+
+            batch.draw(
+                hudMaskEmptyTexture,
+                maskX,
+                maskY,
+                maskWidth,
+                maskHeight
+            );
+
+            Texture overlay = getHudMaskOverlay(index);
+
+            if (overlay != null) {
+                batch.draw(
+                    overlay,
+                    maskX,
+                    maskY,
+                    maskWidth,
+                    maskHeight
+                );
+            }
+        }
+
+        batch.setColor(Color.WHITE);
+        batch.end();
+
+        drawHudFocusProgress(
+            hudX,
+            soulY,
+            soulWidth,
+            hudScale
+        );
+    }
+
+    private void drawSoulFill(
+        float x,
+        float y,
+        float width,
+        float height
+    ) {
+        float ratio = Math.max(
+            0f,
+            Math.min(1f, hudDisplayedSoulRatio)
+        );
+
+        if (ratio <= 0f) {
+            return;
+        }
+
+        /*
+         * The surface gently moves while the vessel is partially
+         * filled, like liquid rather than a static progress image.
+         * The motion fades out near completely empty or full.
+         */
+        float edgeStrength = Math.min(1f, ratio * 5f)
+            * Math.min(1f, (1f - ratio) * 5f);
+        float surfaceWave =
+            (float) Math.sin(hudSoulSurfaceTime * 4.8f)
+                * 0.010f
+                * edgeStrength;
+        float visualRatio = Math.max(
+            0f,
+            Math.min(1f, ratio + surfaceWave)
+        );
+
+        int sourceHeight = Math.max(
+            1,
+            Math.round(
+                hudSoulFillTexture.getHeight() * visualRatio
+            )
+        );
+        int sourceY =
+            hudSoulFillTexture.getHeight() - sourceHeight;
+        float drawHeight = height * visualRatio;
+
+        batch.draw(
+            hudSoulFillTexture,
+            x,
+            y,
+            width,
+            drawHeight,
+            0,
+            sourceY,
+            hudSoulFillTexture.getWidth(),
+            sourceHeight,
+            false,
+            false
+        );
+
+        if (ratio > 0.90f) {
+            float faceAlpha = Math.min(
+                1f,
+                (ratio - 0.90f) / 0.10f
+            );
+
+            batch.setColor(
+                1f,
+                1f,
+                1f,
+                faceAlpha
+            );
+            batch.draw(
+                hudSoulFullTexture,
+                x,
+                y,
+                width,
+                height
+            );
+            batch.setColor(Color.WHITE);
+        }
+    }
+
+    private Texture getHudMaskOverlay(int index) {
+        if (
+            hudMaskAnimationState == HUD_MASK_ANIMATION_BREAK
+                && index == hudDisplayedMasks - 1
+        ) {
+            int frameIndex = Math.min(
+                HUD_MASK_BREAK_FRAME_COUNT - 1,
+                (int) (
+                    hudMaskAnimationTime
+                        / HUD_MASK_BREAK_FRAME_DURATION
+                )
+            );
+            return hudMaskBreakTextures[frameIndex];
+        }
+
+        if (
+            hudMaskAnimationState == HUD_MASK_ANIMATION_REFILL
+                && index == hudDisplayedMasks
+        ) {
+            int frameIndex = Math.min(
+                HUD_MASK_REFILL_FRAME_COUNT - 1,
+                (int) (
+                    hudMaskAnimationTime
+                        / HUD_MASK_REFILL_FRAME_DURATION
+                )
+            );
+            return hudMaskRefillTextures[frameIndex];
+        }
+
+        if (index < hudDisplayedMasks) {
+            return hudMaskFilledTexture;
+        }
+
+        return null;
+    }
+
+    private void drawHudFocusProgress(
+        float hudX,
+        float soulY,
+        float soulWidth,
+        float hudScale
+    ) {
+        if (!controller.isFocusing()) {
+            return;
+        }
+
+        float barWidth = 145f * hudScale;
+        float barHeight = 7f * hudScale;
+        float barX = hudX + 18f * hudScale;
+        float barY = soulY - 11f * hudScale;
+
+        shapeRenderer.setProjectionMatrix(
+            stage.getCamera().combined
+        );
+        shapeRenderer.begin(
+            ShapeRenderer.ShapeType.Filled
+        );
+
+        shapeRenderer.setColor(
+            0.08f,
+            0.10f,
+            0.16f,
+            0.92f
+        );
+        shapeRenderer.rect(
+            barX,
+            barY,
+            barWidth,
+            barHeight
+        );
+
+        Color highlight = menuTheme.highlightColor();
+        shapeRenderer.setColor(
+            highlight.r,
+            highlight.g,
+            highlight.b,
+            1f
+        );
+        shapeRenderer.rect(
+            barX,
+            barY,
+            barWidth * controller.getFocusProgress(),
+            barHeight
+        );
+
+        shapeRenderer.end();
+    }
+
+    private void drawFallbackPlayerHud() {
         int currentMasks =
             controller.getCurrentMasks();
 
@@ -4519,6 +5222,51 @@ public class GameScreen extends ScreenAdapter {
         }
     }
 
+    private void disposeHudTextures() {
+        if (hudSoulFrameTexture != null) {
+            hudSoulFrameTexture.dispose();
+            hudSoulFrameTexture = null;
+        }
+
+        if (hudSoulFillTexture != null) {
+            hudSoulFillTexture.dispose();
+            hudSoulFillTexture = null;
+        }
+
+        if (hudSoulFullTexture != null) {
+            hudSoulFullTexture.dispose();
+            hudSoulFullTexture = null;
+        }
+
+        if (hudMaskFilledTexture != null) {
+            hudMaskFilledTexture.dispose();
+            hudMaskFilledTexture = null;
+        }
+
+        if (hudMaskEmptyTexture != null) {
+            hudMaskEmptyTexture.dispose();
+            hudMaskEmptyTexture = null;
+        }
+
+        if (hudMaskBreakTextures != null) {
+            for (Texture texture : hudMaskBreakTextures) {
+                if (texture != null) {
+                    texture.dispose();
+                }
+            }
+            hudMaskBreakTextures = null;
+        }
+
+        if (hudMaskRefillTextures != null) {
+            for (Texture texture : hudMaskRefillTextures) {
+                if (texture != null) {
+                    texture.dispose();
+                }
+            }
+            hudMaskRefillTextures = null;
+        }
+    }
+
     @Override
     public void dispose() {
         controller.removeAchievementObserver(
@@ -4568,8 +5316,13 @@ public class GameScreen extends ScreenAdapter {
             stage.dispose();
         }
 
-        if (skin != null) {
+        if (menuTheme != null) {
+            menuTheme.dispose();
+            menuTheme = null;
+            skin = null;
+        } else if (skin != null) {
             skin.dispose();
+            skin = null;
         }
 
         if (
@@ -4684,6 +5437,8 @@ public class GameScreen extends ScreenAdapter {
             shadowScreamTexture = null;
             shadowScreamFrames = null;
         }
+
+        disposeHudTextures();
 
         if (!preserveControllerOnDispose) {
             controller.dispose();

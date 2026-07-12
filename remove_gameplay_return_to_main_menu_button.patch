@@ -1,0 +1,10 @@
+--- a/core/src/main/java/com/hollowknight/view/screens/GameScreen.java
++++ b/core/src/main/java/com/hollowknight/view/screens/GameScreen.java
+@@ -479,7 +479,6 @@
+ 
+         resetWorldCamera();
+ 
+-        createInterface();
+         createPauseMenu();
+ 
+         if (startPaused) {

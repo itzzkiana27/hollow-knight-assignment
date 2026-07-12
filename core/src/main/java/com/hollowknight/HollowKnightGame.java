@@ -4,8 +4,11 @@ import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.utils.ScreenUtils;
 import com.hollowknight.controller.AchievementsController;
 import com.hollowknight.controller.GuideController;
 import com.hollowknight.controller.EndGameController;
@@ -217,14 +220,34 @@ public class HollowKnightGame extends Game {
             musicPlayer.playVictoryTheme();
         }
 
+        Texture gameplaySnapshot = captureCurrentScreenTexture();
+
         changeScreen(
             new EndGameScreen(
                 new EndGameController(
                     this,
                     stats
-                )
+                ),
+                gameplaySnapshot
             )
         );
+    }
+
+    private Texture captureCurrentScreenTexture() {
+        try {
+            Pixmap pixmap = ScreenUtils.getFrameBufferPixmap(
+                0,
+                0,
+                Gdx.graphics.getBackBufferWidth(),
+                Gdx.graphics.getBackBufferHeight()
+            );
+
+            Texture texture = new Texture(pixmap);
+            pixmap.dispose();
+            return texture;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void changeScreen(Screen newScreen) {

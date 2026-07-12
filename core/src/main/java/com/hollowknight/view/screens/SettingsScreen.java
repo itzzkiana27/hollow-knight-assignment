@@ -27,6 +27,12 @@ import java.util.Map;
 
 public class SettingsScreen extends ScreenAdapter {
 
+    private static final float SETTINGS_TITLE_SCALE = 1.80f;
+    private static final float SETTINGS_SECTION_SCALE = 1.00f;
+    private static final float SETTINGS_LABEL_SCALE = 0.82f;
+    private static final float SETTINGS_CHECKBOX_SCALE = 0.82f;
+    private static final float SETTINGS_BUTTON_SCALE = 0.88f;
+
     private final SettingsController controller;
 
     private Stage stage;
@@ -100,8 +106,15 @@ public class SettingsScreen extends ScreenAdapter {
         Table contentTable = new Table();
 
         contentTable.top();
-        contentTable.pad(32f);
-        contentTable.defaults().pad(7f);
+        contentTable.pad(24f);
+        contentTable.defaults().pad(5f);
+        contentTable.columnDefaults(0)
+            .width(360f)
+            .left()
+            .padRight(18f);
+        contentTable.columnDefaults(1)
+            .width(320f)
+            .right();
         contentTable.setBackground(
             menuTheme.panelDrawable(0.58f)
         );
@@ -110,6 +123,7 @@ public class SettingsScreen extends ScreenAdapter {
             controller.text("settings.title")
         );
         title.setAlignment(Align.center);
+        title.setFontScale(SETTINGS_TITLE_SCALE);
 
         contentTable.add(title)
             .colspan(2)
@@ -146,8 +160,8 @@ public class SettingsScreen extends ScreenAdapter {
         rootTable.center();
 
         rootTable.add(scrollPane)
-            .width(Math.min(760f, Gdx.graphics.getWidth() * 0.86f))
-            .height(Math.min(680f, Gdx.graphics.getHeight() * 0.88f));
+            .width(Math.min(860f, Gdx.graphics.getWidth() * 0.94f))
+            .height(Math.min(700f, Gdx.graphics.getHeight() * 0.92f));
 
         stage.addActor(rootTable);
     }
@@ -157,6 +171,8 @@ public class SettingsScreen extends ScreenAdapter {
             " " + controller.text("settings.musicEnabled"),
             skin
         );
+
+        musicCheckBox.getLabel().setFontScale(SETTINGS_CHECKBOX_SCALE);
 
         musicCheckBox.setChecked(
             controller.isMusicEnabled()
@@ -202,7 +218,7 @@ public class SettingsScreen extends ScreenAdapter {
         });
 
         table.add(musicVolumeSlider)
-            .width(260f)
+            .width(300f)
             .row();
     }
 
@@ -213,6 +229,8 @@ public class SettingsScreen extends ScreenAdapter {
             ),
             skin
         );
+
+        soundEffectsCheckBox.getLabel().setFontScale(SETTINGS_CHECKBOX_SCALE);
 
         soundEffectsCheckBox.setChecked(
             controller.isSoundEffectsEnabled()
@@ -262,12 +280,12 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(soundEffectsVolumeSlider)
-            .width(260f)
+            .width(300f)
             .row();
     }
 
     private void createBrightnessControl(Table table) {
-        Label brightnessLabel = menuTheme.createBodyLabel(
+        Label brightnessLabel = createSettingsLabel(
             controller.text("settings.brightness")
         );
 
@@ -301,12 +319,12 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(brightnessSlider)
-            .width(260f)
+            .width(300f)
             .row();
     }
 
     private void createMusicStyleControl(Table table) {
-        Label musicStyleLabel = menuTheme.createBodyLabel(
+        Label musicStyleLabel = createSettingsLabel(
             controller.text("settings.musicStyle")
         );
 
@@ -368,12 +386,12 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(musicStyleSelectBox)
-            .width(260f)
+            .width(300f)
             .row();
     }
 
     private void createThemeControl(Table table) {
-        Label themeLabel = menuTheme.createSectionLabel(
+        Label themeLabel = createSettingsSectionLabel(
             "Menu Theme"
         );
 
@@ -405,12 +423,12 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(themeSelectBox)
-            .width(260f)
+            .width(300f)
             .row();
     }
 
     private void createLanguageControl(Table table) {
-        Label languageLabel = menuTheme.createBodyLabel(
+        Label languageLabel = createSettingsLabel(
             controller.text("settings.language")
         );
 
@@ -453,12 +471,12 @@ public class SettingsScreen extends ScreenAdapter {
         );
 
         table.add(languageSelectBox)
-            .width(260f)
+            .width(300f)
             .row();
     }
 
     private void createControlsSection(Table table) {
-        Label controlsTitle = menuTheme.createSectionLabel(
+        Label controlsTitle = createSettingsSectionLabel(
             controller.text("settings.controls")
         );
 
@@ -576,10 +594,13 @@ public class SettingsScreen extends ScreenAdapter {
             }
         );
 
+        resetControlsButton.getLabel().setFontScale(SETTINGS_BUTTON_SCALE);
+
         table.add(resetControlsButton)
             .colspan(2)
-            .width(260f)
-            .height(46f)
+            .width(300f)
+            .height(42f)
+            .center()
             .padTop(8f)
             .row();
     }
@@ -589,13 +610,15 @@ public class SettingsScreen extends ScreenAdapter {
         ControlAction action,
         String labelKey
     ) {
-        Label actionLabel = menuTheme.createBodyLabel(
+        Label actionLabel = createSettingsLabel(
             controller.text(labelKey)
         );
 
         TextButton keyButton = menuTheme.createMenuButton(
             controller.keyName(getControlKey(action))
         );
+
+        keyButton.getLabel().setFontScale(SETTINGS_BUTTON_SCALE);
 
         keyButton.addListener(
             new ChangeListener() {
@@ -616,8 +639,8 @@ public class SettingsScreen extends ScreenAdapter {
             .left();
 
         table.add(keyButton)
-            .width(260f)
-            .height(42f)
+            .width(300f)
+            .height(38f)
             .row();
     }
 
@@ -784,9 +807,11 @@ public class SettingsScreen extends ScreenAdapter {
             }
         );
 
+        resetAudioButton.getLabel().setFontScale(SETTINGS_BUTTON_SCALE);
+
         table.add(resetAudioButton)
-            .width(220f)
-            .height(50f)
+            .width(240f)
+            .height(44f)
             .padTop(20f);
 
         TextButton resetAllButton = menuTheme.createMenuButton(
@@ -805,9 +830,11 @@ public class SettingsScreen extends ScreenAdapter {
             }
         );
 
+        resetAllButton.getLabel().setFontScale(SETTINGS_BUTTON_SCALE);
+
         table.add(resetAllButton)
-            .width(220f)
-            .height(50f)
+            .width(240f)
+            .height(44f)
             .padTop(20f)
             .row();
 
@@ -815,7 +842,7 @@ public class SettingsScreen extends ScreenAdapter {
             controller.text("common.back")
         );
 
-        backButton.getLabel().setFontScale(1.22f);
+        backButton.getLabel().setFontScale(0.94f);
 
         backButton.addListener(
             new ChangeListener() {
@@ -831,17 +858,34 @@ public class SettingsScreen extends ScreenAdapter {
 
         table.add(backButton)
             .colspan(2)
-            .width(220f)
-            .height(52f)
+            .width(240f)
+            .height(46f)
+            .center()
             .padTop(12f)
             .padBottom(20f)
             .row();
     }
 
+    private Label createSettingsLabel(String text) {
+        Label label = menuTheme.createBodyLabel(text);
+        label.setFontScale(SETTINGS_LABEL_SCALE);
+        return label;
+    }
+
+    private Label createSettingsSectionLabel(String text) {
+        Label label = menuTheme.createSectionLabel(text);
+        label.setFontScale(SETTINGS_SECTION_SCALE);
+        return label;
+    }
+
     private void refreshAudioControls() {
+        musicCheckBox.getLabel().setFontScale(SETTINGS_CHECKBOX_SCALE);
+
         musicCheckBox.setChecked(
             controller.isMusicEnabled()
         );
+
+        soundEffectsCheckBox.getLabel().setFontScale(SETTINGS_CHECKBOX_SCALE);
 
         soundEffectsCheckBox.setChecked(
             controller.isSoundEffectsEnabled()
