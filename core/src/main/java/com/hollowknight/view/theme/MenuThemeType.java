@@ -1,36 +1,17 @@
 package com.hollowknight.view.theme;
 
 public enum MenuThemeType {
-    CLASSIC_HOLLOW(
-        "classic_hollow",
-        "settings.theme.classicHollow"
-    ),
-    VOIDHEART(
-        "voidheart",
-        "settings.theme.voidheart"
-    ),
-    ROYAL_GOLD(
-        "royal_gold",
-        "settings.theme.royalGold"
-    );
+    CLASSIC_HOLLOW("classic_hollow", "settings.theme.classicHollow"),
+    VOIDHEART("voidheart", "settings.theme.voidheart"),
+    ROYAL_GOLD("royal_gold", "settings.theme.royalGold");
 
     private final String id;
+
     private final String localizationKey;
 
-    MenuThemeType(
-        String id,
-        String localizationKey
-    ) {
+    MenuThemeType(String id, String localizationKey) {
         this.id = id;
         this.localizationKey = localizationKey;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public String getLocalizationKey() {
-        return localizationKey;
     }
 
     public MenuThemeType next() {
@@ -52,4 +33,11 @@ public enum MenuThemeType {
         return VOIDHEART;
     }
 
+    public String getId() {
+        return id;
+    }
+
+    public String getLocalizationKey() {
+        return localizationKey;
+    }
 }

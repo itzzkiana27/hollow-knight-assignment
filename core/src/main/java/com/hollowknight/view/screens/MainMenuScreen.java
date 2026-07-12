@@ -5,7 +5,6 @@ import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -20,7 +19,9 @@ public class MainMenuScreen extends ScreenAdapter {
     private final MainMenuController controller;
 
     private Stage stage;
+
     private Skin skin;
+
     private MenuThemeSkin menuTheme;
 
     public MainMenuScreen(MainMenuController controller) {
@@ -29,9 +30,7 @@ public class MainMenuScreen extends ScreenAdapter {
 
     @Override
     public void show() {
-        stage = new Stage(
-            new ScreenViewport()
-        );
+        stage = new Stage(new ScreenViewport());
 
         menuTheme = MenuThemeSkin.fromSettings();
         skin = menuTheme.getSkin();
@@ -41,156 +40,27 @@ public class MainMenuScreen extends ScreenAdapter {
         createMenu();
     }
 
-    private void createMenu() {
-        Table table = new Table();
-
-        table.setFillParent(true);
-        table.center();
-        table.defaults().pad(5f);
-
-        table.add(menuTheme.createTitleLogo(500f))
-            .width(500f)
-            .height(188f)
-            .padBottom(8f)
-            .row();
-
-        table.add(menuTheme.createMenuHeaderFleur(520f))
-            .width(520f)
-            .height(72f)
-            .center()
-            .padBottom(28f)
-            .row();
-
-        addButton(
-            table,
-            controller.text("main.startGame"),
-            controller::startGame
-        );
-
-        addButton(
-            table,
-            controller.text("main.settings"),
-            controller::openSettings
-        );
-
-        addButton(
-            table,
-            controller.text("main.guide"),
-            controller::openGuide
-        );
-
-        addButton(
-            table,
-            controller.text("main.achievements"),
-            controller::openAchievements
-        );
-
-        addButton(
-            table,
-            controller.text("main.quit"),
-            controller::quitGame
-        );
-
-        TextButton themeButton = menuTheme.createMenuButton(
-            controller.format(
-                "main.theme",
-                controller.getMenuThemeDisplayName()
-            )
-        );
-        themeButton.getLabel().setFontScale(0.90f);
-        themeButton.getLabel().setAlignment(Align.center);
-        themeButton.getLabel().setColor(0.55f, 0.62f, 0.70f, 0.82f);
-
-        themeButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(
-                ChangeEvent event,
-                Actor actor
-            ) {
-                controller.cycleMenuTheme();
-            }
-        });
-
-        table.add(themeButton)
-            .width(420f)
-            .height(42f)
-            .padTop(18f)
-            .row();
-
-        stage.addActor(table);
-    }
-
-    private void addButton(
-        Table table,
-        String text,
-        Runnable action
-    ) {
-        TextButton button = menuTheme.createMenuButton(text);
-
-        button.getLabel().setFontScale(2.25f);
-        button.getLabel().setAlignment(Align.center);
-
-        button.addListener(new ChangeListener() {
-            @Override
-            public void changed(
-                ChangeEvent event,
-                Actor actor
-            ) {
-                action.run();
-            }
-        });
-
-        table.add(button)
-            .width(Math.min(
-                660f,
-                Gdx.graphics.getWidth() * 0.84f
-            ))
-            .height(66f)
-            .row();
-    }
-
     @Override
     public void render(float delta) {
-        Gdx.gl.glClearColor(
-            0.01f,
-            0.01f,
-            0.015f,
-            1f
-        );
+        Gdx.gl.glClearColor(0.01f, 0.01f, 0.015f, 1f);
 
-        Gdx.gl.glClear(
-            GL20.GL_COLOR_BUFFER_BIT
-        );
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        menuTheme.drawBackground(
-            delta,
-            false
-        );
+        menuTheme.drawBackground(delta, false);
 
-        stage.act(
-            Math.min(delta, 1f / 30f)
-        );
+        stage.act(Math.min(delta, 1f / 30f));
 
         stage.draw();
     }
 
     @Override
-    public void resize(
-        int width,
-        int height
-    ) {
-        stage.getViewport().update(
-            width,
-            height,
-            true
-        );
+    public void resize(int width, int height) {
+        stage.getViewport().update(width, height, true);
     }
 
     @Override
     public void hide() {
-        if (
-            Gdx.input.getInputProcessor() == stage
-        ) {
+        if (Gdx.input.getInputProcessor() == stage) {
             Gdx.input.setInputProcessor(null);
         }
     }
@@ -204,5 +74,68 @@ public class MainMenuScreen extends ScreenAdapter {
         if (menuTheme != null) {
             menuTheme.dispose();
         }
+    }
+
+    private void createMenu() {
+        Table table = new Table();
+
+        table.setFillParent(true);
+        table.center();
+        table.defaults().pad(5f);
+
+        table.add(menuTheme.createTitleLogo(500f)).width(500f).height(188f).padBottom(8f).row();
+
+        table.add(menuTheme.createMenuHeaderFleur(520f))
+                .width(520f)
+                .height(72f)
+                .center()
+                .padBottom(28f)
+                .row();
+
+        addButton(table, controller.text("main.startGame"), controller::startGame);
+
+        addButton(table, controller.text("main.settings"), controller::openSettings);
+
+        addButton(table, controller.text("main.guide"), controller::openGuide);
+
+        addButton(table, controller.text("main.achievements"), controller::openAchievements);
+
+        addButton(table, controller.text("main.quit"), controller::quitGame);
+
+        TextButton themeButton =
+                menuTheme.createMenuButton(
+                        controller.format("main.theme", controller.getMenuThemeDisplayName()));
+        themeButton.getLabel().setFontScale(0.90f);
+        themeButton.getLabel().setAlignment(Align.center);
+        themeButton.getLabel().setColor(0.55f, 0.62f, 0.70f, 0.82f);
+
+        themeButton.addListener(
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.cycleMenuTheme();
+                    }
+                });
+
+        table.add(themeButton).width(420f).height(42f).padTop(18f).row();
+
+        stage.addActor(table);
+    }
+
+    private void addButton(Table table, String text, Runnable action) {
+        TextButton button = menuTheme.createMenuButton(text);
+
+        button.getLabel().setFontScale(2.25f);
+        button.getLabel().setAlignment(Align.center);
+
+        button.addListener(
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        action.run();
+                    }
+                });
+
+        table.add(button).width(Math.min(660f, Gdx.graphics.getWidth() * 0.84f)).height(66f).row();
     }
 }

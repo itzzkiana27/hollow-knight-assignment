@@ -6,13 +6,6 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.math.MathUtils;
 import com.hollowknight.model.GameSettings;
 
-/**
- * Central event-based short SFX player for gameplay events.
- *
- * The class reads the current sound-effects settings every time it plays,
- * so changing the SFX volume or mute option in Settings affects new sounds
- * without recreating the game screen.
- */
 public final class GameSfxPlayer {
 
     private static final String BASE_PATH = "audio/sfx/";
@@ -36,39 +29,25 @@ public final class GameSfxPlayer {
     public GameSfxPlayer(GameSettings settings) {
         this.settings = settings;
 
-        nailSlashSounds = loadMany(
-            "sword_1.wav",
-            "sword_2.wav",
-            "sword_3.wav",
-            "sword_4.wav",
-            "sword_5.wav"
-        );
+        nailSlashSounds =
+                loadMany("sword_1.wav", "sword_2.wav", "sword_3.wav", "sword_4.wav", "sword_5.wav");
 
-        playerDamageSounds = loadMany(
-            "hero_damage.wav",
-            "hero_damage_less_harsh.wav"
-        );
+        playerDamageSounds = loadMany("hero_damage.wav", "hero_damage_less_harsh.wav");
 
-        soulGainSounds = loadMany(
-            "soul_pickup_1.wav",
-            "soul_pickup_2.wav",
-            "soul_pickup_3.wav",
-            "soul_pickup_4.wav",
-            "soul_pickup_5.wav",
-            "soul_pickup_6.wav",
-            "soul_pickup_7.wav"
-        );
+        soulGainSounds =
+                loadMany(
+                        "soul_pickup_1.wav",
+                        "soul_pickup_2.wav",
+                        "soul_pickup_3.wav",
+                        "soul_pickup_4.wav",
+                        "soul_pickup_5.wav",
+                        "soul_pickup_6.wav",
+                        "soul_pickup_7.wav");
 
         enemyDamageSound = load("sword_hit_reject.wav");
-        breakableWallHit1Sound = load(
-            "breakable_wall/breakable_wall_hit_1.wav"
-        );
-        breakableWallHit2Sound = load(
-            "breakable_wall/breakable_wall_hit_2.wav"
-        );
-        breakableWallDestroyedSound = load(
-            "breakable_wall/breakable_wall_destroyed.wav"
-        );
+        breakableWallHit1Sound = load("breakable_wall/breakable_wall_hit_1.wav");
+        breakableWallHit2Sound = load("breakable_wall/breakable_wall_hit_2.wav");
+        breakableWallDestroyedSound = load("breakable_wall/breakable_wall_destroyed.wav");
         focusReadySound = load("focus_ready.wav");
         focusChargingSound = load("focus_health_charging.wav");
         focusHealSound = load("focus_health_heal.wav");
@@ -113,24 +92,15 @@ public final class GameSfxPlayer {
     }
 
     public void startFocusCharging() {
-        if (
-            focusChargingSound == null
-                || focusChargingSoundId != -1L
-                || !canPlay()
-        ) {
+        if (focusChargingSound == null || focusChargingSoundId != -1L || !canPlay()) {
             return;
         }
 
-        focusChargingSoundId = focusChargingSound.loop(
-            scaledVolume(0.42f)
-        );
+        focusChargingSoundId = focusChargingSound.loop(scaledVolume(0.42f));
     }
 
     public void stopFocusCharging() {
-        if (
-            focusChargingSound == null
-                || focusChargingSoundId == -1L
-        ) {
+        if (focusChargingSound == null || focusChargingSoundId == -1L) {
             return;
         }
 
@@ -165,9 +135,7 @@ public final class GameSfxPlayer {
     }
 
     private Sound load(String filename) {
-        FileHandle file = Gdx.files.internal(
-            BASE_PATH + filename
-        );
+        FileHandle file = Gdx.files.internal(BASE_PATH + filename);
 
         if (!file.exists()) {
             return null;
@@ -181,14 +149,10 @@ public final class GameSfxPlayer {
             return;
         }
 
-        int startIndex = MathUtils.random(
-            sounds.length - 1
-        );
+        int startIndex = MathUtils.random(sounds.length - 1);
 
         for (int offset = 0; offset < sounds.length; offset++) {
-            Sound sound = sounds[
-                (startIndex + offset) % sounds.length
-            ];
+            Sound sound = sounds[(startIndex + offset) % sounds.length];
 
             if (sound != null) {
                 play(sound, volume);
@@ -206,16 +170,11 @@ public final class GameSfxPlayer {
     }
 
     private boolean canPlay() {
-        return settings.isSoundEffectsEnabled()
-            && settings.getSoundEffectsVolume() > 0f;
+        return settings.isSoundEffectsEnabled() && settings.getSoundEffectsVolume() > 0f;
     }
 
     private float scaledVolume(float volume) {
-        return MathUtils.clamp(
-            volume * settings.getSoundEffectsVolume(),
-            0f,
-            1f
-        );
+        return MathUtils.clamp(volume * settings.getSoundEffectsVolume(), 0f, 1f);
     }
 
     private void disposeAll(Sound[] sounds) {

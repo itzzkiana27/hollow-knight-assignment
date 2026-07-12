@@ -2,26 +2,29 @@ package com.hollowknight.model.enemy;
 
 import com.badlogic.gdx.math.Rectangle;
 import com.hollowknight.model.combat.Damageable;
+import com.hollowknight.model.combat.Knockbackable;
 import com.hollowknight.model.combat.Pogoable;
 import com.hollowknight.model.world.PlatformWorld;
-import com.hollowknight.model.combat.Knockbackable;
 
 /**
- * Ground enemy that patrols, rests, detects the player
- * in front, and performs a blind charge.
+ * Ground enemy that patrols, rests, detects the player in front of it and performs a blind charge.
  */
-public final class HuskHornhead
-    implements Damageable, Pogoable, Knockbackable {
+public final class HuskHornhead implements Damageable, Pogoable, Knockbackable {
 
     private static final float BODY_WIDTH = 72f;
+
     private static final float BODY_HEIGHT = 88f;
 
     private static final int MAX_HEALTH = 4;
+
     private static final int CONTACT_DAMAGE = 1;
 
     private static final float WALK_SPEED = 70f;
+
     private static final float WALK_DURATION = 2.4f;
+
     private static final float REST_DURATION = 0.8f;
+
     private static final float TURN_DURATION = 0.20f;
 
     private static final float ANTICIPATION_DURATION = 0.45f;
@@ -31,39 +34,46 @@ public final class HuskHornhead
     private static final float CHARGE_COOLDOWN_DURATION = 0.65f;
 
     private static final float DEATH_DURATION = 0.80f;
+
     private static final float FLASH_DURATION = 0.12f;
 
     private static final float VISION_WIDTH = 360f;
+
     private static final float VISION_HEIGHT = 115f;
+
     private static final float VISION_Y_OFFSET = 4f;
 
     private static final float GROUND_LOOK_AHEAD = 10f;
 
-    private static final float
-        GROUND_PROBE_DEPTH = 14f;
+    private static final float GROUND_PROBE_DEPTH = 14f;
 
-    private static final float
-        RESPAWN_DISTANCE = 900f;
+    private static final float RESPAWN_DISTANCE = 900f;
+
     private static final float KNOCKBACK_DISTANCE = 60f;
-    private static final float KNOCKBACK_STEP = 4f;
-    private static final float KNOCKBACK_SPEED = 460f;
-    private static final float KNOCKBACK_DURATION = 0.14f;
-    private static final float DEATH_SIDE_FALL_DISTANCE = 56f;
-    private static final float DEATH_SIDE_FALL_DURATION = 0.24f;
-    private static final float
-        DEATH_SIDE_FALL_SPEED =
-        DEATH_SIDE_FALL_DISTANCE
-            / DEATH_SIDE_FALL_DURATION;
 
-    private static final float
-        RESPAWN_DISTANCE_SQUARED =
-        RESPAWN_DISTANCE * RESPAWN_DISTANCE;
+    private static final float KNOCKBACK_STEP = 4f;
+
+    private static final float KNOCKBACK_SPEED = 460f;
+
+    private static final float KNOCKBACK_DURATION = 0.14f;
+
+    private static final float DEATH_SIDE_FALL_DISTANCE = 56f;
+
+    private static final float DEATH_SIDE_FALL_DURATION = 0.24f;
+
+    private static final float DEATH_SIDE_FALL_SPEED =
+            DEATH_SIDE_FALL_DISTANCE / DEATH_SIDE_FALL_DURATION;
+
+    private static final float RESPAWN_DISTANCE_SQUARED = RESPAWN_DISTANCE * RESPAWN_DISTANCE;
 
     private final Rectangle bounds;
+
     private final Rectangle visionBounds;
+
     private final Rectangle nextBounds;
 
     private final float spawnX;
+
     private final float spawnY;
 
     private final boolean initialFacingRight;
@@ -71,35 +81,32 @@ public final class HuskHornhead
     private HuskHornheadState state;
 
     private int health;
+
     private int chargeDirection;
 
     private float stateTime;
+
     private float flashTimeRemaining;
+
     private float knockbackTimeRemaining;
+
     private float knockbackStrengthMultiplier = 1f;
+
     private int knockbackDirection;
+
     private float deathSideFallRemaining;
+
     private int deathSideFallDirection;
 
     private boolean facingRight;
 
-    public HuskHornhead(
-        float spawnX,
-        float spawnY,
-        boolean initialFacingRight
-    ) {
+    public HuskHornhead(float spawnX, float spawnY, boolean initialFacingRight) {
         this.spawnX = spawnX;
         this.spawnY = spawnY;
 
-        this.initialFacingRight =
-            initialFacingRight;
+        this.initialFacingRight = initialFacingRight;
 
-        bounds = new Rectangle(
-            spawnX,
-            spawnY,
-            BODY_WIDTH,
-            BODY_HEIGHT
-        );
+        bounds = new Rectangle(spawnX, spawnY, BODY_WIDTH, BODY_HEIGHT);
 
         visionBounds = new Rectangle();
         nextBounds = new Rectangle();
@@ -108,22 +115,12 @@ public final class HuskHornhead
     }
 
     public void update(
-        float delta,
-        Rectangle playerBounds,
-        boolean playerAlive,
-        PlatformWorld platformWorld
-    ) {
-        float safeDelta = Math.min(
-            Math.max(delta, 0f),
-            1f / 30f
-        );
+            float delta, Rectangle playerBounds, boolean playerAlive, PlatformWorld platformWorld) {
+        float safeDelta = Math.min(Math.max(delta, 0f), 1f / 30f);
 
         updateFlash(safeDelta);
 
-        if (
-            state
-                == HuskHornheadState.CORPSE
-        ) {
+        if (state == HuskHornheadState.CORPSE) {
             if (shouldRespawn(playerBounds)) {
                 respawn();
             }
@@ -132,25 +129,14 @@ public final class HuskHornhead
             return;
         }
 
-        if (
-            state
-                == HuskHornheadState.DYING
-        ) {
+        if (state == HuskHornheadState.DYING) {
             stateTime += safeDelta;
 
             updateDeathSideFall(safeDelta);
 
-            if (
-                stateTime >= DEATH_DURATION
-            ) {
-                state =
-                    HuskHornheadState.CORPSE;
+            if (stateTime >= DEATH_DURATION) {
+                state = HuskHornheadState.CORPSE;
 
-                /*
-                 * Keeping this at the animation's
-                 * duration makes the final corpse
-                 * frame remain visible.
-                 */
                 stateTime = DEATH_DURATION;
             }
 
@@ -161,10 +147,7 @@ public final class HuskHornhead
         stateTime += safeDelta;
 
         if (knockbackTimeRemaining > 0f) {
-            updateKnockback(
-                safeDelta,
-                platformWorld
-            );
+            updateKnockback(safeDelta, platformWorld);
 
             updateVisionBounds();
             return;
@@ -173,497 +156,55 @@ public final class HuskHornhead
         updateVisionBounds();
 
         switch (state) {
-            case WALKING -> updateWalking(
-                safeDelta,
-                playerBounds,
-                playerAlive,
-                platformWorld
-            );
+            case WALKING -> updateWalking(safeDelta, playerBounds, playerAlive, platformWorld);
 
-            case RESTING -> updateResting(
-                playerBounds,
-                playerAlive
-            );
+            case RESTING -> updateResting(playerBounds, playerAlive);
 
-            case TURNING ->
-                updateTurning();
+            case TURNING -> updateTurning();
 
-            case ATTACK_ANTICIPATE ->
-                updateAttackAnticipation();
+            case ATTACK_ANTICIPATE -> updateAttackAnticipation();
 
-            case CHARGING -> updateCharge(
-                safeDelta,
-                platformWorld
-            );
+            case CHARGING -> updateCharge(safeDelta, platformWorld);
 
-            case ATTACK_COOLDOWN ->
-                updateAttackCooldown();
+            case ATTACK_COOLDOWN -> updateAttackCooldown();
 
-            case DYING, CORPSE -> {
-                // Already handled above.
-            }
+            case DYING, CORPSE -> {}
         }
 
         updateVisionBounds();
     }
 
-    private void updateWalking(
-        float delta,
-        Rectangle playerBounds,
-        boolean playerAlive,
-        PlatformWorld platformWorld
-    ) {
-        if (
-            playerAlive
-                && visionBounds.overlaps(
-                playerBounds
-            )
-        ) {
-            beginAttack();
-            return;
-        }
-
-        if (stateTime >= WALK_DURATION) {
-            changeState(
-                HuskHornheadState.RESTING
-            );
-
-            return;
-        }
-
-        int direction =
-            getFacingDirection();
-
-        if (
-            !canMoveForward(
-                direction,
-                WALK_SPEED,
-                delta,
-                platformWorld
-            )
-        ) {
-            changeState(
-                HuskHornheadState.TURNING
-            );
-
-            return;
-        }
-
-        bounds.x +=
-            direction
-                * WALK_SPEED
-                * delta;
-    }
-
-    private void updateResting(
-        Rectangle playerBounds,
-        boolean playerAlive
-    ) {
-        if (
-            playerAlive
-                && visionBounds.overlaps(
-                playerBounds
-            )
-        ) {
-            beginAttack();
-            return;
-        }
-
-        if (
-            stateTime >= REST_DURATION
-        ) {
-            changeState(
-                HuskHornheadState.TURNING
-            );
-        }
-    }
-
-    private void updateTurning() {
-        if (
-            stateTime < TURN_DURATION
-        ) {
-            return;
-        }
-
-        facingRight = !facingRight;
-
-        changeState(
-            HuskHornheadState.WALKING
-        );
-    }
-
-    private void beginAttack() {
-        /*
-         * Capture the direction now. The player can
-         * move afterward, but the charge remains blind.
-         */
-        chargeDirection =
-            getFacingDirection();
-
-        changeState(
-            HuskHornheadState
-                .ATTACK_ANTICIPATE
-        );
-    }
-
-    private void
-    updateAttackAnticipation() {
-        if (
-            stateTime
-                < ANTICIPATION_DURATION
-        ) {
-            return;
-        }
-
-        facingRight =
-            chargeDirection > 0;
-
-        changeState(
-            HuskHornheadState.CHARGING
-        );
-    }
-
-    private void updateCharge(
-        float delta,
-        PlatformWorld platformWorld
-    ) {
-        if (
-            !canMoveForward(
-                chargeDirection,
-                CHARGE_SPEED,
-                delta,
-                platformWorld
-            )
-        ) {
-            changeState(
-                HuskHornheadState
-                    .ATTACK_COOLDOWN
-            );
-
-            return;
-        }
-
-        bounds.x +=
-            chargeDirection
-                * CHARGE_SPEED
-                * delta;
-    }
-    private void updateKnockback(
-        float delta,
-        PlatformWorld platformWorld
-    ) {
-        float moveAmount =
-            KNOCKBACK_SPEED
-                * knockbackStrengthMultiplier
-                * delta;
-
-        nextBounds.set(bounds);
-
-        nextBounds.x +=
-            knockbackDirection * moveAmount;
-
-        if (
-            nextBounds.x < 0f
-                || nextBounds.x
-                + nextBounds.width
-                > platformWorld.getWorldWidth()
-        ) {
-            knockbackTimeRemaining = 0f;
-            return;
-        }
-
-        if (
-            platformWorld.overlapsSolid(
-                nextBounds
-            )
-        ) {
-            knockbackTimeRemaining = 0f;
-            return;
-        }
-
-        if (
-            !platformWorld.hasGroundAhead(
-                nextBounds,
-                knockbackDirection,
-                GROUND_LOOK_AHEAD,
-                GROUND_PROBE_DEPTH
-            )
-        ) {
-            knockbackTimeRemaining = 0f;
-            return;
-        }
-
-        bounds.x = nextBounds.x;
-
-        knockbackTimeRemaining -= delta;
-
-        if (knockbackTimeRemaining < 0f) {
-            knockbackTimeRemaining = 0f;
-        }
-    }
-    private void updateAttackCooldown() {
-        if (
-            stateTime
-                < CHARGE_COOLDOWN_DURATION
-        ) {
-            return;
-        }
-
-        changeState(
-            HuskHornheadState.TURNING
-        );
-    }
-
-    private boolean canMoveForward(
-        int direction,
-        float speed,
-        float delta,
-        PlatformWorld platformWorld
-    ) {
-        nextBounds.set(bounds);
-
-        nextBounds.x +=
-            direction * speed * delta;
-
-        if (
-            nextBounds.x < 0f
-                || nextBounds.x
-                + nextBounds.width
-                > platformWorld
-                .getWorldWidth()
-        ) {
-            return false;
-        }
-
-        /*
-         * Detect a wall or other solid obstacle.
-         */
-        if (
-            platformWorld.overlapsSolid(
-                nextBounds
-            )
-        ) {
-            return false;
-        }
-
-        /*
-         * Detect whether the floor continues in
-         * front of the enemy.
-         */
-        return platformWorld.hasGroundAhead(
-            nextBounds,
-            direction,
-            GROUND_LOOK_AHEAD,
-            GROUND_PROBE_DEPTH
-        );
-    }
-
-
-    private void startDeathSideFall() {
-        deathSideFallDirection =
-            knockbackDirection != 0
-                ? knockbackDirection
-                : getFacingDirection();
-
-        deathSideFallRemaining =
-            DEATH_SIDE_FALL_DISTANCE;
-    }
-
-    private void updateDeathSideFall(
-        float delta
-    ) {
-        if (
-            deathSideFallRemaining <= 0f
-                || deathSideFallDirection == 0
-        ) {
-            return;
-        }
-
-        float amount = Math.min(
-            deathSideFallRemaining,
-            DEATH_SIDE_FALL_SPEED * delta
-        );
-
-        bounds.x +=
-            deathSideFallDirection * amount;
-
-        deathSideFallRemaining -= amount;
-    }
-
-    private void updateFlash(
-        float delta
-    ) {
-        if (
-            flashTimeRemaining <= 0f
-        ) {
-            return;
-        }
-
-        flashTimeRemaining -= delta;
-
-        if (
-            flashTimeRemaining < 0f
-        ) {
-            flashTimeRemaining = 0f;
-        }
-    }
-
-    private void updateVisionBounds() {
-        if (!isAlive()) {
-            visionBounds.set(
-                0f,
-                0f,
-                0f,
-                0f
-            );
-
-            return;
-        }
-
-        float visionX =
-            facingRight
-                ? bounds.x + bounds.width
-                : bounds.x - VISION_WIDTH;
-
-        visionBounds.set(
-            visionX,
-            bounds.y + VISION_Y_OFFSET,
-            VISION_WIDTH,
-            VISION_HEIGHT
-        );
-    }
-
-    private boolean shouldRespawn(
-        Rectangle playerBounds
-    ) {
-        if (playerBounds == null) {
-            return false;
-        }
-
-        float playerCenterX =
-            playerBounds.x
-                + playerBounds.width / 2f;
-
-        float playerCenterY =
-            playerBounds.y
-                + playerBounds.height / 2f;
-
-        float spawnCenterX =
-            spawnX + BODY_WIDTH / 2f;
-
-        float spawnCenterY =
-            spawnY + BODY_HEIGHT / 2f;
-
-        float deltaX =
-            playerCenterX - spawnCenterX;
-
-        float deltaY =
-            playerCenterY - spawnCenterY;
-
-        return deltaX * deltaX
-            + deltaY * deltaY
-            >= RESPAWN_DISTANCE_SQUARED;
-    }
-
-    private int getFacingDirection() {
-        return facingRight ? 1 : -1;
-    }
-
-    private void changeState(
-        HuskHornheadState newState
-    ) {
-        if (state == newState) {
-            return;
-        }
-
-        state = newState;
-        stateTime = 0f;
-    }
-
-    /**
-     * The future room manager can call this whenever
-     * the player enters a room containing this enemy.
-     */
     public void respawnForRoomEntry() {
         respawn();
     }
 
-    private void respawn() {
-        bounds.set(
-            spawnX,
-            spawnY,
-            BODY_WIDTH,
-            BODY_HEIGHT
-        );
-
-        health = MAX_HEALTH;
-
-        facingRight =
-            initialFacingRight;
-
-        chargeDirection =
-            getFacingDirection();
-
-        state =
-            HuskHornheadState.WALKING;
-
-        stateTime = 0f;
-        flashTimeRemaining = 0f;
-        knockbackTimeRemaining = 0f;
-        knockbackDirection = 0;
-        deathSideFallRemaining = 0f;
-        deathSideFallDirection = 0;
-
-        updateVisionBounds();
-    }
-
     @Override
-    public void takeDamage(
-        int damage
-    ) {
-        if (
-            !isAlive()
-                || damage <= 0
-        ) {
+    public void takeDamage(int damage) {
+        if (!isAlive() || damage <= 0) {
             return;
         }
 
-        health = Math.max(
-            0,
-            health - damage
-        );
+        health = Math.max(0, health - damage);
 
-        flashTimeRemaining =
-            FLASH_DURATION;
+        flashTimeRemaining = FLASH_DURATION;
 
         if (health == 0) {
             startDeathSideFall();
             knockbackTimeRemaining = 0f;
-            state =
-                HuskHornheadState.DYING;
+            state = HuskHornheadState.DYING;
 
             stateTime = 0f;
         }
     }
 
     @Override
-    public void applyKnockback(
-        int direction,
-        PlatformWorld platformWorld
-    ) {
-        applyKnockback(
-            direction,
-            platformWorld,
-            1f
-        );
+    public void applyKnockback(int direction, PlatformWorld platformWorld) {
+        applyKnockback(direction, platformWorld, 1f);
     }
 
     @Override
     public void applyKnockback(
-        int direction,
-        PlatformWorld platformWorld,
-        float strengthMultiplier
-    ) {
+            int direction, PlatformWorld platformWorld, float strengthMultiplier) {
         if (!isAlive()) {
             return;
         }
@@ -672,22 +213,13 @@ public final class HuskHornhead
             return;
         }
 
-        knockbackDirection =
-            direction < 0 ? -1 : 1;
+        knockbackDirection = direction < 0 ? -1 : 1;
 
-        knockbackStrengthMultiplier =
-            Math.max(
-                1f,
-                Math.min(2.75f, strengthMultiplier)
-            );
+        knockbackStrengthMultiplier = Math.max(1f, Math.min(2.75f, strengthMultiplier));
 
-        knockbackTimeRemaining =
-            KNOCKBACK_DURATION
-                * (0.88f
-                + knockbackStrengthMultiplier * 0.12f);
+        knockbackTimeRemaining = KNOCKBACK_DURATION * (0.88f + knockbackStrengthMultiplier * 0.12f);
 
-        flashTimeRemaining =
-            FLASH_DURATION;
+        flashTimeRemaining = FLASH_DURATION;
     }
 
     @Override
@@ -696,8 +228,30 @@ public final class HuskHornhead
             return;
         }
 
-        flashTimeRemaining =
-            FLASH_DURATION;
+        flashTimeRemaining = FLASH_DURATION;
+    }
+
+    @Override
+    public boolean canBePogoed() {
+        return isAlive();
+    }
+
+    public HuskHornheadAnimationType getAnimationType() {
+        return switch (state) {
+            case WALKING -> HuskHornheadAnimationType.WALK;
+
+            case RESTING -> HuskHornheadAnimationType.IDLE;
+
+            case TURNING -> HuskHornheadAnimationType.TURN;
+
+            case ATTACK_ANTICIPATE -> HuskHornheadAnimationType.ATTACK_ANTICIPATE;
+
+            case CHARGING -> HuskHornheadAnimationType.ATTACK_LUNGE;
+
+            case ATTACK_COOLDOWN -> HuskHornheadAnimationType.ATTACK_COOLDOWN;
+
+            case DYING, CORPSE -> HuskHornheadAnimationType.DEATH_LAND;
+        };
     }
 
     @Override
@@ -711,43 +265,8 @@ public final class HuskHornhead
     }
 
     @Override
-    public boolean canBePogoed() {
-        return isAlive();
-    }
-
-    @Override
     public boolean isAlive() {
         return health > 0;
-    }
-
-    public HuskHornheadAnimationType
-    getAnimationType() {
-        return switch (state) {
-            case WALKING ->
-                HuskHornheadAnimationType.WALK;
-
-            case RESTING ->
-                HuskHornheadAnimationType.IDLE;
-
-            case TURNING ->
-                HuskHornheadAnimationType.TURN;
-
-            case ATTACK_ANTICIPATE ->
-                HuskHornheadAnimationType
-                    .ATTACK_ANTICIPATE;
-
-            case CHARGING ->
-                HuskHornheadAnimationType
-                    .ATTACK_LUNGE;
-
-            case ATTACK_COOLDOWN ->
-                HuskHornheadAnimationType
-                    .ATTACK_COOLDOWN;
-
-            case DYING, CORPSE ->
-                HuskHornheadAnimationType
-                    .DEATH_LAND;
-        };
     }
 
     public HuskHornheadState getState() {
@@ -771,8 +290,7 @@ public final class HuskHornhead
     }
 
     public boolean isCorpse() {
-        return state
-            == HuskHornheadState.CORPSE;
+        return state == HuskHornheadState.CORPSE;
     }
 
     public int getHealth() {
@@ -785,5 +303,232 @@ public final class HuskHornhead
 
     public int getContactDamage() {
         return CONTACT_DAMAGE;
+    }
+
+    private void updateWalking(
+            float delta, Rectangle playerBounds, boolean playerAlive, PlatformWorld platformWorld) {
+        if (playerAlive && visionBounds.overlaps(playerBounds)) {
+            beginAttack();
+            return;
+        }
+
+        if (stateTime >= WALK_DURATION) {
+            changeState(HuskHornheadState.RESTING);
+
+            return;
+        }
+
+        int direction = getFacingDirection();
+
+        if (!canMoveForward(direction, WALK_SPEED, delta, platformWorld)) {
+            changeState(HuskHornheadState.TURNING);
+
+            return;
+        }
+
+        bounds.x += direction * WALK_SPEED * delta;
+    }
+
+    private void updateResting(Rectangle playerBounds, boolean playerAlive) {
+        if (playerAlive && visionBounds.overlaps(playerBounds)) {
+            beginAttack();
+            return;
+        }
+
+        if (stateTime >= REST_DURATION) {
+            changeState(HuskHornheadState.TURNING);
+        }
+    }
+
+    private void updateTurning() {
+        if (stateTime < TURN_DURATION) {
+            return;
+        }
+
+        facingRight = !facingRight;
+
+        changeState(HuskHornheadState.WALKING);
+    }
+
+    private void beginAttack() {
+
+        chargeDirection = getFacingDirection();
+
+        changeState(HuskHornheadState.ATTACK_ANTICIPATE);
+    }
+
+    private void updateAttackAnticipation() {
+        if (stateTime < ANTICIPATION_DURATION) {
+            return;
+        }
+
+        facingRight = chargeDirection > 0;
+
+        changeState(HuskHornheadState.CHARGING);
+    }
+
+    private void updateCharge(float delta, PlatformWorld platformWorld) {
+        if (!canMoveForward(chargeDirection, CHARGE_SPEED, delta, platformWorld)) {
+            changeState(HuskHornheadState.ATTACK_COOLDOWN);
+
+            return;
+        }
+
+        bounds.x += chargeDirection * CHARGE_SPEED * delta;
+    }
+
+    private void updateKnockback(float delta, PlatformWorld platformWorld) {
+        float moveAmount = KNOCKBACK_SPEED * knockbackStrengthMultiplier * delta;
+
+        nextBounds.set(bounds);
+
+        nextBounds.x += knockbackDirection * moveAmount;
+
+        if (nextBounds.x < 0f || nextBounds.x + nextBounds.width > platformWorld.getWorldWidth()) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        if (platformWorld.overlapsSolid(nextBounds)) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        if (!platformWorld.hasGroundAhead(
+                nextBounds, knockbackDirection, GROUND_LOOK_AHEAD, GROUND_PROBE_DEPTH)) {
+            knockbackTimeRemaining = 0f;
+            return;
+        }
+
+        bounds.x = nextBounds.x;
+
+        knockbackTimeRemaining -= delta;
+
+        if (knockbackTimeRemaining < 0f) {
+            knockbackTimeRemaining = 0f;
+        }
+    }
+
+    private void updateAttackCooldown() {
+        if (stateTime < CHARGE_COOLDOWN_DURATION) {
+            return;
+        }
+
+        changeState(HuskHornheadState.TURNING);
+    }
+
+    private boolean canMoveForward(
+            int direction, float speed, float delta, PlatformWorld platformWorld) {
+        nextBounds.set(bounds);
+
+        nextBounds.x += direction * speed * delta;
+
+        if (nextBounds.x < 0f || nextBounds.x + nextBounds.width > platformWorld.getWorldWidth()) {
+            return false;
+        }
+
+        if (platformWorld.overlapsSolid(nextBounds)) {
+            return false;
+        }
+
+        return platformWorld.hasGroundAhead(
+                nextBounds, direction, GROUND_LOOK_AHEAD, GROUND_PROBE_DEPTH);
+    }
+
+    private void startDeathSideFall() {
+        deathSideFallDirection =
+                knockbackDirection != 0 ? knockbackDirection : getFacingDirection();
+
+        deathSideFallRemaining = DEATH_SIDE_FALL_DISTANCE;
+    }
+
+    private void updateDeathSideFall(float delta) {
+        if (deathSideFallRemaining <= 0f || deathSideFallDirection == 0) {
+            return;
+        }
+
+        float amount = Math.min(deathSideFallRemaining, DEATH_SIDE_FALL_SPEED * delta);
+
+        bounds.x += deathSideFallDirection * amount;
+
+        deathSideFallRemaining -= amount;
+    }
+
+    private void updateFlash(float delta) {
+        if (flashTimeRemaining <= 0f) {
+            return;
+        }
+
+        flashTimeRemaining -= delta;
+
+        if (flashTimeRemaining < 0f) {
+            flashTimeRemaining = 0f;
+        }
+    }
+
+    private void updateVisionBounds() {
+        if (!isAlive()) {
+            visionBounds.set(0f, 0f, 0f, 0f);
+
+            return;
+        }
+
+        float visionX = facingRight ? bounds.x + bounds.width : bounds.x - VISION_WIDTH;
+
+        visionBounds.set(visionX, bounds.y + VISION_Y_OFFSET, VISION_WIDTH, VISION_HEIGHT);
+    }
+
+    private boolean shouldRespawn(Rectangle playerBounds) {
+        if (playerBounds == null) {
+            return false;
+        }
+
+        float playerCenterX = playerBounds.x + playerBounds.width / 2f;
+
+        float playerCenterY = playerBounds.y + playerBounds.height / 2f;
+
+        float spawnCenterX = spawnX + BODY_WIDTH / 2f;
+
+        float spawnCenterY = spawnY + BODY_HEIGHT / 2f;
+
+        float deltaX = playerCenterX - spawnCenterX;
+
+        float deltaY = playerCenterY - spawnCenterY;
+
+        return deltaX * deltaX + deltaY * deltaY >= RESPAWN_DISTANCE_SQUARED;
+    }
+
+    private int getFacingDirection() {
+        return facingRight ? 1 : -1;
+    }
+
+    private void changeState(HuskHornheadState newState) {
+        if (state == newState) {
+            return;
+        }
+
+        state = newState;
+        stateTime = 0f;
+    }
+
+    private void respawn() {
+        bounds.set(spawnX, spawnY, BODY_WIDTH, BODY_HEIGHT);
+
+        health = MAX_HEALTH;
+
+        facingRight = initialFacingRight;
+
+        chargeDirection = getFacingDirection();
+
+        state = HuskHornheadState.WALKING;
+
+        stateTime = 0f;
+        flashTimeRemaining = 0f;
+        knockbackTimeRemaining = 0f;
+        knockbackDirection = 0;
+        deathSideFallRemaining = 0f;
+        deathSideFallDirection = 0;
+
+        updateVisionBounds();
     }
 }

@@ -3,10 +3,8 @@ package com.hollowknight.model.input;
 import com.badlogic.gdx.Input;
 
 /**
- * Central definition of gameplay keys.
- *
- * Normal gameplay controls are stored in GameSettings and can be remapped
- * from the Settings screen. Debug/test controls intentionally remain fixed.
+ * Central definition of gameplay keys. Normal controls live in GameSettings and can be remapped;
+ * debug controls intentionally stay fixed.
  */
 public final class KeyBindings {
 
@@ -27,7 +25,6 @@ public final class KeyBindings {
     public static final int DEFAULT_INVENTORY = Input.Keys.I;
     public static final int DEFAULT_PAUSE = Input.Keys.ESCAPE;
 
-    /* Backward-compatible aliases for older code and saves. */
     public static final int DEFAULT_FIREBALL_TEST = DEFAULT_FIREBALL;
     public static final int DEFAULT_SCREAM_TEST = DEFAULT_SCREAM;
 
@@ -59,22 +56,21 @@ public final class KeyBindings {
     private final int revive;
 
     public KeyBindings(
-        int moveLeft,
-        int moveRight,
-        int jump,
-        int dash,
-        int attack,
-        int up,
-        int down,
-        int alternateAttack,
-        int focus,
-        int fireball,
-        int scream,
-        int interact,
-        int dialogueAdvance,
-        int inventory,
-        int pause
-    ) {
+            int moveLeft,
+            int moveRight,
+            int jump,
+            int dash,
+            int attack,
+            int up,
+            int down,
+            int alternateAttack,
+            int focus,
+            int fireball,
+            int scream,
+            int interact,
+            int dialogueAdvance,
+            int inventory,
+            int pause) {
         this.moveLeft = moveLeft;
         this.moveRight = moveRight;
         this.jump = jump;

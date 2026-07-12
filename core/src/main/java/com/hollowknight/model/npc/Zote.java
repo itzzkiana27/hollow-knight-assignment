@@ -1,7 +1,6 @@
 package com.hollowknight.model.npc;
 
 import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.math.Vector2;
 
 public class Zote {
 
@@ -13,40 +12,42 @@ public class Zote {
     }
 
     private final Rectangle bounds;
+
     private final String roomId;
+
     private final float interactionRadius;
 
     private State state = State.IDLE;
 
     private boolean facingRight;
+
     private float animationTime;
 
     private float angryTimer;
+
     private float attackTimer;
 
     private static final float ANGRY_DURATION = 4f;
+
     private static final float ATTACK_SPEED = 200f;
+
     private static final float PLAYER_STOP_GAP = 24f;
+
     private final float moveMinX;
+
     private final float moveMaxX;
 
     public Zote(
-        float x,
-        float y,
-        float width,
-        float height,
-        String roomId,
-        boolean facingRight,
-        float interactionRadius,
-        float moveMinX,
-        float moveMaxX
-    ) {
-        this.bounds = new Rectangle(
-            x,
-            y,
-            width,
-            height
-        );
+            float x,
+            float y,
+            float width,
+            float height,
+            String roomId,
+            boolean facingRight,
+            float interactionRadius,
+            float moveMinX,
+            float moveMaxX) {
+        this.bounds = new Rectangle(x, y, width, height);
 
         this.roomId = roomId;
         this.facingRight = facingRight;
@@ -55,16 +56,10 @@ public class Zote {
         this.moveMaxX = moveMaxX;
     }
 
-    public void update(
-        float delta,
-        Rectangle playerBounds
-    ) {
+    public void update(float delta, Rectangle playerBounds) {
         animationTime += delta;
 
-        if (
-            state != State.ANGRY
-                && state != State.ATTACKING
-        ) {
+        if (state != State.ANGRY && state != State.ATTACKING) {
             return;
         }
 
@@ -77,27 +72,18 @@ public class Zote {
 
         state = State.ATTACKING;
 
-        float zoteCenterX =
-            bounds.x + bounds.width / 2f;
+        float zoteCenterX = bounds.x + bounds.width / 2f;
 
-        float playerCenterX =
-            playerBounds.x + playerBounds.width / 2f;
+        float playerCenterX = playerBounds.x + playerBounds.width / 2f;
 
-        boolean zoteIsLeftOfPlayer =
-            zoteCenterX < playerCenterX;
+        boolean zoteIsLeftOfPlayer = zoteCenterX < playerCenterX;
 
         float targetX;
 
         if (zoteIsLeftOfPlayer) {
-            targetX =
-                playerBounds.x
-                    - bounds.width
-                    - PLAYER_STOP_GAP;
+            targetX = playerBounds.x - bounds.width - PLAYER_STOP_GAP;
         } else {
-            targetX =
-                playerBounds.x
-                    + playerBounds.width
-                    + PLAYER_STOP_GAP;
+            targetX = playerBounds.x + playerBounds.width + PLAYER_STOP_GAP;
         }
 
         float minX = moveMinX;
@@ -111,8 +97,7 @@ public class Zote {
             targetX = maxX;
         }
 
-        float distanceX =
-            targetX - bounds.x;
+        float distanceX = targetX - bounds.x;
 
         if (Math.abs(distanceX) <= 2f) {
             return;
@@ -120,14 +105,12 @@ public class Zote {
 
         facingRight = distanceX > 0f;
 
-        float moveAmount =
-            ATTACK_SPEED * delta;
+        float moveAmount = ATTACK_SPEED * delta;
 
         if (Math.abs(distanceX) < moveAmount) {
             bounds.x = targetX;
         } else {
-            bounds.x += Math.signum(distanceX)
-                * moveAmount;
+            bounds.x += Math.signum(distanceX) * moveAmount;
         }
 
         if (bounds.x < minX) {
@@ -138,7 +121,6 @@ public class Zote {
             bounds.x = maxX;
         }
     }
-
 
     public void startTalking() {
         if (state != State.ANGRY && state != State.ATTACKING) {
@@ -159,6 +141,21 @@ public class Zote {
         angryTimer = ANGRY_DURATION;
         attackTimer = ANGRY_DURATION;
         animationTime = 0f;
+    }
+
+    public boolean isPlayerInInteractionRange(Rectangle playerBounds) {
+        float zoteCenterX = bounds.x + bounds.width / 2f;
+
+        float zoteCenterY = bounds.y + bounds.height / 2f;
+
+        float playerCenterX = playerBounds.x + playerBounds.width / 2f;
+
+        float playerCenterY = playerBounds.y + playerBounds.height / 2f;
+
+        float dx = zoteCenterX - playerCenterX;
+        float dy = zoteCenterY - playerCenterY;
+
+        return dx * dx + dy * dy <= interactionRadius * interactionRadius;
     }
 
     public Rectangle getBounds() {
@@ -182,32 +179,10 @@ public class Zote {
     }
 
     public boolean isAngry() {
-        return state == State.ANGRY
-            || state == State.ATTACKING;
+        return state == State.ANGRY || state == State.ATTACKING;
     }
+
     public float getInteractionRadius() {
         return interactionRadius;
-    }
-
-    public boolean isPlayerInInteractionRange(
-        Rectangle playerBounds
-    ) {
-        float zoteCenterX =
-            bounds.x + bounds.width / 2f;
-
-        float zoteCenterY =
-            bounds.y + bounds.height / 2f;
-
-        float playerCenterX =
-            playerBounds.x + playerBounds.width / 2f;
-
-        float playerCenterY =
-            playerBounds.y + playerBounds.height / 2f;
-
-        float dx = zoteCenterX - playerCenterX;
-        float dy = zoteCenterY - playerCenterY;
-
-        return dx * dx + dy * dy
-            <= interactionRadius * interactionRadius;
     }
 }

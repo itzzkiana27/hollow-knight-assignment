@@ -14,8 +14,7 @@ public class StartGameController {
     public StartGameController(HollowKnightGame game) {
         this.game = game;
         saveManager = new SaveManager();
-        databaseSaveManager =
-            new DatabaseSaveManager();
+        databaseSaveManager = new DatabaseSaveManager();
     }
 
     public String text(String key) {
@@ -26,56 +25,33 @@ public class StartGameController {
         return game.getLocalization().format(key, arguments);
     }
 
-    public String getSaveSlotLabel(
-        int slotNumber
-    ) {
-        int normalizedSlot =
-            SaveManager.normalizeSlot(slotNumber);
+    public String getSaveSlotLabel(int slotNumber) {
+        int normalizedSlot = SaveManager.normalizeSlot(slotNumber);
 
         if (hasSaveSlot(normalizedSlot)) {
-            return format(
-                "start.saveSlotSaved",
-                normalizedSlot
-            );
+            return format("start.saveSlotSaved", normalizedSlot);
         }
 
-        return format(
-            "start.saveSlot",
-            normalizedSlot
-        );
+        return format("start.saveSlot", normalizedSlot);
     }
 
     public void startNewGame() {
-        game.setActiveSaveSlot(
-            SaveManager.DEFAULT_SLOT
-        );
+        game.setActiveSaveSlot(SaveManager.DEFAULT_SLOT);
 
-        game.showGameScreenForSlot(
-            SaveManager.DEFAULT_SLOT
-        );
+        game.showGameScreenForSlot(SaveManager.DEFAULT_SLOT);
     }
 
     public void selectSaveSlot(int slotNumber) {
-        int normalizedSlot =
-            SaveManager.normalizeSlot(slotNumber);
+        int normalizedSlot = SaveManager.normalizeSlot(slotNumber);
 
-        Gdx.app.log(
-            "StartGame",
-            "Save slot " + normalizedSlot + " selected"
-        );
+        Gdx.app.log("StartGame", "Save slot " + normalizedSlot + " selected");
 
-        game.setActiveSaveSlot(
-            normalizedSlot
-        );
+        game.setActiveSaveSlot(normalizedSlot);
 
         if (hasSaveSlot(normalizedSlot)) {
-            game.showLoadedGameScreenForSlot(
-                normalizedSlot
-            );
+            game.showLoadedGameScreenForSlot(normalizedSlot);
         } else {
-            game.showGameScreenForSlot(
-                normalizedSlot
-            );
+            game.showGameScreenForSlot(normalizedSlot);
         }
     }
 
@@ -83,10 +59,7 @@ public class StartGameController {
         game.showMainMenu();
     }
 
-    public boolean hasSaveSlot(
-        int slotNumber
-    ) {
-        return saveManager.hasSave(slotNumber)
-            || databaseSaveManager.hasSave(slotNumber);
+    public boolean hasSaveSlot(int slotNumber) {
+        return saveManager.hasSave(slotNumber) || databaseSaveManager.hasSave(slotNumber);
     }
 }

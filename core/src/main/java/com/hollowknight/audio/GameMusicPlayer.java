@@ -37,17 +37,20 @@ public final class GameMusicPlayer implements Disposable {
     private final GameSettings settings;
 
     private Music currentMusic;
+
     private Track currentTrack;
+
     private Track desiredTrack;
+
     private Track queuedTrack;
 
     private FadeMode fadeMode = FadeMode.NONE;
+
     private float fadeTime;
+
     private float fadeStartVolume;
 
-    public GameMusicPlayer(
-        GameSettings settings
-    ) {
+    public GameMusicPlayer(GameSettings settings) {
         this.settings = settings;
     }
 
@@ -59,14 +62,8 @@ public final class GameMusicPlayer implements Disposable {
         play(Track.VICTORY);
     }
 
-    public void playForRoom(
-        String roomId,
-        boolean falseKnightActive
-    ) {
-        if (
-            "false_knight_arena".equals(roomId)
-                && falseKnightActive
-        ) {
+    public void playForRoom(String roomId, boolean falseKnightActive) {
+        if ("false_knight_arena".equals(roomId) && falseKnightActive) {
             play(Track.FALSE_KNIGHT);
             return;
         }
@@ -87,25 +84,14 @@ public final class GameMusicPlayer implements Disposable {
             return;
         }
 
-        if (
-            currentMusic == null
-                && desiredTrack != null
-        ) {
-            startTrack(
-                desiredTrack,
-                0f
-            );
+        if (currentMusic == null && desiredTrack != null) {
+            startTrack(desiredTrack, 0f);
             startFadeIn();
             return;
         }
 
-        if (
-            currentMusic != null
-                && fadeMode == FadeMode.NONE
-        ) {
-            currentMusic.setVolume(
-                settings.getMusicVolume()
-            );
+        if (currentMusic != null && fadeMode == FadeMode.NONE) {
+            currentMusic.setVolume(settings.getMusicVolume());
 
             if (!currentMusic.isPlaying()) {
                 currentMusic.play();
@@ -113,9 +99,7 @@ public final class GameMusicPlayer implements Disposable {
         }
     }
 
-    public void update(
-        float delta
-    ) {
+    public void update(float delta) {
         if (!settings.isMusicEnabled()) {
             if (currentMusic != null) {
                 stopCurrentMusic();
@@ -125,19 +109,13 @@ public final class GameMusicPlayer implements Disposable {
 
         if (currentMusic == null) {
             if (desiredTrack != null) {
-                startTrack(
-                    desiredTrack,
-                    0f
-                );
+                startTrack(desiredTrack, 0f);
                 startFadeIn();
             }
             return;
         }
 
-        float safeDelta = Math.min(
-            Math.max(delta, 0f),
-            1f / 15f
-        );
+        float safeDelta = Math.min(Math.max(delta, 0f), 1f / 15f);
 
         if (fadeMode == FadeMode.OUT_FOR_SWITCH) {
             updateFadeOutForSwitch(safeDelta);
@@ -149,18 +127,21 @@ public final class GameMusicPlayer implements Disposable {
             return;
         }
 
-        currentMusic.setVolume(
-            settings.getMusicVolume()
-        );
+        currentMusic.setVolume(settings.getMusicVolume());
 
         if (!currentMusic.isPlaying()) {
             currentMusic.play();
         }
     }
 
-    private void play(
-        Track track
-    ) {
+    @Override
+    public void dispose() {
+        stopCurrentMusic();
+        queuedTrack = null;
+        fadeMode = FadeMode.NONE;
+    }
+
+    private void play(Track track) {
         if (track == null) {
             return;
         }
@@ -174,28 +155,18 @@ public final class GameMusicPlayer implements Disposable {
             return;
         }
 
-        if (
-            currentTrack == track
-                && currentMusic != null
-                && fadeMode != FadeMode.OUT_FOR_SWITCH
-        ) {
+        if (currentTrack == track && currentMusic != null && fadeMode != FadeMode.OUT_FOR_SWITCH) {
             return;
         }
 
-        if (
-            queuedTrack == track
-                && fadeMode == FadeMode.OUT_FOR_SWITCH
-        ) {
+        if (queuedTrack == track && fadeMode == FadeMode.OUT_FOR_SWITCH) {
             return;
         }
 
         queuedTrack = track;
 
         if (currentMusic == null) {
-            startTrack(
-                queuedTrack,
-                0f
-            );
+            startTrack(queuedTrack, 0f);
             queuedTrack = null;
             startFadeIn();
             return;
@@ -206,19 +177,12 @@ public final class GameMusicPlayer implements Disposable {
         fadeStartVolume = currentMusic.getVolume();
     }
 
-    private void updateFadeOutForSwitch(
-        float delta
-    ) {
+    private void updateFadeOutForSwitch(float delta) {
         fadeTime += delta;
 
-        float progress = Math.min(
-            1f,
-            fadeTime / FADE_DURATION
-        );
+        float progress = Math.min(1f, fadeTime / FADE_DURATION);
 
-        currentMusic.setVolume(
-            fadeStartVolume * (1f - progress)
-        );
+        currentMusic.setVolume(fadeStartVolume * (1f - progress));
 
         if (progress < 1f) {
             return;
@@ -234,35 +198,23 @@ public final class GameMusicPlayer implements Disposable {
             return;
         }
 
-        startTrack(
-            nextTrack,
-            0f
-        );
+        startTrack(nextTrack, 0f);
         startFadeIn();
     }
 
-    private void updateFadeIn(
-        float delta
-    ) {
+    private void updateFadeIn(float delta) {
         fadeTime += delta;
 
-        float progress = Math.min(
-            1f,
-            fadeTime / FADE_DURATION
-        );
+        float progress = Math.min(1f, fadeTime / FADE_DURATION);
 
-        currentMusic.setVolume(
-            settings.getMusicVolume() * progress
-        );
+        currentMusic.setVolume(settings.getMusicVolume() * progress);
 
         if (progress < 1f) {
             return;
         }
 
         fadeMode = FadeMode.NONE;
-        currentMusic.setVolume(
-            settings.getMusicVolume()
-        );
+        currentMusic.setVolume(settings.getMusicVolume());
     }
 
     private void startFadeIn() {
@@ -276,23 +228,15 @@ public final class GameMusicPlayer implements Disposable {
         fadeStartVolume = 0f;
     }
 
-    private void startTrack(
-        Track track,
-        float initialVolume
-    ) {
+    private void startTrack(Track track, float initialVolume) {
         if (track == null) {
             return;
         }
 
-        FileHandle file = Gdx.files.internal(
-            track.getPath()
-        );
+        FileHandle file = Gdx.files.internal(track.getPath());
 
         if (!file.exists()) {
-            Gdx.app.log(
-                "GameMusicPlayer",
-                "Missing music file: " + track.getPath()
-            );
+            Gdx.app.log("GameMusicPlayer", "Missing music file: " + track.getPath());
             currentTrack = null;
             return;
         }
@@ -300,9 +244,7 @@ public final class GameMusicPlayer implements Disposable {
         currentMusic = Gdx.audio.newMusic(file);
         currentTrack = track;
         currentMusic.setLooping(true);
-        currentMusic.setVolume(
-            Math.max(0f, initialVolume)
-        );
+        currentMusic.setVolume(Math.max(0f, initialVolume));
         currentMusic.play();
     }
 
@@ -316,12 +258,5 @@ public final class GameMusicPlayer implements Disposable {
         currentMusic.dispose();
         currentMusic = null;
         currentTrack = null;
-    }
-
-    @Override
-    public void dispose() {
-        stopCurrentMusic();
-        queuedTrack = null;
-        fadeMode = FadeMode.NONE;
     }
 }

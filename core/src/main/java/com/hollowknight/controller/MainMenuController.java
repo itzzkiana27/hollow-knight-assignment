@@ -16,13 +16,8 @@ public class MainMenuController {
         return game.getLocalization().get(key);
     }
 
-    public String format(
-        String key,
-        Object... arguments
-    ) {
-        return game
-            .getLocalization()
-            .format(key, arguments);
+    public String format(String key, Object... arguments) {
+        return game.getLocalization().format(key, arguments);
     }
 
     public void startGame() {
@@ -37,33 +32,24 @@ public class MainMenuController {
         game.showGuideMenu();
     }
 
-
     public void openAchievements() {
         game.showAchievementsMenu();
     }
 
     public String getMenuThemeDisplayName() {
-        MenuThemeType theme = MenuThemeType.fromId(
-            game.getSettings().getMenuTheme()
-        );
+        MenuThemeType theme = MenuThemeType.fromId(game.getSettings().getMenuTheme());
 
         return text(theme.getLocalizationKey());
     }
 
     public void cycleMenuTheme() {
-        MenuThemeType nextTheme = MenuThemeType
-            .fromId(game.getSettings().getMenuTheme())
-            .next();
+        MenuThemeType nextTheme = MenuThemeType.fromId(game.getSettings().getMenuTheme()).next();
 
-        game.getSettings().setMenuTheme(
-            nextTheme.getId()
-        );
+        game.getSettings().setMenuTheme(nextTheme.getId());
 
         game.getSettings().save();
 
-        Gdx.app.postRunnable(
-            game::showMainMenu
-        );
+        Gdx.app.postRunnable(game::showMainMenu);
     }
 
     public void quitGame() {

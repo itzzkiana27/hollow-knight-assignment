@@ -1,19 +1,91 @@
 package com.hollowknight.controller;
 
-import com.hollowknight.HollowKnightGame;
-import com.hollowknight.model.GameSettings;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.hollowknight.HollowKnightGame;
+import com.hollowknight.model.GameSettings;
 import com.hollowknight.view.theme.MenuThemeType;
 
 public class SettingsController {
 
     private final HollowKnightGame game;
+
     private final GameSettings settings;
 
     public SettingsController(HollowKnightGame game) {
         this.game = game;
         this.settings = game.getSettings();
+    }
+
+    public void setMenuTheme(String menuTheme) {
+        settings.setMenuTheme(menuTheme);
+        settings.save();
+
+        Gdx.app.postRunnable(game::refreshSettingsMenu);
+    }
+
+    public String[] getMenuThemeDisplayNames() {
+        MenuThemeType[] themes = MenuThemeType.values();
+
+        String[] names = new String[themes.length];
+
+        for (int index = 0; index < themes.length; index++) {
+            names[index] = text(themes[index].getLocalizationKey());
+        }
+
+        return names;
+    }
+
+    public String getCurrentMenuThemeDisplayName() {
+        MenuThemeType theme = MenuThemeType.fromId(settings.getMenuTheme());
+
+        return text(theme.getLocalizationKey());
+    }
+
+    public String getMenuThemeIdFromDisplayName(String displayName) {
+        for (MenuThemeType theme : MenuThemeType.values()) {
+            if (text(theme.getLocalizationKey()).equals(displayName)) {
+                return theme.getId();
+            }
+        }
+
+        return MenuThemeType.VOIDHEART.getId();
+    }
+
+    public void resetAudio() {
+        settings.resetAudio();
+        game.refreshMusicSettings();
+    }
+
+    public void resetAllSettings() {
+        settings.resetAll();
+
+        game.getLocalization().setLanguage(settings.getLanguage());
+
+        game.refreshMusicSettings();
+
+        Gdx.app.postRunnable(game::refreshSettingsMenu);
+    }
+
+    public void goBack() {
+        settings.save();
+        game.closeSettingsMenu();
+    }
+
+    public String text(String key) {
+        return game.getLocalization().get(key);
+    }
+
+    public String keyName(int keycode) {
+        return Input.Keys.toString(keycode);
+    }
+
+    public void resetControls() {
+        settings.resetControls();
+    }
+
+    public void saveSettings() {
+        settings.save();
     }
 
     public boolean isMusicEnabled() {
@@ -74,95 +146,10 @@ public class SettingsController {
         return settings.getMenuTheme();
     }
 
-    public void setMenuTheme(String menuTheme) {
-        settings.setMenuTheme(menuTheme);
-        settings.save();
-
-        Gdx.app.postRunnable(
-            game::refreshSettingsMenu
-        );
-    }
-
-    public String[] getMenuThemeDisplayNames() {
-        MenuThemeType[] themes =
-            MenuThemeType.values();
-
-        String[] names =
-            new String[themes.length];
-
-        for (
-            int index = 0;
-            index < themes.length;
-            index++
-        ) {
-            names[index] = text(
-                themes[index].getLocalizationKey()
-            );
-        }
-
-        return names;
-    }
-
-    public String getCurrentMenuThemeDisplayName() {
-        MenuThemeType theme =
-            MenuThemeType.fromId(
-                settings.getMenuTheme()
-            );
-
-        return text(theme.getLocalizationKey());
-    }
-
-    public String getMenuThemeIdFromDisplayName(
-        String displayName
-    ) {
-        for (MenuThemeType theme : MenuThemeType.values()) {
-            if (
-                text(theme.getLocalizationKey())
-                    .equals(displayName)
-            ) {
-                return theme.getId();
-            }
-        }
-
-        return MenuThemeType.VOIDHEART.getId();
-    }
-
     public void setLanguage(String language) {
         game.applyLanguage(language);
 
-        // Recreate the Settings screen after the current click event finishes.
         Gdx.app.postRunnable(game::refreshSettingsMenu);
-    }
-    public void resetAudio() {
-        settings.resetAudio();
-        game.refreshMusicSettings();
-    }
-    public void resetAllSettings() {
-        settings.resetAll();
-
-        game.getLocalization().setLanguage(
-            settings.getLanguage()
-        );
-
-        game.refreshMusicSettings();
-
-        Gdx.app.postRunnable(
-            game::refreshSettingsMenu
-        );
-    }
-
-    public void goBack() {
-        settings.save();
-        game.closeSettingsMenu();
-    }
-
-    public String text(String key) {
-        return game.getLocalization().get(key);
-    }
-
-
-    public String keyName(int keycode) {
-        return Input.Keys.toString(keycode);
     }
 
     public int getMoveLeftKey() {
@@ -204,8 +191,6 @@ public class SettingsController {
     public void setAttackKey(int key) {
         settings.setAttackKey(key);
     }
-
-
 
     public int getUpKey() {
         return settings.getUpKey();
@@ -285,13 +270,5 @@ public class SettingsController {
 
     public void setPauseKey(int key) {
         settings.setPauseKey(key);
-    }
-
-    public void resetControls() {
-        settings.resetControls();
-    }
-
-    public void saveSettings() {
-        settings.save();
     }
 }

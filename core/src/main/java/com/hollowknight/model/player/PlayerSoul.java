@@ -1,8 +1,5 @@
 package com.hollowknight.model.player;
 
-/**
- * Manages the Knight's Soul vessel.
- */
 public final class PlayerSoul {
 
     public static final int MAX_SOUL = 99;
@@ -24,15 +21,11 @@ public final class PlayerSoul {
             return;
         }
 
-        currentSoul = Math.min(
-            MAX_SOUL,
-            currentSoul + amount
-        );
+        currentSoul = Math.min(MAX_SOUL, currentSoul + amount);
     }
 
     public boolean canSpend(int amount) {
-        return amount >= 0
-            && currentSoul >= amount;
+        return amount >= 0 && currentSoul >= amount;
     }
 
     public boolean spend(int amount) {
@@ -48,13 +41,8 @@ public final class PlayerSoul {
         currentSoul = MAX_SOUL;
     }
 
-    public void setCurrentSoul(
-        int soul
-    ) {
-        currentSoul = Math.max(
-            0,
-            Math.min(MAX_SOUL, soul)
-        );
+    public void setCurrentSoul(int soul) {
+        currentSoul = Math.max(0, Math.min(MAX_SOUL, soul));
     }
 
     public int getCurrentSoul() {
@@ -66,7 +54,6 @@ public final class PlayerSoul {
     }
 
     public float getFillRatio() {
-        return (float) currentSoul
-            / MAX_SOUL;
+        return (float) currentSoul / MAX_SOUL;
     }
 }

@@ -7,14 +7,7 @@ import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
-import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
-import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
-import com.badlogic.gdx.scenes.scene2d.ui.Skin;
-import com.badlogic.gdx.scenes.scene2d.ui.Slider;
-import com.badlogic.gdx.scenes.scene2d.ui.Table;
-import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -28,31 +21,43 @@ import java.util.Map;
 public class SettingsScreen extends ScreenAdapter {
 
     private static final float SETTINGS_TITLE_SCALE = 1.80f;
+
     private static final float SETTINGS_SECTION_SCALE = 1.00f;
+
     private static final float SETTINGS_LABEL_SCALE = 0.82f;
+
     private static final float SETTINGS_CHECKBOX_SCALE = 0.82f;
+
     private static final float SETTINGS_BUTTON_SCALE = 0.88f;
 
     private final SettingsController controller;
 
     private Stage stage;
+
     private Skin skin;
+
     private MenuThemeSkin menuTheme;
+
     private InputMultiplexer inputMultiplexer;
 
     private CheckBox musicCheckBox;
+
     private CheckBox soundEffectsCheckBox;
 
     private Slider musicVolumeSlider;
+
     private Slider soundEffectsVolumeSlider;
+
     private Slider brightnessSlider;
 
     private SelectBox<String> musicStyleSelectBox;
+
     private SelectBox<String> languageSelectBox;
+
     private SelectBox<String> themeSelectBox;
 
-    private final Map<ControlAction, TextButton>
-        controlButtons = new EnumMap<>(ControlAction.class);
+    private final Map<ControlAction, TextButton> controlButtons =
+            new EnumMap<>(ControlAction.class);
 
     private ControlAction waitingForControl;
 
@@ -64,39 +69,69 @@ public class SettingsScreen extends ScreenAdapter {
     public void show() {
         stage = new Stage(new ScreenViewport());
 
-        menuTheme = MenuThemeSkin.fromThemeId(
-            controller.getMenuTheme()
-        );
+        menuTheme = MenuThemeSkin.fromThemeId(controller.getMenuTheme());
         skin = menuTheme.getSkin();
 
         createMenu();
         createInputProcessor();
     }
 
+    @Override
+    public void render(float delta) {
+        Gdx.gl.glClearColor(0.01f, 0.01f, 0.015f, 1f);
+
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+        menuTheme.drawBackground(delta, false);
+
+        stage.act(Math.min(delta, 1f / 30f));
+
+        stage.draw();
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        stage.getViewport().update(width, height, true);
+    }
+
+    @Override
+    public void hide() {
+        if (Gdx.input.getInputProcessor() == inputMultiplexer) {
+            Gdx.input.setInputProcessor(null);
+        }
+    }
+
+    @Override
+    public void dispose() {
+        if (stage != null) {
+            stage.dispose();
+        }
+
+        if (menuTheme != null) {
+            menuTheme.dispose();
+        }
+    }
+
     private void createInputProcessor() {
         inputMultiplexer = new InputMultiplexer();
 
         inputMultiplexer.addProcessor(
-            new InputAdapter() {
-                @Override
-                public boolean keyDown(int keycode) {
-                    if (waitingForControl == null) {
-                        return false;
+                new InputAdapter() {
+                    @Override
+                    public boolean keyDown(int keycode) {
+                        if (waitingForControl == null) {
+                            return false;
+                        }
+
+                        setControlKey(waitingForControl, keycode);
+
+                        controller.saveSettings();
+                        waitingForControl = null;
+                        refreshControlButtons();
+
+                        return true;
                     }
-
-                    setControlKey(
-                        waitingForControl,
-                        keycode
-                    );
-
-                    controller.saveSettings();
-                    waitingForControl = null;
-                    refreshControlButtons();
-
-                    return true;
-                }
-            }
-        );
+                });
 
         inputMultiplexer.addProcessor(stage);
         Gdx.input.setInputProcessor(inputMultiplexer);
@@ -108,36 +143,24 @@ public class SettingsScreen extends ScreenAdapter {
         contentTable.top();
         contentTable.pad(24f);
         contentTable.defaults().pad(5f);
-        contentTable.columnDefaults(0)
-            .width(360f)
-            .left()
-            .padRight(18f);
-        contentTable.columnDefaults(1)
-            .width(320f)
-            .right();
-        contentTable.setBackground(
-            menuTheme.panelDrawable(0.58f)
-        );
+        contentTable.columnDefaults(0).width(360f).left().padRight(18f);
+        contentTable.columnDefaults(1).width(320f).right();
+        contentTable.setBackground(menuTheme.panelDrawable(0.58f));
 
-        Label title = menuTheme.createTitleLabel(
-            controller.text("settings.title")
-        );
+        Label title = menuTheme.createTitleLabel(controller.text("settings.title"));
         title.setAlignment(Align.center);
         title.setFontScale(SETTINGS_TITLE_SCALE);
 
-        contentTable.add(title)
-            .colspan(2)
-            .center()
-            .padBottom(8f)
-            .row();
+        contentTable.add(title).colspan(2).center().padBottom(8f).row();
 
-        contentTable.add(menuTheme.createMenuHeaderFleur(360f))
-            .colspan(2)
-            .width(360f)
-            .height(50f)
-            .center()
-            .padBottom(18f)
-            .row();
+        contentTable
+                .add(menuTheme.createMenuHeaderFleur(360f))
+                .colspan(2)
+                .width(360f)
+                .height(50f)
+                .center()
+                .padBottom(18f)
+                .row();
 
         createMusicControls(contentTable);
         createSoundEffectsControls(contentTable);
@@ -147,21 +170,19 @@ public class SettingsScreen extends ScreenAdapter {
         createLanguageControl(contentTable);
         createControlsSection(contentTable);
 
-        contentTable.add(menuTheme.createMenuFooterFleur(260f))
-            .colspan(2)
-            .width(260f)
-            .height(40f)
-            .center()
-            .padTop(8f)
-            .padBottom(4f)
-            .row();
+        contentTable
+                .add(menuTheme.createMenuFooterFleur(260f))
+                .colspan(2)
+                .width(260f)
+                .height(40f)
+                .center()
+                .padTop(8f)
+                .padBottom(4f)
+                .row();
 
         createButtons(contentTable);
 
-        ScrollPane scrollPane = new ScrollPane(
-            contentTable,
-            skin
-        );
+        ScrollPane scrollPane = new ScrollPane(contentTable, skin);
 
         scrollPane.setFadeScrollBars(false);
         scrollPane.setScrollingDisabled(true, false);
@@ -174,191 +195,116 @@ public class SettingsScreen extends ScreenAdapter {
         rootTable.setFillParent(true);
         rootTable.center();
 
-        rootTable.add(scrollPane)
-            .width(Math.min(860f, Gdx.graphics.getWidth() * 0.94f))
-            .height(Math.min(700f, Gdx.graphics.getHeight() * 0.92f));
+        rootTable
+                .add(scrollPane)
+                .width(Math.min(860f, Gdx.graphics.getWidth() * 0.94f))
+                .height(Math.min(700f, Gdx.graphics.getHeight() * 0.92f));
 
         stage.addActor(rootTable);
     }
 
     private void createMusicControls(Table table) {
-        musicCheckBox = new CheckBox(
-            " " + controller.text("settings.musicEnabled"),
-            skin
-        );
+        musicCheckBox = new CheckBox(" " + controller.text("settings.musicEnabled"), skin);
 
         musicCheckBox.getLabel().setFontScale(SETTINGS_CHECKBOX_SCALE);
 
-        musicCheckBox.setChecked(
-            controller.isMusicEnabled()
-        );
+        musicCheckBox.setChecked(controller.isMusicEnabled());
 
-        musicCheckBox.addListener(new ChangeListener() {
-            @Override
-            public void changed(
-                ChangeEvent event,
-                Actor actor
-            ) {
-                controller.setMusicEnabled(
-                    musicCheckBox.isChecked()
-                );
-            }
-        });
+        musicCheckBox.addListener(
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.setMusicEnabled(musicCheckBox.isChecked());
+                    }
+                });
 
-        table.add(musicCheckBox)
-            .left();
+        table.add(musicCheckBox).left();
 
-        musicVolumeSlider = new Slider(
-            0f,
-            1f,
-            0.05f,
-            false,
-            skin
-        );
+        musicVolumeSlider = new Slider(0f, 1f, 0.05f, false, skin);
 
-        musicVolumeSlider.setValue(
-            controller.getMusicVolume()
-        );
+        musicVolumeSlider.setValue(controller.getMusicVolume());
 
-        musicVolumeSlider.addListener(new ChangeListener() {
-            @Override
-            public void changed(
-                ChangeEvent event,
-                Actor actor
-            ) {
-                controller.setMusicVolume(
-                    musicVolumeSlider.getValue()
-                );
-            }
-        });
+        musicVolumeSlider.addListener(
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.setMusicVolume(musicVolumeSlider.getValue());
+                    }
+                });
 
-        table.add(musicVolumeSlider)
-            .width(300f)
-            .row();
+        table.add(musicVolumeSlider).width(300f).row();
     }
 
     private void createSoundEffectsControls(Table table) {
-        soundEffectsCheckBox = new CheckBox(
-            " " + controller.text(
-                "settings.soundEffectsEnabled"
-            ),
-            skin
-        );
+        soundEffectsCheckBox =
+                new CheckBox(" " + controller.text("settings.soundEffectsEnabled"), skin);
 
         soundEffectsCheckBox.getLabel().setFontScale(SETTINGS_CHECKBOX_SCALE);
 
-        soundEffectsCheckBox.setChecked(
-            controller.isSoundEffectsEnabled()
-        );
+        soundEffectsCheckBox.setChecked(controller.isSoundEffectsEnabled());
 
         soundEffectsCheckBox.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    controller.setSoundEffectsEnabled(
-                        soundEffectsCheckBox.isChecked()
-                    );
-                }
-            }
-        );
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.setSoundEffectsEnabled(soundEffectsCheckBox.isChecked());
+                    }
+                });
 
-        table.add(soundEffectsCheckBox)
-            .left();
+        table.add(soundEffectsCheckBox).left();
 
-        soundEffectsVolumeSlider = new Slider(
-            0f,
-            1f,
-            0.05f,
-            false,
-            skin
-        );
+        soundEffectsVolumeSlider = new Slider(0f, 1f, 0.05f, false, skin);
 
-        soundEffectsVolumeSlider.setValue(
-            controller.getSoundEffectsVolume()
-        );
+        soundEffectsVolumeSlider.setValue(controller.getSoundEffectsVolume());
 
         soundEffectsVolumeSlider.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    controller.setSoundEffectsVolume(
-                        soundEffectsVolumeSlider.getValue()
-                    );
-                }
-            }
-        );
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.setSoundEffectsVolume(soundEffectsVolumeSlider.getValue());
+                    }
+                });
 
-        table.add(soundEffectsVolumeSlider)
-            .width(300f)
-            .row();
+        table.add(soundEffectsVolumeSlider).width(300f).row();
     }
 
     private void createBrightnessControl(Table table) {
-        Label brightnessLabel = createSettingsLabel(
-            controller.text("settings.brightness")
-        );
+        Label brightnessLabel = createSettingsLabel(controller.text("settings.brightness"));
 
-        table.add(brightnessLabel)
-            .left();
+        table.add(brightnessLabel).left();
 
-        brightnessSlider = new Slider(
-            GameSettings.MIN_BRIGHTNESS,
-            GameSettings.MAX_BRIGHTNESS,
-            0.05f,
-            false,
-            skin
-        );
+        brightnessSlider =
+                new Slider(
+                        GameSettings.MIN_BRIGHTNESS,
+                        GameSettings.MAX_BRIGHTNESS,
+                        0.05f,
+                        false,
+                        skin);
 
-        brightnessSlider.setValue(
-            controller.getBrightness()
-        );
+        brightnessSlider.setValue(controller.getBrightness());
 
         brightnessSlider.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    controller.setBrightness(
-                        brightnessSlider.getValue()
-                    );
-                }
-            }
-        );
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.setBrightness(brightnessSlider.getValue());
+                    }
+                });
 
-        table.add(brightnessSlider)
-            .width(300f)
-            .row();
+        table.add(brightnessSlider).width(300f).row();
     }
 
     private void createMusicStyleControl(Table table) {
-        Label musicStyleLabel = createSettingsLabel(
-            controller.text("settings.musicStyle")
-        );
+        Label musicStyleLabel = createSettingsLabel(controller.text("settings.musicStyle"));
 
-        table.add(musicStyleLabel)
-            .left();
+        table.add(musicStyleLabel).left();
 
         musicStyleSelectBox = new SelectBox<>(skin);
 
         musicStyleSelectBox.setItems(
-            controller.text(
-                "settings.musicStyle.original"
-            ),
-            controller.text(
-                "settings.musicStyle.ambient"
-            ),
-            controller.text(
-                "settings.musicStyle.boss"
-            )
-        );
+                controller.text("settings.musicStyle.original"),
+                controller.text("settings.musicStyle.ambient"),
+                controller.text("settings.musicStyle.boss"));
 
         switch (controller.getMusicStyle()) {
             case "Ambient":
@@ -375,91 +321,60 @@ public class SettingsScreen extends ScreenAdapter {
         }
 
         musicStyleSelectBox.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    switch (
-                        musicStyleSelectBox.getSelectedIndex()
-                    ) {
-                        case 1:
-                            controller.setMusicStyle("Ambient");
-                            break;
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        switch (musicStyleSelectBox.getSelectedIndex()) {
+                            case 1:
+                                controller.setMusicStyle("Ambient");
+                                break;
 
-                        case 2:
-                            controller.setMusicStyle("Boss");
-                            break;
+                            case 2:
+                                controller.setMusicStyle("Boss");
+                                break;
 
-                        default:
-                            controller.setMusicStyle("Original");
-                            break;
+                            default:
+                                controller.setMusicStyle("Original");
+                                break;
+                        }
                     }
-                }
-            }
-        );
+                });
 
-        table.add(musicStyleSelectBox)
-            .width(300f)
-            .row();
+        table.add(musicStyleSelectBox).width(300f).row();
     }
 
     private void createThemeControl(Table table) {
-        Label themeLabel = createSettingsSectionLabel(
-            controller.text("settings.menuTheme")
-        );
+        Label themeLabel = createSettingsSectionLabel(controller.text("settings.menuTheme"));
 
-        table.add(themeLabel)
-            .left();
+        table.add(themeLabel).left();
 
         themeSelectBox = new SelectBox<>(skin);
-        themeSelectBox.setItems(
-            controller.getMenuThemeDisplayNames()
-        );
-        themeSelectBox.setSelected(
-            controller.getCurrentMenuThemeDisplayName()
-        );
+        themeSelectBox.setItems(controller.getMenuThemeDisplayNames());
+        themeSelectBox.setSelected(controller.getCurrentMenuThemeDisplayName());
 
         themeSelectBox.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    controller.setMenuTheme(
-                        controller.getMenuThemeIdFromDisplayName(
-                            themeSelectBox.getSelected()
-                        )
-                    );
-                }
-            }
-        );
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.setMenuTheme(
+                                controller.getMenuThemeIdFromDisplayName(
+                                        themeSelectBox.getSelected()));
+                    }
+                });
 
-        table.add(themeSelectBox)
-            .width(300f)
-            .row();
+        table.add(themeSelectBox).width(300f).row();
     }
 
     private void createLanguageControl(Table table) {
-        Label languageLabel = createSettingsLabel(
-            controller.text("settings.language")
-        );
+        Label languageLabel = createSettingsLabel(controller.text("settings.language"));
 
-        table.add(languageLabel)
-            .left();
+        table.add(languageLabel).left();
 
         languageSelectBox = new SelectBox<>(skin);
 
         languageSelectBox.setItems(
-            controller.text(
-                "settings.language.english"
-            ),
-            controller.text(
-                "settings.language.french"
-            )
-        );
+                controller.text("settings.language.english"),
+                controller.text("settings.language.french"));
 
         if ("fr".equals(controller.getLanguage())) {
             languageSelectBox.setSelectedIndex(1);
@@ -468,195 +383,95 @@ public class SettingsScreen extends ScreenAdapter {
         }
 
         languageSelectBox.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    if (
-                        languageSelectBox.getSelectedIndex() == 1
-                    ) {
-                        controller.setLanguage("fr");
-                    } else {
-                        controller.setLanguage("en");
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        if (languageSelectBox.getSelectedIndex() == 1) {
+                            controller.setLanguage("fr");
+                        } else {
+                            controller.setLanguage("en");
+                        }
                     }
-                }
-            }
-        );
+                });
 
-        table.add(languageSelectBox)
-            .width(300f)
-            .row();
+        table.add(languageSelectBox).width(300f).row();
     }
 
     private void createControlsSection(Table table) {
-        Label controlsTitle = createSettingsSectionLabel(
-            controller.text("settings.controls")
-        );
+        Label controlsTitle = createSettingsSectionLabel(controller.text("settings.controls"));
 
-        table.add(controlsTitle)
-            .colspan(2)
-            .padTop(18f)
-            .padBottom(8f)
-            .row();
+        table.add(controlsTitle).colspan(2).padTop(18f).padBottom(8f).row();
 
-        addControlRow(
-            table,
-            ControlAction.MOVE_LEFT,
-            "settings.moveLeft"
-        );
+        addControlRow(table, ControlAction.MOVE_LEFT, "settings.moveLeft");
 
-        addControlRow(
-            table,
-            ControlAction.MOVE_RIGHT,
-            "settings.moveRight"
-        );
+        addControlRow(table, ControlAction.MOVE_RIGHT, "settings.moveRight");
 
-        addControlRow(
-            table,
-            ControlAction.JUMP,
-            "settings.jump"
-        );
+        addControlRow(table, ControlAction.JUMP, "settings.jump");
 
-        addControlRow(
-            table,
-            ControlAction.DASH,
-            "settings.dash"
-        );
+        addControlRow(table, ControlAction.DASH, "settings.dash");
 
-        addControlRow(
-            table,
-            ControlAction.LOOK_UP,
-            "settings.lookUp"
-        );
+        addControlRow(table, ControlAction.LOOK_UP, "settings.lookUp");
 
-        addControlRow(
-            table,
-            ControlAction.LOOK_DOWN,
-            "settings.lookDown"
-        );
+        addControlRow(table, ControlAction.LOOK_DOWN, "settings.lookDown");
 
-        addControlRow(
-            table,
-            ControlAction.ATTACK,
-            "settings.attack"
-        );
+        addControlRow(table, ControlAction.ATTACK, "settings.attack");
 
-        addControlRow(
-            table,
-            ControlAction.ALTERNATE_ATTACK,
-            "settings.alternateAttack"
-        );
+        addControlRow(table, ControlAction.ALTERNATE_ATTACK, "settings.alternateAttack");
 
-        addControlRow(
-            table,
-            ControlAction.FOCUS,
-            "settings.focus"
-        );
+        addControlRow(table, ControlAction.FOCUS, "settings.focus");
 
-        addControlRow(
-            table,
-            ControlAction.FIREBALL,
-            "settings.fireball"
-        );
+        addControlRow(table, ControlAction.FIREBALL, "settings.fireball");
 
-        addControlRow(
-            table,
-            ControlAction.SCREAM,
-            "settings.scream"
-        );
+        addControlRow(table, ControlAction.SCREAM, "settings.scream");
 
-        addControlRow(
-            table,
-            ControlAction.INTERACT,
-            "settings.interact"
-        );
+        addControlRow(table, ControlAction.INTERACT, "settings.interact");
 
-        addControlRow(
-            table,
-            ControlAction.DIALOGUE_ADVANCE,
-            "settings.dialogueAdvance"
-        );
+        addControlRow(table, ControlAction.DIALOGUE_ADVANCE, "settings.dialogueAdvance");
 
-        addControlRow(
-            table,
-            ControlAction.INVENTORY,
-            "settings.inventory"
-        );
+        addControlRow(table, ControlAction.INVENTORY, "settings.inventory");
 
-        addControlRow(
-            table,
-            ControlAction.PAUSE,
-            "settings.pause"
-        );
+        addControlRow(table, ControlAction.PAUSE, "settings.pause");
 
-        TextButton resetControlsButton = menuTheme.createMenuButton(
-            controller.text("settings.resetControls")
-        );
+        TextButton resetControlsButton =
+                menuTheme.createMenuButton(controller.text("settings.resetControls"));
 
         resetControlsButton.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    waitingForControl = null;
-                    controller.resetControls();
-                    refreshControlButtons();
-                }
-            }
-        );
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        waitingForControl = null;
+                        controller.resetControls();
+                        refreshControlButtons();
+                    }
+                });
 
         resetControlsButton.getLabel().setFontScale(SETTINGS_BUTTON_SCALE);
 
-        table.add(resetControlsButton)
-            .colspan(2)
-            .width(300f)
-            .height(42f)
-            .center()
-            .padTop(8f)
-            .row();
+        table.add(resetControlsButton).colspan(2).width(300f).height(42f).center().padTop(8f).row();
     }
 
-    private void addControlRow(
-        Table table,
-        ControlAction action,
-        String labelKey
-    ) {
-        Label actionLabel = createSettingsLabel(
-            controller.text(labelKey)
-        );
+    private void addControlRow(Table table, ControlAction action, String labelKey) {
+        Label actionLabel = createSettingsLabel(controller.text(labelKey));
 
-        TextButton keyButton = menuTheme.createMenuButton(
-            controller.keyName(getControlKey(action))
-        );
+        TextButton keyButton =
+                menuTheme.createMenuButton(controller.keyName(getControlKey(action)));
 
         keyButton.getLabel().setFontScale(SETTINGS_BUTTON_SCALE);
 
         keyButton.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    waitingForControl = action;
-                    refreshControlButtons();
-                }
-            }
-        );
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        waitingForControl = action;
+                        refreshControlButtons();
+                    }
+                });
 
         controlButtons.put(action, keyButton);
 
-        table.add(actionLabel)
-            .left();
+        table.add(actionLabel).left();
 
-        table.add(keyButton)
-            .width(300f)
-            .height(38f)
-            .row();
+        table.add(keyButton).width(300f).height(38f).row();
     }
 
     private int getControlKey(ControlAction action) {
@@ -707,16 +522,11 @@ public class SettingsScreen extends ScreenAdapter {
                 return controller.getPauseKey();
 
             default:
-                throw new IllegalArgumentException(
-                    "Unknown control action: " + action
-                );
+                throw new IllegalArgumentException("Unknown control action: " + action);
         }
     }
 
-    private void setControlKey(
-        ControlAction action,
-        int keycode
-    ) {
+    private void setControlKey(ControlAction action, int keycode) {
         switch (action) {
             case MOVE_LEFT:
                 controller.setMoveLeftKey(keycode);
@@ -779,106 +589,72 @@ public class SettingsScreen extends ScreenAdapter {
                 break;
 
             default:
-                throw new IllegalArgumentException(
-                    "Unknown control action: " + action
-                );
+                throw new IllegalArgumentException("Unknown control action: " + action);
         }
     }
 
     private void refreshControlButtons() {
-        for (
-            Map.Entry<ControlAction, TextButton> entry
-                : controlButtons.entrySet()
-        ) {
+        for (Map.Entry<ControlAction, TextButton> entry : controlButtons.entrySet()) {
             if (entry.getKey() == waitingForControl) {
-                entry.getValue().setText(
-                    controller.text("settings.pressKey")
-                );
+                entry.getValue().setText(controller.text("settings.pressKey"));
             } else {
-                entry.getValue().setText(
-                    controller.keyName(
-                        getControlKey(entry.getKey())
-                    )
-                );
+                entry.getValue().setText(controller.keyName(getControlKey(entry.getKey())));
             }
         }
     }
 
     private void createButtons(Table table) {
-        TextButton resetAudioButton = menuTheme.createMenuButton(
-            controller.text("settings.resetAudio")
-        );
+        TextButton resetAudioButton =
+                menuTheme.createMenuButton(controller.text("settings.resetAudio"));
 
         resetAudioButton.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    controller.resetAudio();
-                    refreshAudioControls();
-                }
-            }
-        );
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.resetAudio();
+                        refreshAudioControls();
+                    }
+                });
 
         resetAudioButton.getLabel().setFontScale(SETTINGS_BUTTON_SCALE);
 
-        table.add(resetAudioButton)
-            .width(240f)
-            .height(44f)
-            .padTop(20f);
+        table.add(resetAudioButton).width(240f).height(44f).padTop(20f);
 
-        TextButton resetAllButton = menuTheme.createMenuButton(
-            controller.text("settings.resetAll")
-        );
+        TextButton resetAllButton =
+                menuTheme.createMenuButton(controller.text("settings.resetAll"));
 
         resetAllButton.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    controller.resetAllSettings();
-                }
-            }
-        );
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.resetAllSettings();
+                    }
+                });
 
         resetAllButton.getLabel().setFontScale(SETTINGS_BUTTON_SCALE);
 
-        table.add(resetAllButton)
-            .width(240f)
-            .height(44f)
-            .padTop(20f)
-            .row();
+        table.add(resetAllButton).width(240f).height(44f).padTop(20f).row();
 
-        TextButton backButton = menuTheme.createMenuButton(
-            controller.text("common.back")
-        );
+        TextButton backButton = menuTheme.createMenuButton(controller.text("common.back"));
 
         backButton.getLabel().setFontScale(0.94f);
 
         backButton.addListener(
-            new ChangeListener() {
-                @Override
-                public void changed(
-                    ChangeEvent event,
-                    Actor actor
-                ) {
-                    controller.goBack();
-                }
-            }
-        );
+                new ChangeListener() {
+                    @Override
+                    public void changed(ChangeEvent event, Actor actor) {
+                        controller.goBack();
+                    }
+                });
 
         table.add(backButton)
-            .colspan(2)
-            .width(240f)
-            .height(46f)
-            .center()
-            .padTop(12f)
-            .padBottom(20f)
-            .row();
+                .colspan(2)
+                .width(240f)
+                .height(46f)
+                .center()
+                .padTop(12f)
+                .padBottom(20f)
+                .row();
     }
 
     private Label createSettingsLabel(String text) {
@@ -896,23 +672,15 @@ public class SettingsScreen extends ScreenAdapter {
     private void refreshAudioControls() {
         musicCheckBox.getLabel().setFontScale(SETTINGS_CHECKBOX_SCALE);
 
-        musicCheckBox.setChecked(
-            controller.isMusicEnabled()
-        );
+        musicCheckBox.setChecked(controller.isMusicEnabled());
 
         soundEffectsCheckBox.getLabel().setFontScale(SETTINGS_CHECKBOX_SCALE);
 
-        soundEffectsCheckBox.setChecked(
-            controller.isSoundEffectsEnabled()
-        );
+        soundEffectsCheckBox.setChecked(controller.isSoundEffectsEnabled());
 
-        musicVolumeSlider.setValue(
-            controller.getMusicVolume()
-        );
+        musicVolumeSlider.setValue(controller.getMusicVolume());
 
-        soundEffectsVolumeSlider.setValue(
-            controller.getSoundEffectsVolume()
-        );
+        soundEffectsVolumeSlider.setValue(controller.getSoundEffectsVolume());
 
         switch (controller.getMusicStyle()) {
             case "Ambient":
@@ -926,64 +694,6 @@ public class SettingsScreen extends ScreenAdapter {
             default:
                 musicStyleSelectBox.setSelectedIndex(0);
                 break;
-        }
-    }
-
-    @Override
-    public void render(float delta) {
-        Gdx.gl.glClearColor(
-            0.01f,
-            0.01f,
-            0.015f,
-            1f
-        );
-
-        Gdx.gl.glClear(
-            GL20.GL_COLOR_BUFFER_BIT
-        );
-
-        menuTheme.drawBackground(
-            delta,
-            false
-        );
-
-        stage.act(
-            Math.min(delta, 1f / 30f)
-        );
-
-        stage.draw();
-    }
-
-    @Override
-    public void resize(
-        int width,
-        int height
-    ) {
-        stage.getViewport().update(
-            width,
-            height,
-            true
-        );
-    }
-
-    @Override
-    public void hide() {
-        if (
-            Gdx.input.getInputProcessor()
-                == inputMultiplexer
-        ) {
-            Gdx.input.setInputProcessor(null);
-        }
-    }
-
-    @Override
-    public void dispose() {
-        if (stage != null) {
-            stage.dispose();
-        }
-
-        if (menuTheme != null) {
-            menuTheme.dispose();
         }
     }
 }

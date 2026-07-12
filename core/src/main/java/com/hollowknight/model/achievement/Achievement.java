@@ -8,11 +8,7 @@ public class Achievement {
 
     private boolean unlocked;
 
-    public Achievement(
-        AchievementType type,
-        String titleKey,
-        String descriptionKey
-    ) {
+    public Achievement(AchievementType type, String titleKey, String descriptionKey) {
         this.type = type;
         this.titleKey = titleKey;
         this.descriptionKey = descriptionKey;

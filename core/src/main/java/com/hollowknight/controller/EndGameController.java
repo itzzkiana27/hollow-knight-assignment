@@ -6,12 +6,10 @@ import com.hollowknight.model.EndGameStats;
 public final class EndGameController {
 
     private final HollowKnightGame game;
+
     private final EndGameStats stats;
 
-    public EndGameController(
-        HollowKnightGame game,
-        EndGameStats stats
-    ) {
+    public EndGameController(HollowKnightGame game, EndGameStats stats) {
         this.game = game;
         this.stats = stats;
     }
@@ -20,46 +18,35 @@ public final class EndGameController {
         return game.getLocalization().get(key);
     }
 
-    public String format(
-        String key,
-        Object... arguments
-    ) {
-        return game
-            .getLocalization()
-            .format(key, arguments);
-    }
-
-    public EndGameStats getStats() {
-        return stats;
+    public String format(String key, Object... arguments) {
+        return game.getLocalization().format(key, arguments);
     }
 
     public boolean shouldPlayVictoryMusic() {
         return game.getSettings().isMusicEnabled();
     }
 
-    public float getVictoryMusicVolume() {
-        return game.getSettings().getMusicVolume();
-    }
-
     public String getFormattedTime() {
-        int totalSeconds = (int) stats.getElapsedSeconds();
+        int totalSeconds = (int) stats.elapsedSeconds();
         int minutes = totalSeconds / 60;
         int seconds = totalSeconds % 60;
 
-        return String.format(
-            "%02d:%02d",
-            minutes,
-            seconds
-        );
+        return String.format("%02d:%02d", minutes, seconds);
     }
 
     public void restartGame() {
-        game.showGameScreenForSlot(
-            game.getActiveSaveSlot()
-        );
+        game.showGameScreenForSlot(game.getActiveSaveSlot());
     }
 
     public void backToMainMenu() {
         game.showMainMenu();
+    }
+
+    public EndGameStats getStats() {
+        return stats;
+    }
+
+    public float getVictoryMusicVolume() {
+        return game.getSettings().getMusicVolume();
     }
 }

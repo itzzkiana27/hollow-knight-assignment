@@ -1,10 +1,8 @@
 package com.hollowknight.model.player;
 
 /**
- * Manages uninterrupted Focus healing.
- *
- * This class contains no LibGDX input code.
- * The controller provides the current conditions.
+ * Manages uninterrupted Focus healing. Contains no LibGDX input code; the controller provides the
+ * current conditions.
  */
 public final class PlayerFocus {
 
@@ -14,10 +12,10 @@ public final class PlayerFocus {
         HEALED
     }
 
-    private static final float FOCUS_DURATION =
-        1.5f;
+    private static final float FOCUS_DURATION = 1.5f;
 
     private float focusTime;
+
     private boolean active;
 
     public PlayerFocus() {
@@ -26,11 +24,7 @@ public final class PlayerFocus {
     }
 
     public boolean tryStart(
-        boolean onGround,
-        boolean stationary,
-        PlayerHealth health,
-        PlayerSoul soul
-    ) {
+            boolean onGround, boolean stationary, PlayerHealth health, PlayerSoul soul) {
         if (active) {
             return false;
         }
@@ -43,11 +37,7 @@ public final class PlayerFocus {
             return false;
         }
 
-        if (
-            !soul.canSpend(
-                PlayerSoul.FOCUS_COST
-            )
-        ) {
+        if (!soul.canSpend(PlayerSoul.FOCUS_COST)) {
             return false;
         }
 
@@ -58,24 +48,19 @@ public final class PlayerFocus {
     }
 
     public UpdateResult update(
-        float delta,
-        boolean focusHeld,
-        boolean cancelRequested,
-        PlayerHealth health,
-        PlayerSoul soul
-    ) {
+            float delta,
+            boolean focusHeld,
+            boolean cancelRequested,
+            PlayerHealth health,
+            PlayerSoul soul) {
         if (!active) {
             return UpdateResult.NONE;
         }
 
-        if (
-            !focusHeld
+        if (!focusHeld
                 || cancelRequested
                 || health.isFullHealth()
-                || !soul.canSpend(
-                PlayerSoul.FOCUS_COST
-            )
-        ) {
+                || !soul.canSpend(PlayerSoul.FOCUS_COST)) {
             cancel();
 
             return UpdateResult.CANCELLED;
@@ -87,24 +72,13 @@ public final class PlayerFocus {
             return UpdateResult.NONE;
         }
 
-        /*
-         * Recheck both conditions before modifying
-         * either resource.
-         */
-        if (
-            health.isFullHealth()
-                || !soul.canSpend(
-                PlayerSoul.FOCUS_COST
-            )
-        ) {
+        if (health.isFullHealth() || !soul.canSpend(PlayerSoul.FOCUS_COST)) {
             cancel();
 
             return UpdateResult.CANCELLED;
         }
 
-        soul.spend(
-            PlayerSoul.FOCUS_COST
-        );
+        soul.spend(PlayerSoul.FOCUS_COST);
 
         health.heal(1);
 
@@ -119,18 +93,15 @@ public final class PlayerFocus {
         active = false;
     }
 
-    public boolean isActive() {
-        return active;
-    }
-
     public float getProgress() {
         if (!active) {
             return 0f;
         }
 
-        return Math.min(
-            1f,
-            focusTime / FOCUS_DURATION
-        );
+        return Math.min(1f, focusTime / FOCUS_DURATION);
+    }
+
+    public boolean isActive() {
+        return active;
     }
 }

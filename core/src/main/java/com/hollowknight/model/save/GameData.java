@@ -20,18 +20,13 @@ public class GameData {
     public int deathCount = 0;
     public int totalEnemiesKilled = 0;
 
-    public List<String> ownedCharms =
-        new ArrayList<>();
+    public List<String> ownedCharms = new ArrayList<>();
 
-    public List<String> equippedCharms =
-        new ArrayList<>();
+    public List<String> equippedCharms = new ArrayList<>();
 
-    public List<String> unlockedAchievements =
-        new ArrayList<>();
+    public List<String> unlockedAchievements = new ArrayList<>();
 
-    public List<String> killedEnemyTypes =
-        new ArrayList<>();
+    public List<String> killedEnemyTypes = new ArrayList<>();
 
-    public GameData() {
-    }
+    public GameData() {}
 }

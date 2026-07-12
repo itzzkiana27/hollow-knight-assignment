@@ -1,7 +1,6 @@
 package com.hollowknight.model.player;
 
 public enum PlayerAnimationType {
-
     IDLE,
     WALK,
     RUN,

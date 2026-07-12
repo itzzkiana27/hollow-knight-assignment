@@ -7,6 +7,7 @@ import com.hollowknight.model.GameSettings;
 public class GuideController {
 
     private final HollowKnightGame game;
+
     private final GameSettings settings;
 
     public GuideController(HollowKnightGame game) {
@@ -20,6 +21,10 @@ public class GuideController {
 
     public String keyName(int keycode) {
         return Input.Keys.toString(keycode);
+    }
+
+    public void backToMainMenu() {
+        game.showMainMenu();
     }
 
     public int getMoveLeftKey() {
@@ -80,9 +85,5 @@ public class GuideController {
 
     public int getPauseKey() {
         return settings.getPauseKey();
-    }
-
-    public void backToMainMenu() {
-        game.showMainMenu();
     }
 }

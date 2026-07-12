@@ -1,4 +1,3 @@
 package com.hollowknight.model;
 
-public class Language {
-}
+public class Language {}

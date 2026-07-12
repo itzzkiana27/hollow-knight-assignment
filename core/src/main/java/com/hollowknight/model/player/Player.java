@@ -24,9 +24,7 @@ public class Player {
         dead = false;
     }
 
-    public void setAnimation(
-        PlayerAnimationType newAnimation
-    ) {
+    public void setAnimation(PlayerAnimationType newAnimation) {
         if (animationType != newAnimation) {
             animationType = newAnimation;
             animationTime = 0f;
@@ -60,9 +58,7 @@ public class Player {
         return movementState;
     }
 
-    public void setMovementState(
-        PlayerMovementState movementState
-    ) {
+    public void setMovementState(PlayerMovementState movementState) {
         this.movementState = movementState;
     }
 
